@@ -1,0 +1,61 @@
+{
+	"servers": {
+		"github/github-mcp-server": {
+			"type": "http",
+			"url": "https://api.githubcopilot.com/mcp/",
+			"gallery": "https://api.mcp.github.com",
+			"version": "0.13.0"
+		},
+		"microsoft/azure-mcp-server": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@azure/mcp@latest",
+				"server",
+				"start"
+			],
+			"env": {
+				"AZURE_TENANT_ID": "${input:azure_tenant_id}",
+				"AZURE_CLIENT_ID": "${input:azure_client_id}",
+				"AZURE_CLIENT_SECRET": "${input:azure_client_secret}",
+				"AZURE_SUBSCRIPTION_ID": "${input:azure_subscription_id}",
+				"AZURE_MCP_COLLECT_TELEMETRY": "${input:azure_mcp_collect_telemetry}"
+			},
+			"gallery": "https://api.mcp.github.com",
+			"version": "1.0.0"
+		}
+	},
+	"inputs": [
+		{
+			"id": "azure_tenant_id",
+			"type": "promptString",
+			"description": "Tenant ID (for service principal / workload identity auth).",
+			"password": false
+		},
+		{
+			"id": "azure_client_id",
+			"type": "promptString",
+			"description": "Client ID (service principal or managed identity).",
+			"password": false
+		},
+		{
+			"id": "azure_client_secret",
+			"type": "promptString",
+			"description": "Client secret (if using service principal secret).",
+			"password": true
+		},
+		{
+			"id": "azure_subscription_id",
+			"type": "promptString",
+			"description": "Optional: prefer a specific subscription by default.",
+			"password": false
+		},
+		{
+			"id": "azure_mcp_collect_telemetry",
+			"type": "promptString",
+			"description": "Set to 'false' to opt out of telemetry (default is true).",
+			"password": false
+		}
+	]
+}
