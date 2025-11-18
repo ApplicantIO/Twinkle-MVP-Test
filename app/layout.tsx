@@ -8,7 +8,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Twinkle - Video Platform for Uzbekistan",
+  title: "Twinkle - #SaviyaliKontent",
   description: "Video sharing platform for creators",
 };
 
