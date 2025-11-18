@@ -173,11 +173,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     setSignupStep('email');
     setCodeSent(false);
     setShowPassword(false);
-    setShowConfirmPassword(false);
+    // Xatoga sabab bo'lgan qator olib tashlandi
     setPasswordMismatch(false);
     setLoginError('');
     setPasswordError(false);
-  };
+};
 
   
 
