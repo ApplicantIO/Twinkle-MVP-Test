@@ -9,6 +9,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "#SaviyaliKontent =)",
+  title: "Saviyali Kontent =)",
   description: "Video sharing platform for creators",
 };
 
