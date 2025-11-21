@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, Upload, User, LogOut, Settings, Globe, Palette, Monitor, Sun, Moon, MessageSquare, HelpCircle } from 'lucide-react';
+import { Search, Upload, User, LogOut, Settings, Globe, Palette, Monitor, Sun, Moon, MessageSquare, HelpCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -226,6 +227,8 @@ export function Header() {
                   className="text-text-primary hover:bg-background cursor-pointer mb-2"
                 >
                   ← Back
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
                 </DropdownMenuItem>
                 <div className="border-t border-surface my-1" />
                 
@@ -287,6 +290,8 @@ export function Header() {
                   className="text-text-primary hover:bg-background cursor-pointer mb-2"
                 >
                   ← Back
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
                 </DropdownMenuItem>
                 <div className="border-t border-surface my-1" />
                 
