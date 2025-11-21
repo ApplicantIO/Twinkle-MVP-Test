@@ -395,16 +395,6 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
 
           {/* Signup Form - Details Step */}
           {mode === 'signup' && signupStep === 'details' && (
-            <div className="space-y-4">
-              <div className="text-center mb-4">
-                <button
-                  type="button"
-                  onClick={() => switchMode('login')}
-                  className="text-sm text-accent hover:underline"
-                >
-                  ← Back to Login
-                </button>
-              </div>
             <form onSubmit={handleSignupDetails} className="space-y-4">
               <div className="flex gap-2">
                 <div className="flex-1 space-y-2">
@@ -525,7 +515,6 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 Back
               </button>
             </form>
-            </div>
           )}
         </div>
       </div>
