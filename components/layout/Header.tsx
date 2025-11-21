@@ -16,6 +16,7 @@ export function Header() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
   const [language, setLanguage] = useState('en');
   const [appearance, setAppearance] = useState('system');
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'appearance'>('main');
@@ -111,14 +112,27 @@ export function Header() {
             </DropdownMenu>
           </>
         ) : (
-          <Button
-            onClick={() => {
-              setIsAuthModalOpen(true);
-            }}
-            className="bg-accent hover:bg-accent/90 text-white"
-          >
-            Login
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setAuthModalMode('login');
+                setIsAuthModalOpen(true);
+              }}
+              className="text-text-secondary hover:text-text-primary"
+            >
+              Sign In
+            </Button>
+            <Button
+              onClick={() => {
+                setAuthModalMode('signup');
+                setIsAuthModalOpen(true);
+              }}
+              className="bg-accent hover:bg-accent/90 text-white"
+            >
+              Sign Up
+            </Button>
+          </div>
         )}
 
         {/* Settings Dropdown - at the end */}
