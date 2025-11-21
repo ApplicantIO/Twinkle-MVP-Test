@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Video, Library, Settings } from 'lucide-react';
+import { Home, Sparkles, Headphones, Users, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -12,8 +12,9 @@ export function Sidebar() {
 
   const menuItems = [
     { icon: Home, label: 'Home', href: '/' },
-    { icon: Video, label: 'Subscriptions', href: '/subscriptions', disabled: true },
-    { icon: Library, label: 'Library', href: '/library', disabled: true },
+    { icon: Sparkles, label: 'Daily', href: '/daily' },
+    { icon: Headphones, label: 'Podcast', href: '/podcast' },
+    { icon: Users, label: 'Fan Zone', href: '/fan-zone' },
   ];
 
   const creatorItems = user?.role === 'creator' || user?.role === 'admin' ? [
@@ -21,7 +22,7 @@ export function Sidebar() {
   ] : [];
 
   return (
-    <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-background border-r border-surface pt-4 overflow-y-auto">
+    <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-background border-r border-surface pt-4 overflow-y-auto z-40">
       <nav className="px-2 space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;

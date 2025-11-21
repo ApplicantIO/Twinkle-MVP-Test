@@ -17,12 +17,25 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  /* Always reserve space for scrollbar to prevent layout shift */
+  overflow-y: scroll;
+}
+
 body {
   background: var(--background);
   color: var(--text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  /* Prevent layout shift */
+  position: relative;
+  width: 100%;
+  /* Ensure body maintains width even when scrollbar appears/disappears */
+  min-height: 100vh;
 }
 
 /* Scrollbar styling */

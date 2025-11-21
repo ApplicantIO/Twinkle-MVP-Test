@@ -9,16 +9,17 @@ import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from '@/components/AuthModal';
+import { cn } from '@/lib/utils';
 
 export function Header() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
   const [language, setLanguage] = useState('en');
   const [appearance, setAppearance] = useState('system');
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'appearance'>('main');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +47,7 @@ export function Header() {
             placeholder="Search videos..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-4 pr-12 bg-surface border-surface text-text-primary placeholder:text-text-secondary rounded-full h-10"
+            className="pl-4 pr-12 bg-surface border border-gray-700 text-text-primary placeholder:text-text-secondary rounded-full h-10 focus:border-gray-600"
           />
           <button
             type="submit"
@@ -110,38 +111,34 @@ export function Header() {
             </DropdownMenu>
           </>
         ) : (
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setAuthModalMode('login');
-                setIsAuthModalOpen(true);
-              }}
-              className="text-text-secondary hover:text-text-primary"
-            >
-              Sign In
-            </Button>
-            <Button
-              onClick={() => {
-                setAuthModalMode('signup');
-                setIsAuthModalOpen(true);
-              }}
-              className="bg-accent hover:bg-accent/90 text-white"
-            >
-              Sign Up
-            </Button>
-          </div>
+          <Button
+            onClick={() => {
+              setIsAuthModalOpen(true);
+            }}
+            className="bg-accent hover:bg-accent/90 text-white"
+          >
+            Login
+          </Button>
         )}
 
         {/* Settings Dropdown - at the end */}
-        <DropdownMenu open={settingsView !== 'main' || undefined} onOpenChange={(open) => {
-          if (!open) setSettingsView('main');
-        }}>
+        <DropdownMenu 
+          open={isSettingsOpen} 
+          onOpenChange={(open) => {
+            setIsSettingsOpen(open);
+            if (!open) {
+              setSettingsView('main');
+            }
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="text-text-secondary hover:text-text-primary hover:bg-surface"
+              className={cn(
+                "text-text-secondary hover:text-text-primary hover:bg-surface",
+                isSettingsOpen && "bg-surface text-text-primary"
+              )}
               title="Settings"
             >
               <Settings className="h-5 w-5" />
@@ -152,7 +149,10 @@ export function Header() {
               <>
                 {/* Language */}
                 <DropdownMenuItem
-                  onClick={() => setSettingsView('language')}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setSettingsView('language');
+                  }}
                   className="text-text-primary hover:bg-background cursor-pointer flex justify-between"
                 >
                   <div className="flex gap-2">
@@ -164,42 +164,30 @@ export function Header() {
 
                 {/* Appearance */}
                 <DropdownMenuItem
-                  onClick={() => setSettingsView('appearance')}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setSettingsView('appearance');
+                  }}
                   className="text-text-primary hover:bg-background cursor-pointer flex justify-between"
                 >
                   <div className="flex gap-2">
-                    <Palette className="h-4 w-4" />
+                    <Moon className="h-4 w-4" />
                     <span>Appearance</span>
                   </div>
                   <span className="text-xs text-text-secondary">
-                    {appearance === 'system' ? '☽' : appearance === 'dark' ? '●' : '○'}
+                    {appearance === 'system' ? <Monitor className="h-3 w-3" /> : appearance === 'dark' ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
                   </span>
                 </DropdownMenuItem>
 
                 {/* Divider */}
                 <div className="border-t border-surface my-1" />
 
-                {/* Settings */}
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (user) {
-                      router.push('/studio/settings');
-                    } else {
-                      setAuthModalMode('login');
-                      setIsAuthModalOpen(true);
-                    }
-                  }}
-                  className="text-text-primary hover:bg-background cursor-pointer"
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Settings
-                </DropdownMenuItem>
-
                 {/* Feedback */}
                 <DropdownMenuItem
                   onClick={() => router.push('/feedback')}
                   className="text-text-primary hover:bg-background cursor-pointer"
                 >
+                  <MessageSquare className="h-4 w-4 mr-2" />
                   Feedback
                 </DropdownMenuItem>
 
@@ -208,6 +196,7 @@ export function Header() {
                   onClick={() => router.push('/help')}
                   className="text-text-primary hover:bg-background cursor-pointer"
                 >
+                  <HelpCircle className="h-4 w-4 mr-2" />
                   Help
                 </DropdownMenuItem>
               </>
@@ -216,104 +205,125 @@ export function Header() {
             {settingsView === 'language' && (
               <>
                 <DropdownMenuItem
-                  onClick={() => setSettingsView('main')}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setSettingsView('main');
+                  }}
                   className="text-text-primary hover:bg-background cursor-pointer mb-2"
                 >
                   ← Back
                 </DropdownMenuItem>
                 <div className="border-t border-surface my-1" />
                 
-                <button
-                  onClick={() => {
-                    setLanguage('en');
-                    setSettingsView('main');
-                  }}
-                  className={`block w-full text-left px-4 py-2 text-sm ${
-                    language === 'en'
-                      ? 'bg-accent text-white'
-                      : 'text-text-primary hover:bg-background'
-                  }`}
-                >
-                  English
-                </button>
-                <button
-                  onClick={() => {
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
                     setLanguage('uz');
                     setSettingsView('main');
+                    setIsSettingsOpen(false);
                   }}
-                  className={`block w-full text-left px-4 py-2 text-sm ${
+                  className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
                     language === 'uz'
                       ? 'bg-accent text-white'
                       : 'text-text-primary hover:bg-background'
                   }`}
                 >
-                  Ўзбек
-                </button>
-                <button
-                  onClick={() => {
+                  O'zbek 🇺🇿
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setLanguage('en');
+                    setSettingsView('main');
+                    setIsSettingsOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                    language === 'en'
+                      ? 'bg-accent text-white'
+                      : 'text-text-primary hover:bg-background'
+                  }`}
+                >
+                  English 🇬🇧
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
                     setLanguage('ru');
                     setSettingsView('main');
+                    setIsSettingsOpen(false);
                   }}
-                  className={`block w-full text-left px-4 py-2 text-sm ${
+                  className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
                     language === 'ru'
                       ? 'bg-accent text-white'
                       : 'text-text-primary hover:bg-background'
                   }`}
                 >
-                  Русский
-                </button>
+                  Russian 🇷🇺
+                </DropdownMenuItem>
               </>
             )}
 
             {settingsView === 'appearance' && (
               <>
                 <DropdownMenuItem
-                  onClick={() => setSettingsView('main')}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setSettingsView('main');
+                  }}
                   className="text-text-primary hover:bg-background cursor-pointer mb-2"
                 >
                   ← Back
                 </DropdownMenuItem>
                 <div className="border-t border-surface my-1" />
                 
-                <button
-                  onClick={() => {
-                    setAppearance('light');
-                    setSettingsView('main');
-                  }}
-                  className={`block w-full text-left px-4 py-2 text-sm ${
-                    appearance === 'light'
-                      ? 'bg-accent text-white'
-                      : 'text-text-primary hover:bg-background'
-                  }`}
-                >
-                  Light
-                </button>
-                <button
-                  onClick={() => {
-                    setAppearance('dark');
-                    setSettingsView('main');
-                  }}
-                  className={`block w-full text-left px-4 py-2 text-sm ${
-                    appearance === 'dark'
-                      ? 'bg-accent text-white'
-                      : 'text-text-primary hover:bg-background'
-                  }`}
-                >
-                  Dark
-                </button>
-                <button
-                  onClick={() => {
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
                     setAppearance('system');
                     setSettingsView('main');
+                    setIsSettingsOpen(false);
                   }}
-                  className={`block w-full text-left px-4 py-2 text-sm ${
+                  className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
                     appearance === 'system'
                       ? 'bg-accent text-white'
                       : 'text-text-primary hover:bg-background'
                   }`}
                 >
+                  <Monitor className="h-4 w-4" />
                   System
-                </button>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setAppearance('light');
+                    setSettingsView('main');
+                    setIsSettingsOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                    appearance === 'light'
+                      ? 'bg-accent text-white'
+                      : 'text-text-primary hover:bg-background'
+                  }`}
+                >
+                  <Sun className="h-4 w-4" />
+                  Light
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setAppearance('dark');
+                    setSettingsView('main');
+                    setIsSettingsOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                    appearance === 'dark'
+                      ? 'bg-accent text-white'
+                      : 'text-text-primary hover:bg-background'
+                  }`}
+                >
+                  <Moon className="h-4 w-4" />
+                  Dark
+                </DropdownMenuItem>
               </>
             )}
           </DropdownMenuContent>
@@ -321,7 +331,7 @@ export function Header() {
       </div>
 
       {/* Auth Modal */}
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} initialMode={authModalMode} />
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </header>
   );
 }

@@ -182,8 +182,22 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-40 flex items-start justify-end pt-20 pr-4">
-      <div className="w-full max-w-sm bg-background border border-surface rounded-lg shadow-xl relative">
+    <div 
+      className="fixed inset-0 bg-black/50 z-40 flex items-start justify-end pt-20 pr-4"
+      onClick={(e) => {
+        // Close modal when clicking on the overlay (background)
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div 
+        className="w-full max-w-sm bg-background border border-surface rounded-lg shadow-xl relative"
+        onClick={(e) => {
+          // Prevent closing when clicking inside the modal
+          e.stopPropagation();
+        }}
+      >
         {/* Close button */}
         <button
           onClick={onClose}
@@ -381,6 +395,16 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
 
           {/* Signup Form - Details Step */}
           {mode === 'signup' && signupStep === 'details' && (
+            <div className="space-y-4">
+              <div className="text-center mb-4">
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  className="text-sm text-accent hover:underline"
+                >
+                  ← Back to Login
+                </button>
+              </div>
             <form onSubmit={handleSignupDetails} className="space-y-4">
               <div className="flex gap-2">
                 <div className="flex-1 space-y-2">
@@ -501,6 +525,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 Back
               </button>
             </form>
+            </div>
           )}
         </div>
       </div>

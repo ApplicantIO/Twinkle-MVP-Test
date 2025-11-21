@@ -13,7 +13,7 @@ const DropdownMenuContent = React.forwardRef<
     <DropdownMenuPrimitive.Content
       ref={ref}
       className={cn(
-        "z-50 min-w-[8rem] overflow-hidden rounded-md border border-surface bg-surface p-1 text-text-primary shadow-md",
+        "z-[100] min-w-[8rem] overflow-hidden rounded-md border border-surface bg-surface p-1 text-text-primary shadow-md",
         className
       )}
       {...props}
