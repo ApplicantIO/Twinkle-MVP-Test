@@ -16,6 +16,11 @@ const config: Config = {
         accent: "#947CF2",
         error: "#FF4D4D",
       },
+      screens: {
+        'xs': '475px',
+        '3xl': '1920px',
+        '4xl': '2560px',
+      },
     },
   },
   plugins: [],

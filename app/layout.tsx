@@ -23,7 +23,7 @@ export default function RootLayout({
         <AuthProvider>
           <Header />
           <Sidebar />
-          <main className="ml-64 pt-16 min-h-screen">
+          <main className="ml-56 pt-16 min-h-screen">
         {children}
           </main>
         </AuthProvider>

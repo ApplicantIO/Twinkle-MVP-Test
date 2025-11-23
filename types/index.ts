@@ -11,6 +11,8 @@ export interface User {
   createdAt: Date;
 }
 
+export type VideoType = 'free' | 'paid' | 'subscription';
+
 export interface Video {
   id: string;
   userId: string;
@@ -22,6 +24,14 @@ export interface Video {
   category?: string;
   createdAt: Date;
   updatedAt: Date;
+  // Video monetization fields
+  type?: VideoType; // 'free', 'paid', 'subscription'
+  price?: number; // Price in local currency for paid videos
+  currency?: string; // Currency code (e.g., 'USD', 'UZS')
+  // Live streaming fields
+  isLive?: boolean; // Whether the video is currently live
+  liveViewers?: number; // Current number of live viewers
+  duration?: number; // Video duration in seconds (for non-live videos)
   user?: {
     id: string;
     name?: string;

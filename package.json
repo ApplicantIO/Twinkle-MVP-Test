@@ -10,7 +10,10 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
-    "setup": "npm install && npx prisma generate && npx prisma db push && mkdir -p public/uploads/profiles public/uploads/banners"
+    "setup": "npm install && npx prisma generate && npx prisma db push && mkdir -p public/uploads/profiles public/uploads/banners public/uploads/thumbnails",
+    "import:youtube": "tsx scripts/import-youtube-creator.ts",
+    "check:videos": "tsx scripts/check-videos.ts",
+    "setup:twinkle": "tsx scripts/setup-twinkle-creator.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -22,6 +25,7 @@
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fast-average-color": "^9.5.0",
     "firebase": "^12.6.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.553.0",
@@ -44,6 +48,7 @@
     "postcss": "^8.5.6",
     "prisma": "^6.19.0",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

@@ -18,6 +18,26 @@ export function VideoPlayer({ videoUrl, autoPlay = false }: VideoPlayerProps) {
   const [duration, setDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Check if this is a YouTube embed URL
+  const isYouTubeEmbed = videoUrl.includes('youtube.com/embed') || videoUrl.includes('youtu.be');
+  
+  // Extract YouTube video ID for embed
+  const getYouTubeEmbedUrl = (url: string): string => {
+    if (url.includes('youtube.com/embed/')) {
+      const videoId = url.split('youtube.com/embed/')[1].split('?')[0];
+      return `https://www.youtube.com/embed/${videoId}${autoPlay ? '?autoplay=1' : ''}`;
+    }
+    if (url.includes('youtu.be/')) {
+      const videoId = url.split('youtu.be/')[1].split('?')[0];
+      return `https://www.youtube.com/embed/${videoId}${autoPlay ? '?autoplay=1' : ''}`;
+    }
+    if (url.includes('youtube.com/watch?v=')) {
+      const videoId = url.split('youtube.com/watch?v=')[1].split('&')[0];
+      return `https://www.youtube.com/embed/${videoId}${autoPlay ? '?autoplay=1' : ''}`;
+    }
+    return url;
+  };
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -98,6 +118,21 @@ export function VideoPlayer({ videoUrl, autoPlay = false }: VideoPlayerProps) {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // If it's a YouTube embed, render iframe
+  if (isYouTubeEmbed) {
+    return (
+      <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%', height: 0 }}>
+        <iframe
+          src={getYouTubeEmbedUrl(videoUrl)}
+          className="absolute top-0 left-0 w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title="YouTube video player"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full bg-black rounded-lg overflow-hidden">
