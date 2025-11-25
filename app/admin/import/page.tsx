@@ -193,6 +193,91 @@ export default function ImportPage() {
           </div>
         </div>
 
+        {/* Individual Videos Import Section */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-text-primary">Import Individual YouTube Videos</h2>
+          <div className="space-y-2">
+            <Label htmlFor="videoUrls" className="text-text-primary">
+              YouTube Video URLs (one per line)
+            </Label>
+            <textarea
+              id="videoUrls"
+              rows={10}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-text-primary font-mono text-sm"
+              placeholder="https://www.youtube.com/watch?v=VIDEO_ID_1&#10;https://www.youtube.com/watch?v=VIDEO_ID_2&#10;..."
+            />
+            <p className="text-sm text-text-secondary">
+              Enter YouTube video URLs, one per line. Each video will be imported with its creator.
+            </p>
+          </div>
+
+          <Button
+            onClick={async () => {
+              const textarea = document.getElementById('videoUrls') as HTMLTextAreaElement;
+              const urls = textarea.value
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+              
+              if (urls.length === 0) {
+                alert('Please enter at least one video URL');
+                return;
+              }
+
+              setLoading(true);
+              setResult(null);
+
+              try {
+                const response = await fetch('/api/admin/import-videos', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ videoUrls: urls }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                  setResult({
+                    success: true,
+                    message: `Successfully imported ${data.imported} videos! ${data.skipped} skipped, ${data.failed} failed.`,
+                    data,
+                  });
+                  textarea.value = '';
+                } else {
+                  setResult({
+                    success: false,
+                    message: data.error || 'Failed to import videos',
+                  });
+                }
+              } catch (error) {
+                setResult({
+                  success: false,
+                  message: error instanceof Error ? error.message : 'An error occurred',
+                });
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+            className="w-full bg-accent hover:bg-accent/90"
+          >
+            {loading ? 'Importing Videos...' : 'Import Videos'}
+          </Button>
+
+          {result && result.data && result.data.errors && result.data.errors.length > 0 && (
+            <div className="p-4 bg-error/20 border border-error rounded-lg">
+              <p className="text-error font-semibold mb-2">Errors:</p>
+              <ul className="list-disc list-inside text-sm text-error space-y-1">
+                {result.data.errors.map((error: string, index: number) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
         {/* Twinkle Creator Setup Section */}
         <div className="p-4 bg-surface rounded-lg border-t border-surface pt-6">
           <h2 className="text-xl font-semibold mb-4 text-text-primary">Setup Official Twinkle Creator</h2>

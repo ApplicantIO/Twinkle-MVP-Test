@@ -9,12 +9,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0F0F0F",
-        surface: "#1A1A1A",
+        background: "#0A0A0A",
+        surface: "#121212",
         "text-primary": "#FFFFFF",
-        "text-secondary": "#CCCCCC",
-        accent: "#947CF2",
-        error: "#FF4D4D",
+        "text-secondary": "#B3B3B3",
+        accent: "#7C5FD9",
+        error: "#E63946",
       },
       screens: {
         'xs': '475px',

@@ -3,16 +3,18 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Upload, User, LogOut, Settings, Globe, Palette, Monitor, Sun, Moon, MessageSquare, HelpCircle, ArrowLeft } from 'lucide-react';
+import { Search, Upload, User, LogOut, Settings, Globe, Palette, Monitor, Sun, Moon, MessageSquare, HelpCircle, ArrowLeft, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSidebar } from '@/contexts/SidebarContext';
 import AuthModal from '@/components/AuthModal';
 import { cn } from '@/lib/utils';
 
 export function Header() {
   const { user, logout } = useAuth();
+  const { setIsCollapsed, isCollapsed } = useSidebar();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -36,6 +38,17 @@ export function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 h-16 bg-background border-b border-surface z-50 flex items-center px-4">
+      {/* Menu Toggle Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="mr-3 text-text-secondary hover:text-text-primary hover:bg-surface"
+        aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+
       <Link href="/" className="flex items-center gap-2 flex-shrink-0">
         <span className="text-2xl font-bold text-accent">Twinkle</span>
       </Link>

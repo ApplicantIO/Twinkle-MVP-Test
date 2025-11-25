@@ -3,12 +3,12 @@
 @tailwind utilities;
 
 :root {
-  --background: #0F0F0F;
-  --surface: #1A1A1A;
+  --background: #0A0A0A;
+  --surface: #121212;
   --text-primary: #FFFFFF;
-  --text-secondary: #CCCCCC;
-  --accent: #947CF2;
-  --error: #FF4D4D;
+  --text-secondary: #B3B3B3;
+  --accent: #7C5FD9;
+  --error: #E63946;
 }
 
 * {
@@ -54,7 +54,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2A2A2A;
+  background: #1F1F1F;
+}
+
+/* Hide scrollbar for sidebar but keep scrolling functionality */
+.sidebar-scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.sidebar-scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 /* Typography */
@@ -77,4 +87,16 @@ body {
 
 small {
   font-size: 14px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }

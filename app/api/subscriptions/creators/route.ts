@@ -52,20 +52,28 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Get latest video for each creator to determine activity
+    // Get latest video for each creator to determine activity and live status
     const creatorsWithActivity: CreatorWithActivity[] = await Promise.all(
       creators.map(async (creator) => {
-        // Get latest video
+        // Get latest video to determine activity timestamp
         const latestVideo = await prisma.video.findFirst({
           where: { userId: creator.id },
           orderBy: { createdAt: 'desc' },
-          select: { createdAt: true },
+          select: { 
+            createdAt: true,
+            isLive: true,
+            liveViewers: true,
+          },
         });
 
-        // TODO: Check if creator is live (this would need a live streams table or field)
-        // For now, we'll assume no one is live
-        const isLive = false;
-        const liveViewers = 0;
+        // Check if creator has a live video
+        const isLive = latestVideo?.isLive === true || false;
+        const liveViewers = latestVideo?.liveViewers || 0;
+
+        // Get the most recent activity timestamp
+        // For live videos, use the live video's timestamp
+        // For non-live, use the latest video's timestamp
+        const latestActivity = latestVideo?.createdAt || null;
 
         return {
           id: creator.id,
@@ -73,27 +81,37 @@ export async function GET(request: NextRequest) {
           profileImageUrl: creator.profileImageUrl || undefined,
           isLive,
           liveViewers,
-          latestActivity: latestVideo?.createdAt || null,
+          latestActivity,
         };
       })
     );
 
-    // Sort creators:
-    // 1. Live creators first (by viewers descending)
-    // 2. Then by latest activity (most recent first)
+    // Sort creators with strict priority: LIVE > LIFO (Latest In, First Out)
+    // 1. HIGHEST PRIORITY: Live creators ALWAYS appear first, regardless of timestamp
+    // 2. SECONDARY PRIORITY: All other creators sorted by latest activity (LIFO - newest first)
     creatorsWithActivity.sort((a, b) => {
-      // Live creators always come first
-      if (a.isLive && !b.isLive) return -1;
-      if (!a.isLive && b.isLive) return 1;
+      // Priority 1: LIVE videos/broadcasts ALWAYS on top
+      if (a.isLive && !b.isLive) return -1; // a is live, b is not -> a comes first
+      if (!a.isLive && b.isLive) return 1;  // b is live, a is not -> b comes first
       
-      // If both are live, sort by viewers
+      // If both are live, maintain their relative order (or sort by viewers if needed)
+      // For now, we keep the order as-is for live items
       if (a.isLive && b.isLive) {
+        // Optional: Sort live creators by viewer count (highest first)
         return (b.liveViewers || 0) - (a.liveViewers || 0);
       }
       
-      // Otherwise, sort by latest activity
+      // Priority 2: LIFO - Sort by latest activity timestamp (newest first)
+      // Most recent activity appears first (Last In, First Out)
       const aTime = a.latestActivity?.getTime() || 0;
       const bTime = b.latestActivity?.getTime() || 0;
+      
+      // If no activity timestamp, push to bottom
+      if (aTime === 0 && bTime === 0) return 0;
+      if (aTime === 0) return 1;  // a has no activity -> a goes to bottom
+      if (bTime === 0) return -1; // b has no activity -> b goes to bottom
+      
+      // LIFO: Newer timestamp (larger number) comes first
       return bTime - aTime;
     });
 
