@@ -67,6 +67,16 @@ body {
   display: none; /* Chrome, Safari, Opera */
 }
 
+/* Hide scrollbar for general use but keep scrolling functionality */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
 /* Typography */
 h1 {
   font-size: 28px;
@@ -87,6 +97,85 @@ body {
 
 small {
   font-size: 14px;
+}
+
+/* Miniplayer Progress Bar - Smaller Thumb, Perfectly Centered */
+.miniplayer-progress-bar {
+  position: relative;
+}
+
+/* For h-1 (4px height) track - center 6px thumb */
+.miniplayer-progress-bar.h-1::-webkit-slider-thumb {
+  width: 6px !important;
+  height: 6px !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: white !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin-top: -1px !important; /* Center: (6px thumb - 4px track) / 2 = 1px */
+}
+
+/* For h-0.5 (2px height) track - center 6px thumb */
+.miniplayer-progress-bar.h-0\.5::-webkit-slider-thumb {
+  width: 6px !important;
+  height: 6px !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: white !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin-top: -2px !important; /* Center: (6px thumb - 2px track) / 2 = 2px */
+}
+
+/* Default webkit thumb styling */
+.miniplayer-progress-bar::-webkit-slider-thumb {
+  width: 6px !important;
+  height: 6px !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: white !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin-top: -1.5px !important; /* Default centering */
+}
+
+.miniplayer-progress-bar::-moz-range-thumb {
+  width: 6px !important;
+  height: 6px !important;
+  background: white !important;
+  border: none !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+}
+
+.miniplayer-progress-bar::-ms-thumb {
+  width: 6px !important;
+  height: 6px !important;
+  background: white !important;
+  border: none !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+}
+
+/* Track styling - ensure proper height */
+.miniplayer-progress-bar::-webkit-slider-runnable-track {
+  height: 100% !important;
+  background: transparent !important;
+}
+
+.miniplayer-progress-bar::-moz-range-track {
+  height: 100% !important;
+  background: transparent !important;
+  border: none !important;
 }
 
 /* Animations */

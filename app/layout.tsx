@@ -3,14 +3,16 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
+import { MiniplayerProvider } from "@/contexts/MiniplayerContext";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
+import { CentralizedVideoPlayer } from "@/components/CentralizedVideoPlayer";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Twinkle - #SaviyaliKontent =)",
+  title: "Twinkle",
   description: "Video sharing platform for creators",
 };
 
@@ -24,11 +26,14 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <SidebarProvider>
-          <Header />
-          <Sidebar />
-            <MainContent>
-        {children}
-            </MainContent>
+            <MiniplayerProvider>
+              <Header />
+              <Sidebar />
+              <MainContent>
+                {children}
+              </MainContent>
+              <CentralizedVideoPlayer />
+            </MiniplayerProvider>
           </SidebarProvider>
         </AuthProvider>
       </body>

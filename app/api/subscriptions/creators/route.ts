@@ -61,26 +61,18 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'desc' },
           select: { 
             createdAt: true,
-            isLive: true,
-            liveViewers: true,
           },
         });
 
-        // Check if creator has a live video
-        const isLive = latestVideo?.isLive === true || false;
-        const liveViewers = latestVideo?.liveViewers || 0;
-
         // Get the most recent activity timestamp
-        // For live videos, use the live video's timestamp
-        // For non-live, use the latest video's timestamp
         const latestActivity = latestVideo?.createdAt || null;
 
         return {
           id: creator.id,
           name: creator.name || undefined,
           profileImageUrl: creator.profileImageUrl || undefined,
-          isLive,
-          liveViewers,
+          isLive: false, // Live streaming not implemented yet
+          liveViewers: 0,
           latestActivity,
         };
       })

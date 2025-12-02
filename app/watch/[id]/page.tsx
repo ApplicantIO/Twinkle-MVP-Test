@@ -4,17 +4,18 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Video } from '@/types';
-import { VideoPlayer } from '@/components/VideoPlayer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply } from 'lucide-react';
+import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply, LayoutList, LayoutGrid, Minimize2 } from 'lucide-react';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useMiniplayer } from '@/contexts/MiniplayerContext';
 
 interface Comment {
   id: string;
   userId: string;
   userName: string;
+  username: string;
   userAvatar?: string;
   text: string;
   timestamp: Date;
@@ -30,19 +31,73 @@ export default function WatchPage() {
   const params = useParams();
   const router = useRouter();
   const { setIsCollapsed } = useSidebar();
+  const { setCurrentWatchVideo, setIsMiniplayerActive, isMiniplayerActive } = useMiniplayer();
   const [video, setVideo] = useState<Video | null>(null);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const videoPlayerProgressRef = useRef<number>(0);
   const [relatedVideos, setRelatedVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'public' | 'donated'>('public');
+  const [recommendedTab, setRecommendedTab] = useState<'recommendations' | 'playlist' | 'creator' | 'topic'>('recommendations');
+  const [isCardViewActive, setIsCardViewActive] = useState(false);
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentReactions, setCommentReactions] = useState<Record<string, 'NONE' | 'LIKE' | 'DISLIKE'>>({});
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [commentText, setCommentText] = useState('');
   const [donationAmount, setDonationAmount] = useState('');
-  const [showDonationInput, setShowDonationInput] = useState(false);
+  const [isDonationViewActive, setIsDonationViewActive] = useState(false);
+  const MIN_DONATION_AMOUNT = 5000;
+  const recommendedAmounts = [5000, 10000, 20000, 50000];
   const [isAnonymousDonation, setIsAnonymousDonation] = useState(false);
+  const [paymentCategory, setPaymentCategory] = useState<'card' | 'ewallet'>('card');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCVC, setCardCVC] = useState('');
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [invoiceGenerated, setInvoiceGenerated] = useState(false);
+  const [waitingForPayment, setWaitingForPayment] = useState(false);
+  const [isAddingCard, setIsAddingCard] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+  const [savedCards, setSavedCards] = useState([
+    { id: '1', type: 'UzCard', last4: '1234', cardName: 'Uy Karta', maskedNumber: '**** 4321' },
+    { id: '2', type: 'HUMO', last4: '5678', cardName: 'Ish Karta', maskedNumber: '**** 8765' },
+  ]);
+  const [openCardMenuId, setOpenCardMenuId] = useState<string | null>(null);
+  const [addCardStep, setAddCardStep] = useState<'name' | 'details' | 'verification'>('name');
+  const [cardName, setCardName] = useState('');
+  const [newCardNumber, setNewCardNumber] = useState('');
+  const [newCardExpiry, setNewCardExpiry] = useState('');
+  const [newCardCVC, setNewCardCVC] = useState('');
+  const [smsCode, setSmsCode] = useState('');
+  const [cardType, setCardType] = useState<'local' | 'international' | null>(null);
+  const [isVerificationVerified, setIsVerificationVerified] = useState(false);
+  const [smsSent, setSmsSent] = useState(false);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
-  const commentInputRef = useRef<HTMLInputElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const cardMenuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+  // Close card menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openCardMenuId) {
+        const menuElement = cardMenuRefs.current[openCardMenuId];
+        if (menuElement && !menuElement.contains(event.target as Node)) {
+          setOpenCardMenuId(null);
+        }
+      }
+    };
+
+    if (openCardMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openCardMenuId]);
+  const MAX_COMMENT_LENGTH = 200;
   const [reportCommentState, setReportCommentState] = useState<'NONE' | 'REASON_SELECT' | 'WRITE_DETAILS' | 'CONFIRMATION'>('NONE');
   const [commentReportReason, setCommentReportReason] = useState<string>('');
   const [commentReportDetails, setCommentReportDetails] = useState('');
@@ -53,6 +108,8 @@ export default function WatchPage() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [notificationState, setNotificationState] = useState<'NONE' | 'ALL' | 'PERSONALIZED'>('ALL');
   const [isAnimating, setIsAnimating] = useState(false);
+  // Generate subscriber count once on mount (not on every render)
+  const [subscribersCount] = useState(() => Math.floor(Math.random() * 100000));
   const [isSaved, setIsSaved] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isLinkCopied, setIsLinkCopied] = useState(false);
@@ -80,6 +137,7 @@ export default function WatchPage() {
         id: '1',
         userId: 'user1',
         userName: 'John Doe',
+        username: '@john_doe',
         text: 'This video is absolutely incredible! I\'ve been waiting for content like this for months. The way you explained everything step by step made it so easy to understand. I especially loved the part where you demonstrated the practical applications. This has completely changed my perspective on the topic. Thank you so much for sharing your knowledge with us!',
         timestamp: new Date(Date.now() - 1800000), // 30 minutes ago
         likes: 247,
@@ -91,6 +149,7 @@ export default function WatchPage() {
             id: '1-1',
             userId: 'user2',
             userName: 'Sarah Martinez',
+            username: '@sarah_martinez',
             text: 'I completely agree! The practical examples were so helpful.',
             timestamp: new Date(Date.now() - 1500000),
             likes: 12,
@@ -102,7 +161,8 @@ export default function WatchPage() {
                 id: '1-1-1',
                 userId: 'user3',
                 userName: 'Michael Chen',
-                text: '@Sarah Martinez Exactly! Those examples made everything click for me too.',
+                username: '@michael_chen',
+                text: '@sarah_martinez Exactly! Those examples made everything click for me too.',
                 timestamp: new Date(Date.now() - 1400000),
                 likes: 5,
                 dislikes: 0,
@@ -115,6 +175,7 @@ export default function WatchPage() {
             id: '1-2',
             userId: 'user4',
             userName: 'Emily Rodriguez',
+            username: '@emily_rodriguez',
             text: 'Same here! This channel is amazing.',
             timestamp: new Date(Date.now() - 1200000),
             likes: 8,
@@ -126,6 +187,7 @@ export default function WatchPage() {
             id: '1-3',
             userId: 'user5',
             userName: 'David Kim',
+            username: '@david_kim',
             text: 'Couldn\'t agree more. The step-by-step approach is perfect.',
             timestamp: new Date(Date.now() - 1000000),
             likes: 6,
@@ -139,6 +201,7 @@ export default function WatchPage() {
         id: '2',
         userId: 'user2',
         userName: 'Sarah Martinez',
+        username: '@sarah_martinez',
         text: 'Wow, this is exactly what I needed! I\'ve been struggling with this concept for weeks and your explanation finally made it click. The examples you provided were perfect and really helped me visualize everything. I appreciate how you took the time to break down each part in detail.',
         timestamp: new Date(Date.now() - 3600000), // 1 hour ago
         likes: 189,
@@ -150,6 +213,7 @@ export default function WatchPage() {
             id: '2-1',
             userId: 'user6',
             userName: 'Jessica Thompson',
+            username: '@jessica_thompson',
             text: 'The visualization examples were game-changing for me!',
             timestamp: new Date(Date.now() - 3300000),
             likes: 9,
@@ -161,7 +225,8 @@ export default function WatchPage() {
                 id: '2-1-1',
                 userId: 'user2',
                 userName: 'Sarah Martinez',
-                text: '@Jessica Thompson Right? I\'ve been trying to explain this to my team using those same examples.',
+                username: '@sarah_martinez',
+                text: '@jessica_thompson Right? I\'ve been trying to explain this to my team using those same examples.',
                 timestamp: new Date(Date.now() - 3200000),
                 likes: 4,
                 dislikes: 0,
@@ -174,6 +239,7 @@ export default function WatchPage() {
             id: '2-2',
             userId: 'user7',
             userName: 'Robert Wilson',
+            username: '@robert_wilson',
             text: 'The breakdown was incredibly thorough. Great video!',
             timestamp: new Date(Date.now() - 3000000),
             likes: 7,
@@ -187,6 +253,7 @@ export default function WatchPage() {
         id: '3',
         userId: 'user3',
         userName: 'Michael Chen',
+        username: '@michael_chen',
         text: 'Honestly, I wasn\'t expecting much when I clicked on this video, but I was completely blown away! The production quality is top-notch and the information is presented in such an engaging way. You have a real talent for making complex topics accessible.',
         timestamp: new Date(Date.now() - 5400000), // 1.5 hours ago
         likes: 156,
@@ -198,6 +265,7 @@ export default function WatchPage() {
             id: '3-1',
             userId: 'user8',
             userName: 'Amanda Lee',
+            username: '@amanda_lee',
             text: 'The production quality really stands out. So professional!',
             timestamp: new Date(Date.now() - 5100000),
             likes: 11,
@@ -209,7 +277,8 @@ export default function WatchPage() {
             id: '3-2',
             userId: 'user9',
             userName: 'James Anderson',
-            text: '@Michael Chen I had the same reaction! Subscribed immediately.',
+            username: '@james_anderson',
+            text: '@michael_chen I had the same reaction! Subscribed immediately.',
             timestamp: new Date(Date.now() - 4800000),
             likes: 8,
             dislikes: 0,
@@ -220,7 +289,8 @@ export default function WatchPage() {
                 id: '3-2-1',
                 userId: 'user3',
                 userName: 'Michael Chen',
-                text: '@James Anderson Welcome to the community! Glad you enjoyed it.',
+                username: '@michael_chen',
+                text: '@james_anderson Welcome to the community! Glad you enjoyed it.',
                 timestamp: new Date(Date.now() - 4700000),
                 likes: 3,
                 dislikes: 0,
@@ -233,6 +303,7 @@ export default function WatchPage() {
             id: '3-3',
             userId: 'user10',
             userName: 'Lisa Park',
+            username: '@lisa_park',
             text: 'Complex topics made simple - that\'s the mark of great teaching.',
             timestamp: new Date(Date.now() - 4500000),
             likes: 6,
@@ -246,6 +317,7 @@ export default function WatchPage() {
         id: '4',
         userId: 'user4',
         userName: 'Emily Rodriguez',
+        username: '@emily_rodriguez',
         text: 'I\'ve watched this three times already and I\'m still learning something new each time. The way you structure your content is brilliant - it flows so naturally from one point to the next. Your passion for the subject really shines through and makes the video so much more enjoyable to watch.',
         timestamp: new Date(Date.now() - 7200000), // 2 hours ago
         likes: 312,
@@ -257,6 +329,7 @@ export default function WatchPage() {
             id: '4-1',
             userId: 'user5',
             userName: 'David Kim',
+            username: '@david_kim',
             text: 'The structure really is perfect. I love how each section builds on the previous one.',
             timestamp: new Date(Date.now() - 6800000),
             likes: 15,
@@ -268,7 +341,8 @@ export default function WatchPage() {
                 id: '4-1-1',
                 userId: 'user4',
                 userName: 'Emily Rodriguez',
-                text: '@David Kim That\'s exactly what makes it so effective!',
+                username: '@emily_rodriguez',
+                text: '@david_kim That\'s exactly what makes it so effective!',
                 timestamp: new Date(Date.now() - 6700000),
                 likes: 3,
                 dislikes: 0,
@@ -281,6 +355,7 @@ export default function WatchPage() {
             id: '4-2',
             userId: 'user1',
             userName: 'John Doe',
+            username: '@john_doe',
             text: 'Three times? I\'m on my second watch and already planning a third!',
             timestamp: new Date(Date.now() - 6500000),
             likes: 10,
@@ -295,6 +370,7 @@ export default function WatchPage() {
         id: '11',
         userId: 'user11',
         userName: 'Alexandra Brown',
+        username: '@alexandra_brown',
         text: 'This video has been incredibly helpful for my project! I wanted to show my appreciation for all the hard work you put into creating such valuable content. Your explanations are always so clear and well-structured. I\'ve learned so much from your channel and I wanted to give back a little. Keep creating amazing content - you\'re making a real difference in people\'s lives. Thank you for everything you do!',
         timestamp: new Date(Date.now() - 19800000), // 5.5 hours ago
         likes: 89,
@@ -307,6 +383,7 @@ export default function WatchPage() {
             id: '11-1',
             userId: 'user12',
             userName: 'Christopher Taylor',
+            username: '@christopher_taylor',
             text: 'Your generosity is inspiring! This content truly deserves support.',
             timestamp: new Date(Date.now() - 19500000),
             likes: 7,
@@ -318,7 +395,8 @@ export default function WatchPage() {
             id: '11-2',
             userId: 'user13',
             userName: 'Maria Garcia',
-            text: '@Alexandra Brown I completely agree. This channel has been a game-changer for me too!',
+            username: '@maria_garcia',
+            text: '@alexandra_brown I completely agree. This channel has been a game-changer for me too!',
             timestamp: new Date(Date.now() - 19200000),
             likes: 5,
             dislikes: 0,
@@ -329,7 +407,8 @@ export default function WatchPage() {
                 id: '11-2-1',
                 userId: 'user11',
                 userName: 'Alexandra Brown',
-                text: '@Maria Garcia So glad to hear that! The community here is amazing.',
+                username: '@alexandra_brown',
+                text: '@maria_garcia So glad to hear that! The community here is amazing.',
                 timestamp: new Date(Date.now() - 19000000),
                 likes: 2,
                 dislikes: 0,
@@ -344,6 +423,7 @@ export default function WatchPage() {
         id: '12',
         userId: 'user12',
         userName: 'Christopher Taylor',
+        username: '@christopher_taylor',
         text: 'I\'ve been following your channel for months and this is by far one of your best videos yet! The quality of your content keeps getting better and better. I wanted to send a small donation to support your work because creators like you deserve recognition. Your videos have helped me so much in my career, and I wanted to express my gratitude. Please keep doing what you\'re doing - you\'re amazing!',
         timestamp: new Date(Date.now() - 21600000), // 6 hours ago
         likes: 145,
@@ -356,6 +436,7 @@ export default function WatchPage() {
             id: '12-1',
             userId: 'user14',
             userName: 'Daniel White',
+            username: '@daniel_white',
             text: 'Well said! The quality improvement is noticeable in every video.',
             timestamp: new Date(Date.now() - 21300000),
             likes: 9,
@@ -367,6 +448,7 @@ export default function WatchPage() {
             id: '12-2',
             userId: 'user15',
             userName: 'Sophie Martin',
+            username: '@sophie_martin',
             text: 'The career impact is real. Thank you for supporting great content!',
             timestamp: new Date(Date.now() - 21000000),
             likes: 6,
@@ -378,7 +460,8 @@ export default function WatchPage() {
             id: '12-3',
             userId: 'user16',
             userName: 'Ryan Johnson',
-            text: '@Christopher Taylor Couldn\'t agree more. This channel is a gem!',
+            username: '@ryan_johnson',
+            text: '@christopher_taylor Couldn\'t agree more. This channel is a gem!',
             timestamp: new Date(Date.now() - 20700000),
             likes: 4,
             dislikes: 0,
@@ -389,7 +472,8 @@ export default function WatchPage() {
                 id: '12-3-1',
                 userId: 'user12',
                 userName: 'Christopher Taylor',
-                text: '@Ryan Johnson Absolutely! The value is unmatched.',
+                username: '@christopher_taylor',
+                text: '@ryan_johnson Absolutely! The value is unmatched.',
                 timestamp: new Date(Date.now() - 20500000),
                 likes: 2,
                 dislikes: 0,
@@ -404,6 +488,7 @@ export default function WatchPage() {
         id: '13',
         userId: 'user13',
         userName: 'Maria Garcia',
+        username: '@maria_garcia',
         text: 'Thank you so much for this incredible video! It\'s exactly what I needed and more. Your dedication to creating quality educational content doesn\'t go unnoticed. I wanted to contribute a small amount to support your channel because I believe in what you\'re doing. Your videos have been a game-changer for me, and I hope this small donation helps you continue creating amazing content. Much love and appreciation!',
         timestamp: new Date(Date.now() - 23400000), // 6.5 hours ago
         likes: 67,
@@ -416,6 +501,7 @@ export default function WatchPage() {
             id: '13-1',
             userId: 'user17',
             userName: 'Olivia Davis',
+            username: '@olivia_davis',
             text: 'Your support means so much to creators. Thank you for giving back!',
             timestamp: new Date(Date.now() - 23100000),
             likes: 8,
@@ -427,7 +513,8 @@ export default function WatchPage() {
             id: '13-2',
             userId: 'user18',
             userName: 'Nathan Clark',
-            text: '@Maria Garcia The educational value is incredible. Well deserved support!',
+            username: '@nathan_clark',
+            text: '@maria_garcia The educational value is incredible. Well deserved support!',
             timestamp: new Date(Date.now() - 22800000),
             likes: 5,
             dislikes: 0,
@@ -440,6 +527,7 @@ export default function WatchPage() {
         id: '14',
         userId: 'user14',
         userName: 'Daniel White',
+        username: '@daniel_white',
         text: 'This video is absolutely phenomenal! I\'ve watched it multiple times and I\'m still finding new insights. Your ability to explain complex topics in such an accessible way is truly remarkable. I wanted to send a donation to show my appreciation for all the value you\'ve provided. Your content has helped me tremendously, and I wanted to give back. Keep up the excellent work - you\'re an inspiration!',
         timestamp: new Date(Date.now() - 25200000), // 7 hours ago
         likes: 203,
@@ -452,6 +540,7 @@ export default function WatchPage() {
             id: '14-1',
             userId: 'user19',
             userName: 'Emma Wilson',
+            username: '@emma_wilson',
             text: 'Your donation shows true appreciation. This content deserves all the support!',
             timestamp: new Date(Date.now() - 24900000),
             likes: 10,
@@ -463,7 +552,8 @@ export default function WatchPage() {
             id: '14-2',
             userId: 'user20',
             userName: 'Kevin Moore',
-            text: '@Daniel White The insights keep coming with each rewatch. Amazing content!',
+            username: '@kevin_moore',
+            text: '@daniel_white The insights keep coming with each rewatch. Amazing content!',
             timestamp: new Date(Date.now() - 24600000),
             likes: 7,
             dislikes: 0,
@@ -474,7 +564,8 @@ export default function WatchPage() {
                 id: '14-2-1',
                 userId: 'user14',
                 userName: 'Daniel White',
-                text: '@Kevin Moore Exactly! Every watch reveals something new. That\'s quality content.',
+                username: '@daniel_white',
+                text: '@kevin_moore Exactly! Every watch reveals something new. That\'s quality content.',
                 timestamp: new Date(Date.now() - 24400000),
                 likes: 3,
                 dislikes: 0,
@@ -503,12 +594,16 @@ export default function WatchPage() {
           const data = await response.json();
           if (data.video) {
           setVideo(data.video);
+          // Store video in context for centralized player
+          setCurrentWatchVideo(data.video);
+          // Clear miniplayer state when loading a new video on watch page
+          setIsMiniplayerActive(false);
           
             // Load related videos
-          const relatedResponse = await fetch('/api/videos?limit=10');
+          const relatedResponse = await fetch('/api/videos?limit=20');
           if (relatedResponse.ok) {
             const relatedData = await relatedResponse.json();
-            setRelatedVideos(relatedData.videos.filter((v: Video) => v.id !== params.id).slice(0, 5));
+            setRelatedVideos(relatedData.videos.filter((v: Video) => v.id !== params.id));
           }
         } else {
             console.error('Video not found in response');
@@ -524,7 +619,12 @@ export default function WatchPage() {
       }
     }
     loadVideo();
-  }, [params.id]);
+    
+    // Cleanup: Clear video from context when component unmounts
+    return () => {
+      setCurrentWatchVideo(null);
+    };
+  }, [params.id, setCurrentWatchVideo, setIsMiniplayerActive]);
 
   const formatTimeAgo = (date: Date) => {
     const now = new Date();
@@ -657,28 +757,264 @@ export default function WatchPage() {
     setComments(prevComments => updateCommentDislikes(prevComments));
   };
 
-  const handleReplyClick = (commentId: string, userName: string) => {
+  const handleReplyClick = (commentId: string, username: string) => {
     setReplyingToId(commentId);
-    setCommentText(`@${userName} `);
-    // Focus the input field
+    setCommentText(`${username} `);
+    // Focus the textarea field
     setTimeout(() => {
       commentInputRef.current?.focus();
+      // Auto-resize after setting text
+      if (commentInputRef.current) {
+        commentInputRef.current.style.height = 'auto';
+        commentInputRef.current.style.height = `${Math.min(commentInputRef.current.scrollHeight, 120)}px`;
+      }
     }, 0);
   };
 
+  // Auto-resize textarea function
+  const autoResizeTextarea = (textarea: HTMLTextAreaElement) => {
+    textarea.style.height = 'auto';
+    const maxHeight = 120; // Maximum height in pixels (approximately 5-6 lines)
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+  };
+
+  // Format card number with spaces (UzCard/HUMO format: XXXX XXXX XXXX XXXX)
+  const formatCardNumber = (value: string) => {
+    const cleaned = value.replace(/\s/g, '');
+    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
+    return formatted.slice(0, 19); // Max 16 digits + 3 spaces
+  };
+
+  // Format expiry date (MM/YY)
+  const formatExpiry = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length >= 2) {
+      return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
+    }
+    return cleaned;
+  };
+
+  // Validate card payment
+  const validateCardPayment = (): boolean => {
+    if (!cardNumber || cardNumber.replace(/\s/g, '').length !== 16) {
+      return false;
+    }
+    if (!cardExpiry || cardExpiry.length !== 5) {
+      return false;
+    }
+    if (!cardCVC || cardCVC.length < 3) {
+      return false;
+    }
+    return true;
+  };
+
+  // Detect card type (local UzCard/HUMO vs international Visa/Mastercard)
+  const detectCardType = (cardNumber: string): 'local' | 'international' | null => {
+    const cleaned = cardNumber.replace(/\s/g, '');
+    if (cleaned.length < 6) return null;
+    
+    // UzCard typically starts with 8600, HUMO with 9860
+    if (cleaned.startsWith('8600') || cleaned.startsWith('9860')) {
+      return 'local';
+    }
+    // Visa starts with 4, Mastercard with 5
+    if (cleaned.startsWith('4') || cleaned.startsWith('5')) {
+      return 'international';
+    }
+    return null;
+  };
+
+  // Format new card number
+  const formatNewCardNumber = (value: string) => {
+    const cleaned = value.replace(/\s/g, '');
+    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
+    return formatted.slice(0, 19);
+  };
+
+  // Handle card name step next
+  const handleCardNameNext = () => {
+    if (cardName.trim()) {
+      setAddCardStep('details');
+    }
+  };
+
+  // Handle card details step next
+  const handleCardDetailsNext = () => {
+    const cleanedNumber = newCardNumber.replace(/\s/g, '');
+    if (cleanedNumber.length === 16 && newCardExpiry.length === 5) {
+      const detectedType = detectCardType(newCardNumber);
+      setCardType(detectedType);
+      setAddCardStep('verification');
+    }
+  };
+
+  // Handle verification and save card
+  const handleCardVerification = () => {
+    // Validate all required fields
+    if (!cardName.trim() || newCardNumber.replace(/\s/g, '').length !== 16 || newCardExpiry.length !== 5) {
+      return;
+    }
+
+    // Ensure verification was completed
+    if (!isVerificationVerified) {
+      return;
+    }
+
+    const cleanedNumber = newCardNumber.replace(/\s/g, '');
+    const last4 = cleanedNumber.slice(-4);
+    let cardTypeName = 'Card';
+    
+    // Determine card type and validate verification codes
+    if (cardType === 'local') {
+      if (smsCode.length !== 6) {
+        return; // SMS code required for local cards
+      }
+      // Mock SMS verification
+      cardTypeName = cleanedNumber.startsWith('8600') ? 'UzCard' : 'HUMO';
+    } else if (cardType === 'international') {
+      if (newCardCVC.length !== 3) {
+        return; // CVV/CVC required for international cards
+      }
+      // Mock CVV/CVC verification
+      cardTypeName = cleanedNumber.startsWith('4') ? 'Visa' : 'Mastercard';
+    } else {
+      // If card type not detected, assume international and use CVV
+      if (newCardCVC.length !== 3) {
+        return; // CVV/CVC required
+      }
+      cardTypeName = cleanedNumber.startsWith('4') ? 'Visa' : 'Mastercard';
+    }
+
+    // Create new card
+    const newCard = {
+      id: Date.now().toString(),
+      type: cardTypeName,
+      last4: last4,
+      cardName: cardName.trim(),
+      maskedNumber: `**** ${last4}`,
+    };
+
+    // Mock saving process
+    setPaymentProcessing(true);
+    setTimeout(() => {
+      // Add card to saved cards list
+      setSavedCards([...savedCards, newCard]);
+      
+      // Reset all form states
+      setIsAddingCard(false);
+      setAddCardStep('name');
+      setCardName('');
+      setNewCardNumber('');
+      setNewCardExpiry('');
+      setNewCardCVC('');
+      setSmsCode('');
+      setCardType(null);
+      setPaymentProcessing(false);
+      setIsVerificationVerified(false);
+      setSmsSent(false);
+    }, 1000);
+  };
+
+
+  // Handle e-wallet invoice generation
+  const handleGenerateInvoice = () => {
+    if (!donationAmount || !selectedPaymentMethod) {
+      return;
+    }
+    const amount = parseInt(donationAmount);
+    if (amount < MIN_DONATION_AMOUNT) {
+      return; // Don't generate invoice if below minimum
+    }
+    const isEwallet = ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod);
+    if (!isEwallet) {
+      return;
+    }
+    setPaymentProcessing(true);
+    setWaitingForPayment(true);
+    // Simulate invoice generation and wait for payment
+    setTimeout(() => {
+      setInvoiceGenerated(true);
+      setPaymentProcessing(false);
+      // Simulate successful payment after 3 seconds
+      setTimeout(() => {
+        setWaitingForPayment(false);
+        handleSendComment();
+        setIsDonationViewActive(false);
+        setDonationAmount('');
+        setSelectedPaymentMethod(null);
+        setInvoiceGenerated(false);
+      }, 3000);
+    }, 1000);
+  };
+
+  // Process donation payment
+  const handleProcessDonation = () => {
+    if (donationAmount && selectedPaymentMethod) {
+      // Validate minimum donation amount
+      const amount = parseInt(donationAmount);
+      if (amount < MIN_DONATION_AMOUNT) {
+        // Could show error message here
+        return;
+      }
+      
+      // Check if it's a manual card entry or e-wallet
+      const isCard = paymentCategory === 'card';
+      const isEwallet = ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod);
+      
+      if (isEwallet) {
+        // For e-wallet, generate invoice first
+        handleGenerateInvoice();
+        return;
+      }
+      // For saved cards, proceed directly
+      handleSendComment();
+      // Close donation view after successful donation
+      setIsDonationViewActive(false);
+      setDonationAmount('');
+      setSelectedPaymentMethod(null);
+    } else {
+      // No donation, just send regular comment
+      handleSendComment();
+    }
+  };
+
+  // Get invoice system name for display
+  const getInvoiceSystemName = () => {
+    const invoiceNames: { [key: string]: string } = {
+      'paynet': 'Paynet',
+      'click': 'Click',
+      'payme': 'Payme',
+      'uzum': 'Uzum',
+    };
+    return invoiceNames[selectedPaymentMethod || ''] || '';
+  };
+
   const handleSendComment = () => {
-    if (!commentText.trim()) return;
+    if (!commentText.trim() || commentText.length > MAX_COMMENT_LENGTH) return;
+    
+    // If donation is enabled, validate payment method and minimum amount
+    if (donationAmount && selectedPaymentMethod) {
+      const amount = parseInt(donationAmount);
+      if (amount < MIN_DONATION_AMOUNT) {
+        return; // Don't submit if below minimum
+      }
+      const isEwallet = ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod);
+      if (isEwallet && !invoiceGenerated && !waitingForPayment) {
+        return; // Don't submit if e-wallet invoice not generated
+      }
+    }
     
     const newComment: Comment = {
       id: Date.now().toString(),
       userId: 'current-user',
-      userName: (showDonationInput && donationAmount && isAnonymousDonation) ? 'Anonymous' : 'You',
+      userName: (donationAmount && selectedPaymentMethod && isAnonymousDonation) ? 'Anonymous' : 'You',
+      username: (donationAmount && selectedPaymentMethod && isAnonymousDonation) ? '@anonymous' : '@you',
       text: commentText,
       timestamp: new Date(),
       likes: 0,
       dislikes: 0,
-      isDonated: showDonationInput && donationAmount ? true : false,
-      donationAmount: showDonationInput && donationAmount ? parseInt(donationAmount) : undefined,
+      isDonated: donationAmount && selectedPaymentMethod ? true : false,
+      donationAmount: donationAmount && selectedPaymentMethod ? parseInt(donationAmount) : undefined,
       isHighlyRated: false,
     };
     
@@ -710,10 +1046,24 @@ export default function WatchPage() {
       setComments([newComment, ...comments]);
     }
     
+    // Reset all form states
     setCommentText('');
     setDonationAmount('');
-    setShowDonationInput(false);
-    setIsAnonymousDonation(false); // Reset to default OFF state
+    setIsAnonymousDonation(false);
+    setSelectedPaymentMethod(null);
+    setCardNumber('');
+    setCardExpiry('');
+    setInvoiceGenerated(false);
+    // Close donation view if it was active
+    setIsDonationViewActive(false);
+    setCardCVC('');
+    setPaymentProcessing(false);
+    setPaymentSuccess(false);
+    setInvoiceGenerated(false);
+    // Reset textarea height
+    if (commentInputRef.current) {
+      commentInputRef.current.style.height = 'auto';
+    }
   };
 
   const getVideoUrl = () => {
@@ -906,9 +1256,25 @@ export default function WatchPage() {
     };
   }, [isShareModalOpen, reportStep, isMoreMenuOpen, isNotificationsModalOpen, reportingCommentId, reportCommentState]);
 
-  const filteredComments = activeTab === 'donated' 
+  // Filter comments based on active tab and mode
+  const isLiveMode = video?.isLive === true;
+  const filteredComments = (() => {
+    if (isLiveMode) {
+      // In Live Mode: Filtering based on active tab
+      if (activeTab === 'donated') {
+        // Superchat tab: Only show messages with donationAmount > 0 (strict filtering)
+        return comments.filter(c => c.donationAmount && c.donationAmount > 0);
+      } else {
+        // Chat tab: Show ALL messages (universal feed - no filtering)
+        return comments;
+      }
+    } else {
+      // Standard Mode: Use existing isDonated filter
+      return activeTab === 'donated' 
     ? comments.filter(c => c.isDonated)
     : comments;
+    }
+  })();
 
   // Helper function to render comment text with highlighted @mentions
   const renderCommentText = (text: string) => {
@@ -923,6 +1289,18 @@ export default function WatchPage() {
       }
       return <span key={index}>{part}</span>;
     });
+  };
+
+  // Helper function to count total replies recursively (including nested)
+  const countTotalReplies = (replies: Comment[] | undefined): number => {
+    if (!replies || replies.length === 0) return 0;
+    let count = replies.length;
+    replies.forEach(reply => {
+      if (reply.replies && reply.replies.length > 0) {
+        count += countTotalReplies(reply.replies);
+      }
+    });
+    return count;
   };
 
   // Helper function to flatten all nested replies into a single array (recursive)
@@ -943,38 +1321,102 @@ export default function WatchPage() {
     return flattened;
   };
 
+  // Toggle function for expanding/collapsing replies
+  const toggleReplies = (commentId: string) => {
+    setExpandedReplies(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle mention click (for Live Chat Mode)
+  const handleMentionClick = (username: string) => {
+    const isLiveMode = video?.isLive === true;
+    if (isLiveMode) {
+      setCommentText(prev => {
+        // If input is empty, just add the mention
+        if (!prev.trim()) {
+          return `${username} `;
+        }
+        // If input already has content, add mention at the end
+        return `${prev} ${username} `;
+      });
+      // Focus the textarea
+      setTimeout(() => {
+        commentInputRef.current?.focus();
+      }, 0);
+    }
+  };
+
   // Function to render a single comment item (no nested replies rendering)
   const renderCommentItem = (comment: Comment, isReply: boolean = false) => {
-    const avatarSize = isReply ? 'w-6 h-6' : 'w-8 h-8';
-    const iconSize = isReply ? 'h-3 w-3' : 'h-4 w-4';
-    const textSize = isReply ? 'text-xs' : 'text-sm';
+    const isLiveMode = video?.isLive === true;
     
     return (
-      <div key={comment.id} className={isReply ? 'ml-10 pl-4 border-l border-surface/30 bg-white/5 rounded-r-lg' : ''}>
-        <div className={`p-3 rounded-lg bg-transparent ${isReply ? 'py-1.5' : ''}`}>
+      <div key={comment.id} className={isReply && !isLiveMode ? 'ml-10' : ''}>
+        <div className="px-3 py-1.5 rounded-lg bg-transparent">
           {/* Top Row: Avatar, Username (Left) | More Button (Right) */}
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              {/* Avatar */}
+              {/* Avatar - Clickable in Live Mode */}
+              {isLiveMode ? (
+                <button
+                  onClick={() => handleMentionClick(comment.username)}
+                  className="flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                >
               {comment.userName === 'Anonymous' ? (
-                <div className={`${avatarSize} rounded-full bg-surface flex items-center justify-center flex-shrink-0`}>
-                  <User className={`${iconSize} text-text-secondary`} />
+                    <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center">
+                      <User className="h-4 w-4 text-text-secondary" />
                 </div>
               ) : comment.userAvatar ? (
                 <img
                   src={comment.userAvatar}
                   alt={comment.userName}
-                  className={`${avatarSize} rounded-full object-cover flex-shrink-0`}
+                      className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
-                <div className={`${avatarSize} rounded-full bg-surface flex items-center justify-center flex-shrink-0`}>
-                  <User className={`${iconSize} text-text-secondary`} />
+                    <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center">
+                      <User className="h-4 w-4 text-text-secondary" />
                 </div>
               )}
-              {/* Username */}
-              <span className={`${textSize} font-medium text-text-primary truncate`}>
-                {comment.userName}
+                </button>
+              ) : (
+                <>
+                  {comment.userName === 'Anonymous' ? (
+                    <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center flex-shrink-0">
+                      <User className="h-4 w-4 text-text-secondary" />
+                    </div>
+                  ) : comment.userAvatar ? (
+                    <img
+                      src={comment.userAvatar}
+                      alt={comment.userName}
+                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center flex-shrink-0">
+                      <User className="h-4 w-4 text-text-secondary" />
+                    </div>
+                  )}
+                </>
+              )}
+              {/* Username - Clickable in Live Mode */}
+              {isLiveMode ? (
+                <button
+                  onClick={() => handleMentionClick(comment.username)}
+                  className="text-sm font-medium text-text-primary truncate hover:text-accent transition-colors cursor-pointer text-left"
+                >
+                  {comment.username}
+                </button>
+              ) : (
+                <span className="text-sm font-medium text-text-primary truncate">
+                  {comment.username}
               </span>
+              )}
               {/* Donation Badge (if applicable) */}
               {comment.isDonated && comment.donationAmount && (
                 <span className="text-xs font-semibold text-accent flex-shrink-0">
@@ -982,8 +1424,7 @@ export default function WatchPage() {
                 </span>
               )}
             </div>
-            {/* More Button - Only show for top-level comments */}
-            {!isReply && (
+            {/* More Button - Available for all comments and replies */}
               <div className="relative flex-shrink-0">
                 <button
                   onClick={(e) => {
@@ -1014,62 +1455,63 @@ export default function WatchPage() {
                   </div>
                 )}
               </div>
-            )}
           </div>
 
           {/* Middle Section: Comment Text */}
-          <p className={`${textSize} text-text-primary ${isReply ? 'mb-1' : 'mb-2'} whitespace-pre-wrap break-words`}>
+          <p className="text-sm text-text-primary mb-1 whitespace-pre-wrap break-words">
             {renderCommentText(comment.text)}
           </p>
 
-          {/* Bottom Row: Like/Dislike, Reply Buttons */}
-          <div className={`flex items-center ${isReply ? 'gap-2' : 'gap-3'}`}>
+          {/* Bottom Row: Like/Dislike, Reply Buttons - Hidden in Live Mode */}
+          {!isLiveMode && (
+            <div className="flex items-center gap-3">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 handleCommentLike(comment.id);
               }}
-              className={`flex items-center gap-1 ${textSize} transition-colors cursor-pointer ${
+                className={`flex items-center gap-1 text-sm transition-colors cursor-pointer ${
                 commentReactions[comment.id] === 'LIKE'
                   ? 'text-text-primary'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               <ThumbsUp 
-                className={`${iconSize} ${
+                  className={`h-4 w-4 ${
                   commentReactions[comment.id] === 'LIKE' ? 'fill-current' : ''
                 }`}
               />
-              {!isReply && <span>{comment.likes}</span>}
+                <span>{comment.likes}</span>
             </button>
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 handleCommentDislike(comment.id);
               }}
-              className={`flex items-center gap-1 ${textSize} transition-colors cursor-pointer ${
+                className={`flex items-center gap-1 text-sm transition-colors cursor-pointer ${
                 commentReactions[comment.id] === 'DISLIKE'
                   ? 'text-text-primary'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               <ThumbsDown 
-                className={`${iconSize} ${
+                  className={`h-4 w-4 ${
                   commentReactions[comment.id] === 'DISLIKE' ? 'fill-current' : ''
                 }`}
               />
-              {!isReply && <span>{comment.dislikes || 0}</span>}
+                <span>{comment.dislikes || 0}</span>
             </button>
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                handleReplyClick(comment.id, comment.userName);
+                  handleReplyClick(comment.id, comment.username);
               }}
-              className={`flex items-center ${textSize} text-text-secondary hover:text-text-primary transition-colors cursor-pointer`}
+                className="flex items-center text-sm text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
             >
-              <Reply className={iconSize} />
+                <Reply className="h-4 w-4" />
             </button>
           </div>
+          )}
         </div>
       </div>
     );
@@ -1077,19 +1519,55 @@ export default function WatchPage() {
 
   // Main function to render a comment with all its flattened replies
   const renderComment = (comment: Comment) => {
-    const allReplies = comment.replies && comment.replies.length > 0 
-      ? flattenReplies(comment.replies) 
-      : [];
+    const hasReplies = comment.replies && comment.replies.length > 0;
+    const totalRepliesCount = hasReplies ? countTotalReplies(comment.replies) : 0;
+    const isExpanded = expandedReplies.has(comment.id);
+    const isLiveMode = video?.isLive === true;
+    
+    // In Live Mode, always show replies flattened. In Standard Mode, only show if expanded.
+    const shouldShowReplies = isLiveMode || isExpanded;
+    let allReplies: Comment[] = [];
+    
+    if (hasReplies && shouldShowReplies && comment.replies) {
+      const flattened = flattenReplies(comment.replies);
+      
+      // In Live Mode, filter replies based on active tab
+      if (isLiveMode) {
+        if (activeTab === 'donated') {
+          // Superchat tab: Only show replies with donationAmount > 0 (strict filtering)
+          allReplies = flattened.filter(r => r.donationAmount && r.donationAmount > 0);
+        } else {
+          // Chat tab: Show ALL replies (universal feed - no filtering)
+          allReplies = flattened;
+        }
+      } else {
+        // Standard Mode: Show all replies
+        allReplies = flattened;
+      }
+    }
     
     return (
       <div key={comment.id}>
         {/* Render the main comment */}
         {renderCommentItem(comment, false)}
         
-        {/* Render all replies at the same indentation level */}
-        {allReplies.length > 0 && (
-          <div className="mt-0.5 space-y-1">
-            {allReplies.map((reply) => renderCommentItem(reply, true))}
+        {/* View/Hide replies button - only show in Standard Mode (not Live Mode) */}
+        {hasReplies && !isLiveMode && (
+          <div className="ml-10 px-3 py-0.5">
+            <button
+              onClick={() => toggleReplies(comment.id)}
+              className="text-sm text-text-secondary hover:text-text-primary transition-colors font-medium"
+            >
+              {isExpanded ? `Hide replies` : `View ${totalRepliesCount} ${totalRepliesCount === 1 ? 'reply' : 'replies'}`}
+            </button>
+          </div>
+        )}
+        
+        {/* Render all replies at the same indentation level - only if expanded (or in Live Mode) */}
+        {/* In Live Mode, replies are rendered flat (no indentation) */}
+        {hasReplies && shouldShowReplies && allReplies.length > 0 && (
+          <div className={isLiveMode ? "mt-0 space-y-0.5" : "mt-0 space-y-0.5"}>
+            {allReplies.map((reply) => renderCommentItem(reply, !isLiveMode))}
           </div>
         )}
       </div>
@@ -1109,12 +1587,19 @@ export default function WatchPage() {
   }
 
   return (
-    <div className="w-full h-[calc(100vh-4rem)] flex gap-4 p-3 overflow-hidden">
+    <div className="w-full h-[calc(100vh-4rem)] flex gap-4 p-3 overflow-hidden max-w-full">
       {/* Left Column - Video Player and Info */}
-      <div className="flex-grow space-y-4 min-w-0 overflow-y-auto">
-          {/* Video Player Container with Share Modal */}
-          <div className="relative">
-            <VideoPlayer videoUrl={video.videoUrl} autoPlay thumbnailUrl={video.thumbnailUrl || undefined} />
+      <div className="flex-grow space-y-4 min-w-0 max-w-full overflow-y-auto overflow-x-hidden scrollbar-hide">
+          {/* Video Player Placeholder - CRITICAL: Always render on watch page to provide portal target */}
+          {/* CentralizedVideoPlayer always renders full-size on watch page, ignoring miniplayer state */}
+          <div className="relative w-full aspect-video">
+            <div 
+              id="video-player-placeholder" 
+              className="absolute inset-0"
+            >
+              {/* Placeholder maintains space for the centralized VideoPlayer */}
+              {/* The actual VideoPlayer is rendered here via React Portal from MainLayout */}
+            </div>
             
             {/* Share Modal - Centered in Video Player Area */}
             {isShareModalOpen && (
@@ -1327,13 +1812,14 @@ export default function WatchPage() {
                 </div>
               </div>
             )}
+          </div>
 
-            {/* Notifications Modal - Centered in Video Player Area */}
-            {isNotificationsModalOpen && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg">
+          {/* Notifications Modal - Only show when player placeholder is visible */}
+          {!isMiniplayerActive && isNotificationsModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
                 {/* Backdrop Overlay */}
                 <div 
-                  className="absolute inset-0 bg-black/70 rounded-lg"
+                className="absolute inset-0 bg-black/70"
                   onClick={handleCloseNotifications}
                 />
                 
@@ -1423,7 +1909,6 @@ export default function WatchPage() {
                 </div>
               </div>
             )}
-            </div>
             
           {/* Video Title */}
           <h1 className="text-xl font-semibold text-text-primary">{video.title}</h1>
@@ -1455,7 +1940,7 @@ export default function WatchPage() {
                   </h3>
                 </Link>
                 <p className="text-xs text-text-secondary whitespace-nowrap">
-                  {Math.floor(Math.random() * 100000).toLocaleString()} subscribers
+                  {subscribersCount.toLocaleString()} subscribers
                 </p>
               </div>
               
@@ -1589,13 +2074,225 @@ export default function WatchPage() {
               {video.description || 'No description provided.'}
             </p>
             </div>
+
+          {/* Recommended Videos Section */}
+          <div className="mt-6 w-full max-w-full">
+            {/* Tab Navigation - Sticky */}
+            <div className="sticky top-0 z-30 bg-[#0A0A0A] pt-2 pb-4 mb-4 -mt-2">
+              <div className="flex items-center justify-between gap-4 border-b border-surface/50 w-full">
+                <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide">
+                  <button
+                    onClick={() => setRecommendedTab('recommendations')}
+                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                      recommendedTab === 'recommendations'
+                        ? 'border-accent text-text-primary font-semibold'
+                        : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                    }`}
+                  >
+                    Recommended
+                  </button>
+                  <button
+                    onClick={() => setRecommendedTab('playlist')}
+                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                      recommendedTab === 'playlist'
+                        ? 'border-accent text-text-primary font-semibold'
+                        : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                    }`}
+                  >
+                    From Playlist
+                  </button>
+                  <button
+                    onClick={() => setRecommendedTab('creator')}
+                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                      recommendedTab === 'creator'
+                        ? 'border-accent text-text-primary font-semibold'
+                        : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                    }`}
+                  >
+                    {video.user?.name || 'Creator'}
+                  </button>
+                  <button
+                    onClick={() => setRecommendedTab('topic')}
+                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                      recommendedTab === 'topic'
+                        ? 'border-accent text-text-primary font-semibold'
+                        : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                    }`}
+                  >
+                    Topic Related
+                  </button>
+                </div>
+                
+                {/* View Layout Switcher */}
+                <button
+                  onClick={() => setIsCardViewActive(!isCardViewActive)}
+                  className="flex-shrink-0 p-2 rounded-lg hover:bg-surface/50 text-text-secondary hover:text-text-primary transition-colors"
+                  aria-label={isCardViewActive ? 'Switch to list view' : 'Switch to grid view'}
+                >
+                  {isCardViewActive ? (
+                    <LayoutList className="h-5 w-5" />
+                  ) : (
+                    <LayoutGrid className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Video List/Grid */}
+            <div className="w-full max-w-full">
+            {(() => {
+              // Filter videos based on active tab
+              let filteredVideos: Video[] = [];
+              
+              if (recommendedTab === 'recommendations') {
+                // Show general recommendations (exclude current video)
+                filteredVideos = relatedVideos.filter(v => v.id !== video?.id).slice(0, 10);
+              } else if (recommendedTab === 'playlist') {
+                // Mock playlist videos (same category or similar)
+                filteredVideos = relatedVideos
+                  .filter(v => v.id !== video?.id && v.category === video?.category)
+                  .slice(0, 8);
+              } else if (recommendedTab === 'creator') {
+                // Show creator's other videos
+                filteredVideos = relatedVideos
+                  .filter(v => v.id !== video?.id && v.userId === video?.userId)
+                  .slice(0, 8);
+              } else if (recommendedTab === 'topic') {
+                // Show topic-related videos (same category)
+                filteredVideos = relatedVideos
+                  .filter(v => v.id !== video?.id && v.category === video?.category)
+                  .slice(0, 8);
+              }
+
+              // If no filtered videos, show general recommendations
+              if (filteredVideos.length === 0) {
+                filteredVideos = relatedVideos.filter(v => v.id !== video?.id).slice(0, 10);
+              }
+
+              // Render based on view mode
+              if (isCardViewActive) {
+                // Grid/Card View
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredVideos.map((relatedVideo) => (
+                      <Link
+                        key={relatedVideo.id}
+                        href={`/watch/${relatedVideo.id}`}
+                        className="flex flex-col hover:bg-surface/30 rounded-lg overflow-hidden transition-colors group"
+                      >
+                        {/* Thumbnail */}
+                        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-surface">
+                          {relatedVideo.thumbnailUrl ? (
+                            <img
+                              src={relatedVideo.thumbnailUrl}
+                              alt={relatedVideo.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-surface">
+                              <span className="text-text-secondary text-xs">No thumbnail</span>
+                            </div>
+                          )}
+                          {relatedVideo.duration && (
+                            <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+                              {Math.floor(relatedVideo.duration / 60)}:{(relatedVideo.duration % 60).toString().padStart(2, '0')}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Video Info */}
+                        <div className="flex flex-col gap-1 p-2">
+                          <h4 className="text-sm font-medium text-text-primary line-clamp-2 group-hover:text-accent transition-colors">
+                            {relatedVideo.title}
+                          </h4>
+                          <p className="text-xs text-text-secondary">
+                            {relatedVideo.user?.name || 'Unknown Creator'}
+                          </p>
+                          <p className="text-xs text-text-secondary">
+                            {relatedVideo.views.toLocaleString()} views
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                );
+              } else {
+                // List View (Vertical)
+                return (
+                  <div className="space-y-3">
+                    {filteredVideos.map((relatedVideo) => (
+                      <Link
+                        key={relatedVideo.id}
+                        href={`/watch/${relatedVideo.id}`}
+                        className="flex gap-3 hover:bg-surface/30 rounded-lg p-2 transition-colors group"
+                      >
+                        {/* Thumbnail */}
+                        <div className="flex-shrink-0 relative w-[168px] h-[94px] rounded-lg overflow-hidden bg-surface">
+                          {relatedVideo.thumbnailUrl ? (
+                            <img
+                              src={relatedVideo.thumbnailUrl}
+                              alt={relatedVideo.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-surface">
+                              <span className="text-text-secondary text-xs">No thumbnail</span>
+                            </div>
+                          )}
+                          {relatedVideo.duration && (
+                            <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+                              {Math.floor(relatedVideo.duration / 60)}:{(relatedVideo.duration % 60).toString().padStart(2, '0')}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Video Info */}
+                        <div className="flex-1 min-w-0 flex flex-col gap-1">
+                          <h4 className="text-sm font-medium text-text-primary line-clamp-2 group-hover:text-accent transition-colors">
+                            {relatedVideo.title}
+                          </h4>
+                          <p className="text-xs text-text-secondary">
+                            {relatedVideo.user?.name || 'Unknown Creator'}
+                          </p>
+                          <p className="text-xs text-text-secondary">
+                            {relatedVideo.views.toLocaleString()} views
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                );
+              }
+            })()}
+            </div>
+            </div>
           </div>
         
       {/* Right Column - Comments Section */}
-      <div className="w-[400px] flex-shrink-0 flex flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-t-xl">
-          {/* Sticky Header with Tab Navigation or Report Header */}
+      <div className="w-[400px] flex-shrink-0 flex flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
+          {/* Sticky Header with Tab Navigation or Report Header or Donation Header */}
           <div className="sticky top-0 z-10 bg-[#1A1A1A] border-b border-surface/50">
-            {reportCommentState === 'NONE' ? (
+            {isDonationViewActive ? (
+              <div className="flex items-center gap-3 px-3 py-3">
+                <button
+                  onClick={() => {
+                    if (isAddingCard) {
+                      setIsAddingCard(false);
+                      setIsVerificationVerified(false);
+                    } else {
+                      setIsDonationViewActive(false);
+                    }
+                  }}
+                  className="p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors"
+                  aria-label="Back"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <h2 className="text-lg font-semibold text-text-primary">
+                  {isAddingCard ? 'Add Card' : 'Donation / Superchat'}
+                </h2>
+              </div>
+            ) : reportCommentState === 'NONE' ? (
               <div className="flex">
                 <button
                   onClick={() => setActiveTab('public')}
@@ -1605,7 +2302,7 @@ export default function WatchPage() {
                       : 'text-text-secondary hover:text-text-primary'
                   }`}
                 >
-                  Comments
+                  {video?.isLive ? 'Chat' : 'Comments'}
                   {activeTab === 'public' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-text-secondary" />
                   )}
@@ -1618,7 +2315,7 @@ export default function WatchPage() {
                       : 'text-text-secondary hover:text-text-primary'
                   }`}
                 >
-                  Donations
+                  {video?.isLive ? 'Superchat' : 'Donations'}
                   {activeTab === 'donated' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-text-secondary" />
                   )}
@@ -1640,8 +2337,435 @@ export default function WatchPage() {
             )}
         </div>
         
-          {/* Comments List or Report Flow - Scrollable */}
-          <div className="flex-1 overflow-y-auto space-y-2 px-3 py-2 sidebar-scrollbar-hide">
+          {/* Comments List or Report Flow or Donation Form - Scrollable */}
+          {isDonationViewActive && isAddingCard ? (
+              /* Add Card View - Full View within Sidebar */
+              <div className="flex-1 flex flex-col h-full overflow-hidden">
+                <div className="flex flex-col h-full p-4">
+                  {/* Add Card Form - All Fields on One Screen */}
+                  <div className="flex-1 overflow-y-auto space-y-4">
+                    {/* 1. Name for Card */}
+                    <div>
+                      <label className="block text-sm font-medium text-text-secondary mb-2">
+                        Name for Card
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g., Mening Kartam"
+                        value={cardName}
+                        onChange={(e) => setCardName(e.target.value)}
+                        className="w-full bg-surface border-surface text-text-primary h-10"
+                      />
+                    </div>
+
+                    {/* 2. Card Number */}
+                    <div>
+                      <label className="block text-sm font-medium text-text-secondary mb-2">
+                        Card Number
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="0000 0000 0000 0000"
+                        value={newCardNumber}
+                        onChange={(e) => {
+                          const formatted = formatNewCardNumber(e.target.value);
+                          setNewCardNumber(formatted);
+                          // Auto-detect card type
+                          if (formatted.replace(/\s/g, '').length >= 6) {
+                            const detectedType = detectCardType(formatted);
+                            setCardType(detectedType);
+                            // Reset SMS sent state when card type changes
+                            if (detectedType !== cardType) {
+                              setSmsSent(false);
+                              setIsVerificationVerified(false);
+                            }
+                          } else {
+                            setCardType(null);
+                            setSmsSent(false);
+                            setIsVerificationVerified(false);
+                          }
+                        }}
+                        maxLength={19}
+                        className="w-full bg-surface border-surface text-text-primary h-10"
+                      />
+                    </div>
+
+                    {/* 3. Expiration Date */}
+                    <div>
+                      <label className="block text-sm font-medium text-text-secondary mb-2">
+                        Expiration Date
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="MM/YY"
+                        value={newCardExpiry}
+                        onChange={(e) => {
+                          const formatted = formatExpiry(e.target.value);
+                          setNewCardExpiry(formatted);
+                        }}
+                        maxLength={5}
+                        className="w-full bg-surface border-surface text-text-primary h-10"
+                      />
+                    </div>
+
+                    {/* 4. Verification (Combined/Dynamic) */}
+                    <div>
+                      <label className="block text-sm font-medium text-text-secondary mb-2">
+                        {cardType === 'local' ? 'SMS Code' : 'CVV/CVC'}
+                      </label>
+                      <div className="flex flex-row items-center gap-2">
+                        <Input
+                          type="text"
+                          placeholder={cardType === 'local' ? '000000' : '000'}
+                          value={cardType === 'local' ? smsCode : newCardCVC}
+                          onChange={(e) => {
+                            const cleaned = e.target.value.replace(/\D/g, '');
+                            if (cardType === 'local') {
+                              setSmsCode(cleaned.slice(0, 6));
+                            } else {
+                              setNewCardCVC(cleaned.slice(0, 3));
+                            }
+                            setIsVerificationVerified(false);
+                          }}
+                          maxLength={cardType === 'local' ? 6 : 3}
+                          disabled={cardType === 'local' && !smsSent}
+                          className="flex-1 bg-surface border-surface text-text-primary h-10 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            if (cardType === 'local') {
+                              // Two-step SMS flow for local cards
+                              if (!smsSent) {
+                                // Step 1: Send SMS
+                                setPaymentProcessing(true);
+                                setTimeout(() => {
+                                  setSmsSent(true);
+                                  setPaymentProcessing(false);
+                                }, 1000);
+                              } else {
+                                // Step 2: Verify SMS code
+                                if (smsCode.length === 6) {
+                                  setIsVerificationVerified(true);
+                                  setPaymentProcessing(true);
+                                  setTimeout(() => {
+                                    setPaymentProcessing(false);
+                                  }, 500);
+                                }
+                              }
+                            } else {
+                              // Single-step CVV/CVC verification for international cards
+                              const isValid = (cardType === 'international' || cardType === null) && newCardCVC.length === 3;
+                              if (isValid) {
+                                setIsVerificationVerified(true);
+                                setPaymentProcessing(true);
+                                setTimeout(() => {
+                                  setPaymentProcessing(false);
+                                }, 500);
+                              }
+                            }
+                          }}
+                          disabled={
+                            paymentProcessing ||
+                            isVerificationVerified ||
+                            (cardType === 'local' && smsSent && smsCode.length !== 6) ||
+                            ((cardType === 'international' || cardType === null) && newCardCVC.length !== 3)
+                          }
+                          className="h-10 py-0 px-4 bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+                        >
+                          {cardType === 'local' 
+                            ? (!smsSent ? 'SMS Yuborish' : (isVerificationVerified ? 'Tasdiqlandi' : 'Tasdiqlash'))
+                            : (isVerificationVerified ? 'Tasdiqlandi' : 'Tasdiqlash')
+                          }
+                        </Button>
+                      </div>
+                      {cardType === 'local' && smsSent && (
+                        <p className="text-xs text-text-secondary mt-2">
+                          We've sent a verification code to your phone.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Save and Verify Button - Fixed Bottom */}
+                  <div className="flex-shrink-0 border-t border-surface/30 pt-4 mt-4">
+                    <Button
+                      onClick={handleCardVerification}
+                      disabled={
+                        !cardName.trim() ||
+                        newCardNumber.replace(/\s/g, '').length !== 16 ||
+                        newCardExpiry.length !== 5 ||
+                        !isVerificationVerified ||
+                        paymentProcessing
+                      }
+                      className="w-full h-10 bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Kartani Saqlash
+                    </Button>
+                  </div>
+                </div>
+              </div>
+          ) : isDonationViewActive ? (
+              /* Full Donation Form View */
+              <div className="flex-1 flex flex-col h-full overflow-hidden">
+                <div className="flex flex-col h-full p-4">
+                  {/* 1. Amount and Message Block (Top Priority) */}
+                  {/* 1.1 Donation Amount & Anonymity (Top Fixed) */}
+                  <div className="flex-shrink-0 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder={`Minimal miqdor: ${MIN_DONATION_AMOUNT.toLocaleString()} UZS`}
+                        value={donationAmount}
+                        onChange={(e) => {
+                          const numericValue = e.target.value.replace(/\D/g, '');
+                          setDonationAmount(numericValue);
+                        }}
+                        onKeyDown={(e) => {
+                          if (
+                            [46, 8, 9, 27, 13, 110, 190].indexOf(e.keyCode) !== -1 ||
+                            (e.keyCode === 65 && e.ctrlKey === true) ||
+                            (e.keyCode >= 35 && e.keyCode <= 40)
+                          ) {
+                            return;
+                          }
+                          if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                            e.preventDefault();
+                          }
+                        }}
+                        className="w-full bg-surface border-surface text-text-primary h-10"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs text-text-secondary whitespace-nowrap">Anonim</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAnonymousDonation(!isAnonymousDonation)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          isAnonymousDonation ? 'bg-accent' : 'bg-surface/50'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            isAnonymousDonation ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1.2 Message Input (Flexible/Stretch Element - Fills Remaining Space) */}
+                <div className="flex-1 flex flex-col min-h-0 mb-4">
+                  <label className="block text-sm font-medium text-text-secondary mb-2 flex-shrink-0">
+                    Message (Optional)
+                  </label>
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <Textarea
+                      ref={commentInputRef}
+                      placeholder="Add a message with your donation..."
+                      value={commentText}
+                      maxLength={MAX_COMMENT_LENGTH}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setCommentText(newValue);
+                        autoResizeTextarea(e.target);
+                      }}
+                      className="w-full h-full border border-surface text-text-primary text-sm resize-none bg-surface flex-1"
+                    />
+                    {commentText.length > MAX_COMMENT_LENGTH && (
+                      <span className="text-xs text-red-400 font-medium mt-1 block flex-shrink-0">
+                        -{commentText.length - MAX_COMMENT_LENGTH}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Payment Methods Block (Middle/Bottom) */}
+                <div className="flex-shrink-0 space-y-3 mb-4">
+                  {/* 2.1 Saved/Add Card List */}
+                  <div>
+                    <h3 className="text-sm font-medium text-text-secondary mb-2">Pay with Cards</h3>
+                    <div className="space-y-1.5">
+                      {savedCards.map((card) => (
+                        <div
+                          key={card.id}
+                          ref={(el) => {
+                            if (el) {
+                              cardMenuRefs.current[card.id] = el;
+                            }
+                          }}
+                          onClick={() => {
+                            setSelectedPaymentMethod(card.id);
+                            setPaymentCategory('card');
+                            setWaitingForPayment(false);
+                            setInvoiceGenerated(false);
+                            setOpenCardMenuId(null);
+                          }}
+                          className={`relative w-full px-3 py-3 rounded-md border transition-colors h-14 cursor-pointer ${
+                            selectedPaymentMethod === card.id && paymentCategory === 'card'
+                              ? 'border-accent bg-accent/10'
+                              : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
+                          }`}
+                        >
+                          <div className="w-full h-full flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0">
+                                <span className="text-xs font-medium text-text-primary leading-tight truncate">{card.cardName}</span>
+                                <span className="text-xs text-text-secondary leading-tight truncate">{card.maskedNumber}</span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {/* Card Logo */}
+                                <div className="flex-shrink-0">
+                                  {card.type === 'UzCard' ? (
+                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm">
+                                      <span className="text-[7px] font-bold text-white tracking-tight">UZCARD</span>
+                                    </div>
+                                  ) : card.type === 'HUMO' ? (
+                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-sm">
+                                      <span className="text-[7px] font-bold text-white tracking-tight">HUMO</span>
+                                    </div>
+                                  ) : card.type === 'Visa' ? (
+                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-sm">
+                                      <span className="text-[9px] font-bold text-white tracking-wider">VISA</span>
+                                    </div>
+                                  ) : card.type === 'Mastercard' ? (
+                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-orange-500 via-red-500 to-yellow-500 flex items-center justify-center shadow-sm">
+                                      <div className="flex items-center gap-0.5">
+                                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                        <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center shadow-sm">
+                                      <span className="text-[7px] font-bold text-white">CARD</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* More Button */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenCardMenuId(openCardMenuId === card.id ? null : card.id);
+                                  }}
+                                  className="p-1.5 rounded-full hover:bg-surface/50 text-text-secondary hover:text-text-primary transition-colors flex-shrink-0"
+                                  aria-label="More options"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Delete Dropdown Menu */}
+                          {openCardMenuId === card.id && (
+                            <div className="absolute right-0 top-full mt-1 z-50 bg-[#1A1A1A] border border-surface rounded-lg shadow-lg overflow-hidden min-w-[120px]">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSavedCards(savedCards.filter(c => c.id !== card.id));
+                                  setOpenCardMenuId(null);
+                                  // Clear selection if deleted card was selected
+                                  if (selectedPaymentMethod === card.id) {
+                                    setSelectedPaymentMethod(null);
+                                  }
+                                }}
+                                className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface/50 transition-colors flex items-center gap-2"
+                              >
+                                <X className="h-4 w-4" />
+                                <span>O'chirish</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingCard(true);
+                          setAddCardStep('name');
+                          setCardName('');
+                          setNewCardNumber('');
+                          setNewCardExpiry('');
+                          setNewCardCVC('');
+                          setSmsCode('');
+                          setCardType(null);
+                          setIsVerificationVerified(false);
+                          setSmsSent(false);
+                        }}
+                        className="w-full px-2 py-2 rounded-md border border-dashed border-accent/50 bg-transparent hover:bg-accent/10 transition-colors text-xs text-accent hover:text-accent/80 font-medium flex items-center justify-center gap-1 h-10"
+                      >
+                        <span>+</span>
+                        <span>Add card</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2.2 Invoices */}
+                  <div>
+                    <h3 className="text-sm font-medium text-text-secondary mb-2">Invoices</h3>
+                    <div className="overflow-x-auto sidebar-scrollbar-hide">
+                      <div className="flex flex-row gap-2" style={{ width: 'max-content' }}>
+                        {[
+                          { id: 'paynet', name: 'Paynet', logo: '💸', color: 'bg-purple-600' },
+                          { id: 'click', name: 'Click', logo: '💳', color: 'bg-blue-600' },
+                          { id: 'payme', name: 'Payme', logo: '💵', color: 'bg-green-600' },
+                          { id: 'uzum', name: 'Uzum', logo: '🛒', color: 'bg-orange-600' },
+                        ].map((wallet) => (
+                          <button
+                            key={wallet.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPaymentMethod(wallet.id);
+                              setPaymentCategory('ewallet');
+                              setWaitingForPayment(false);
+                              setInvoiceGenerated(false);
+                            }}
+                            className={`flex-shrink-0 w-24 px-3 py-3 rounded-md border transition-colors h-14 flex flex-col items-center justify-center gap-1 ${
+                              selectedPaymentMethod === wallet.id && paymentCategory === 'ewallet'
+                                ? 'border-accent bg-accent/10'
+                                : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
+                            }`}
+                          >
+                            <div className={`w-8 h-8 rounded flex items-center justify-center ${wallet.color} text-white text-sm font-bold`}>
+                              {wallet.logo}
+                            </div>
+                            <span className="text-xs font-medium text-text-primary whitespace-nowrap">{wallet.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Submission (Fixed Bottom) */}
+                <div className="flex-shrink-0 border-t border-surface/30 pt-4">
+                  {/* 3.1 Send Donation Button */}
+                  <Button
+                    onClick={handleProcessDonation}
+                    disabled={
+                      !donationAmount ||
+                      parseInt(donationAmount) < MIN_DONATION_AMOUNT ||
+                      !selectedPaymentMethod ||
+                      waitingForPayment
+                    }
+                    className="w-full h-10 bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {waitingForPayment 
+                      ? `Waiting for payment on ${getInvoiceSystemName()}`
+                      : paymentCategory === 'ewallet' && selectedPaymentMethod && ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod)
+                        ? `Pay with ${getInvoiceSystemName()}`
+                        : 'Send Donation'
+                    }
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto space-y-1 px-3 py-1 sidebar-scrollbar-hide">
             {reportCommentState === 'NONE' ? (
               /* Standard Comments/Donations View */
               filteredComments.length === 0 ? (
@@ -1715,77 +2839,83 @@ export default function WatchPage() {
               </div>
             )}
           </div>
+          )}
 
           {/* Bottom Footer - Conditional Rendering */}
-          {reportCommentState === 'NONE' ? (
-            /* Standard Comment Input Bar */
-            <div className="sticky bottom-0 bg-[#1A1A1A] border-t border-surface/50 pt-3 pb-3 px-3">
-              {showDonationInput && (
-                <div className="mb-2 space-y-2">
-                  <Input
-                    type="number"
-                    placeholder="Donation amount (UZS)"
-                    value={donationAmount}
-                    onChange={(e) => setDonationAmount(e.target.value)}
-                    className="bg-surface border-surface text-text-primary"
-                  />
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm text-text-secondary flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isAnonymousDonation}
-                        onChange={(e) => setIsAnonymousDonation(e.target.checked)}
-                        className="w-4 h-4 rounded border-surface bg-surface text-accent focus:ring-accent focus:ring-offset-0 focus:ring-2"
-                      />
-                      <span>Send Anonymously</span>
-                    </label>
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <Input
+          {reportCommentState === 'NONE' && !isDonationViewActive ? (
+            <>
+              {/* Standard Comment Input Bar */}
+              <div className="sticky bottom-0 border-t border-surface/50 pt-3 pb-3 px-3 bg-[#1A1A1A]">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 min-w-0">
+                    <Textarea
                   ref={commentInputRef}
-                  type="text"
                   placeholder={replyingToId ? "Reply to comment..." : "Comment"}
                   value={commentText}
+                      maxLength={MAX_COMMENT_LENGTH}
                   onChange={(e) => {
-                    setCommentText(e.target.value);
+                        const newValue = e.target.value;
+                        setCommentText(newValue);
+                        // Auto-resize
+                        autoResizeTextarea(e.target);
                     // Clear replyingToId if user deletes the @ mention
-                    if (replyingToId && !e.target.value.startsWith('@')) {
+                        if (replyingToId && !newValue.startsWith('@')) {
                       setReplyingToId(null);
                     }
                   }}
-                  onKeyPress={(e) => {
+                      onKeyDown={(e) => {
+                        // Allow Shift+Enter for new line, Enter alone submits
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
+                          if (commentText.trim() && commentText.length <= MAX_COMMENT_LENGTH) {
                       handleSendComment();
-                    }
-                  }}
-                  className="flex-1 bg-surface border-surface text-text-primary"
-                />
+                          }
+                        }
+                      }}
+                      rows={1}
+                      className={`w-full border text-text-primary text-sm transition-colors resize-none overflow-hidden ${
+                        commentText.length > MAX_COMMENT_LENGTH
+                          ? 'border-red-500'
+                          : 'border-surface'
+                      } bg-surface`}
+                      style={{ minHeight: '40px', maxHeight: '120px' }}
+                    />
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      {commentText.length > MAX_COMMENT_LENGTH && (
+                        <span className="text-xs text-red-400 font-medium">
+                          -{commentText.length - MAX_COMMENT_LENGTH}
+                        </span>
+                      )}
                 <Button
-                  onClick={() => setShowDonationInput(!showDonationInput)}
+                        onClick={() => setIsDonationViewActive(true)}
                   variant="ghost"
                   size="icon"
-                  className={`rounded-full ${
-                    showDonationInput
-                      ? 'bg-accent/20 text-accent'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
+                        className="rounded-full h-10 w-10 text-text-secondary hover:text-text-primary"
                   title="Add donation"
                 >
-                  <DollarSign className="h-5 w-5" />
+                        <DollarSign className="h-4 w-4" />
                 </Button>
                 <Button
-                  onClick={handleSendComment}
+                        onClick={handleProcessDonation}
                   size="icon"
-                  className="rounded-full bg-accent hover:bg-accent/90"
-                  disabled={!commentText.trim()}
+                        className="rounded-full bg-accent hover:bg-accent/90 h-10 w-10"
+                        disabled={
+                          !commentText.trim() || 
+                          commentText.length > MAX_COMMENT_LENGTH ||
+                          (!!donationAmount && !selectedPaymentMethod) ||
+                          (!!donationAmount && parseInt(donationAmount) < MIN_DONATION_AMOUNT) ||
+                          (!!donationAmount && selectedPaymentMethod !== null && ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod) && waitingForPayment)
+                        }
                 >
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
             </div>
+                </div>
+              </div>
+            </>
           ) : reportCommentState === 'WRITE_DETAILS' ? (
             /* Report Action Buttons Footer */
             <div className="sticky bottom-0 bg-[#1A1A1A] border-t border-surface/50 p-4">

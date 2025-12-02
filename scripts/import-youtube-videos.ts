@@ -207,7 +207,6 @@ async function importVideo(videoData: YouTubeVideoData): Promise<boolean> {
         thumbnailUrl: thumbnailUrl,
         userId: creatorId,
         views: videoData.viewCount,
-        duration: videoData.duration > 0 ? Math.round(videoData.duration) : null,
         createdAt: uploadDate,
       },
     });

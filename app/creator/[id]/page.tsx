@@ -10,6 +10,8 @@ export default function CreatorProfilePage() {
   const params = useParams();
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  // Generate subscriber count once on mount (not on every render)
+  const [subscribersCount] = useState(() => Math.floor(Math.random() * 10000));
 
   useEffect(() => {
     async function loadCreatorData() {
@@ -77,7 +79,7 @@ export default function CreatorProfilePage() {
               </span>
             )}
             <p className="text-text-secondary mt-2">
-              {Math.floor(Math.random() * 10000).toLocaleString()} subscribers
+              {subscribersCount.toLocaleString()} subscribers
             </p>
           </div>
         </div>

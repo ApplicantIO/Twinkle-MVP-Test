@@ -341,6 +341,47 @@ function getSampleVideos(): any[] {
         profileImageUrl: 'https://ui-avatars.com/api/?name=Mirshakar&background=10b981&color=fff&size=128',
       },
     },
+    // Twinkle Star Test Video
+    {
+      id: 'twinkle_star_test_video',
+      userId: 'twinkle-creator-1',
+      title: 'Twinkle Star Test',
+      description: 'A test video for the Twinkle platform featuring the official Twinkle Star content.',
+      thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Star&background=7C5FD9&color=fff&size=128',
+      videoUrl: '/videos/twinkle-video.mp4',
+      views: 12500,
+      category: 'Entertainment',
+      type: 'free',
+      duration: 15,
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
+      user: {
+        id: 'twinkle-creator-1',
+        name: 'Twinkle Official',
+        profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
+      },
+    },
+    // Twinkle Live Video Test
+    {
+      id: 'twinkle_live_video_test',
+      userId: 'twinkle-creator-1',
+      title: 'Twinkle Live Video Test',
+      description: 'A live streaming test video for the Twinkle platform.',
+      thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Live&background=ef4444&color=fff&size=128',
+      videoUrl: 'https://www.youtube.com/embed/jfKfPfyJRdk',
+      views: 5000,
+      liveViewers: 1200,
+      category: 'Entertainment',
+      type: 'free',
+      isLive: true,
+      createdAt: new Date(), // Live now
+      updatedAt: new Date(),
+      user: {
+        id: 'twinkle-creator-1',
+        name: 'Twinkle Official',
+        profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
+      },
+    },
   ];
 
   return sampleVideos;

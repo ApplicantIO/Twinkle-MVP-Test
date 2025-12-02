@@ -1,0 +1,84 @@
+'use client';
+
+import { createContext, useContext, useState, ReactNode } from 'react';
+import { Video } from '@/types';
+
+interface MiniplayerContextType {
+  isMiniplayerActive: boolean;
+  miniplayerVideo: Video | null;
+  miniplayerProgress: number;
+  currentVideoId: string | null;
+  currentVideoUrl: string | null;
+  currentThumbnailUrl: string | null;
+  // Current video on watch page
+  currentWatchVideo: Video | null;
+  setIsMiniplayerActive: (active: boolean) => void;
+  setMiniplayerVideo: (video: Video | null) => void;
+  setMiniplayerProgress: (progress: number) => void;
+  setCurrentWatchVideo: (video: Video | null) => void;
+  activateMiniplayer: (video: Video, progress?: number) => void;
+  closeMiniplayer: () => void;
+  // Legacy methods for backward compatibility
+}
+
+const MiniplayerContext = createContext<MiniplayerContextType | undefined>(undefined);
+
+export function MiniplayerProvider({ children }: { children: ReactNode }) {
+  const [isMiniplayerActive, setIsMiniplayerActive] = useState(false);
+  const [miniplayerVideo, setMiniplayerVideo] = useState<Video | null>(null);
+  const [miniplayerProgress, setMiniplayerProgress] = useState(0);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
+  const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
+  const [currentThumbnailUrl, setCurrentThumbnailUrl] = useState<string | null>(null);
+  const [currentWatchVideo, setCurrentWatchVideo] = useState<Video | null>(null);
+
+  const activateMiniplayer = (video: Video, progress: number = 0) => {
+    setMiniplayerVideo(video);
+    setMiniplayerProgress(progress);
+    setCurrentVideoId(video.id);
+    setCurrentVideoUrl(video.videoUrl);
+    setCurrentThumbnailUrl(video.thumbnailUrl || null);
+    setIsMiniplayerActive(true);
+  };
+
+  const closeMiniplayer = () => {
+    setIsMiniplayerActive(false);
+    setMiniplayerVideo(null);
+    setMiniplayerProgress(0);
+    setCurrentVideoId(null);
+    setCurrentVideoUrl(null);
+    setCurrentThumbnailUrl(null);
+    // Note: Don't clear currentWatchVideo here - it's managed by the watch page
+  };
+
+  return (
+    <MiniplayerContext.Provider
+      value={{
+        isMiniplayerActive,
+        miniplayerVideo,
+        miniplayerProgress,
+        currentVideoId,
+        currentVideoUrl,
+        currentThumbnailUrl,
+        currentWatchVideo,
+        setIsMiniplayerActive,
+        setMiniplayerVideo,
+        setMiniplayerProgress,
+        setCurrentWatchVideo,
+        activateMiniplayer,
+        closeMiniplayer,
+      }}
+    >
+      {children}
+    </MiniplayerContext.Provider>
+  );
+}
+
+export function useMiniplayer() {
+  const context = useContext(MiniplayerContext);
+  if (context === undefined) {
+    throw new Error('useMiniplayer must be used within a MiniplayerProvider');
+  }
+  return context;
+}
+

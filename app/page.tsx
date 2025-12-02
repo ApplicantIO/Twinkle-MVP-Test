@@ -221,8 +221,8 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
     fac.getColorAsync(imgRef.current)
       .then((color) => {
         // Check if color is too dark/light (black/white) and use fallback
-        const rgb = color.rgb;
-        const brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+        const rgba = color.value; // [R, G, B, A]
+        const brightness = (rgba[0] * 299 + rgba[1] * 587 + rgba[2] * 114) / 1000;
         
         // If color is too dark (< 30) or too light (> 220), use default
         if (brightness < 30 || brightness > 220) {
@@ -403,9 +403,9 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
           <div className="flex-shrink-0 relative">
             {video.user?.profileImageUrl ? (
               <>
-                <img
-                  src={video.user.profileImageUrl}
-                  alt={video.user.name || 'Creator'}
+                 <img
+                   src={video.user.profileImageUrl}
+                   alt={video.user.name || 'Creator'}
                   className="w-10 h-10 rounded-full object-cover"
                 />
                 {/* Live Indicator Dot - Red circle on avatar */}
