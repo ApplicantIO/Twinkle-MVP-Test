@@ -55,7 +55,24 @@ export default function HomePage() {
         if (response.ok) {
           const data = await response.json();
           console.log('Videos loaded:', data.videos?.length || 0);
-          setVideos(data.videos || []);
+          
+          // Sort videos to prioritize test videos at the top
+          const TEST_VIDEO_IDS = [
+            'twinkle_live_video_test',
+            'twinkle_paid_content',
+            'twinkle_membership_content',
+          ];
+          
+          const sortedVideos = (data.videos || []).sort((a: Video, b: Video) => {
+            const aIsTest = TEST_VIDEO_IDS.includes(a.id);
+            const bIsTest = TEST_VIDEO_IDS.includes(b.id);
+            
+            if (aIsTest && !bIsTest) return -1; // 'a' comes first
+            if (!aIsTest && bIsTest) return 1;  // 'b' comes first
+            return 0; // Maintain original order for others
+          });
+          
+          setVideos(sortedVideos);
           setError(null);
         } else {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -306,16 +323,20 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                 <img
               ref={imgRef}
                   src={video.thumbnailUrl}
-                  alt={video.title}
+                  alt=""
               crossOrigin="anonymous"
               className="w-full h-full object-cover"
               onLoad={() => setImageLoaded(true)}
+              onError={(e) => {
+                // Hide image on error and show placeholder
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
             />
             {/* Preview image on hover (for YouTube videos) */}
             {previewImage && previewImage !== video.thumbnailUrl && (
               <img
                 src={previewImage}
-                alt={video.title}
+                alt=""
                 crossOrigin="anonymous"
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
                   isHovered ? 'opacity-100' : 'opacity-0'

@@ -72,6 +72,7 @@ export function VideoPlayer({
   const [hoverTime, setHoverTime] = useState(0);
   const [hoverPosition, setHoverPosition] = useState(0); // Percentage position for preview
   const progressBarContainerRef = useRef<HTMLDivElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null); // Shadow video for frame preview
   
   // Draggable miniplayer state
   const [miniPlayerPosition, setMiniPlayerPosition] = useState({ x: 0, y: 0 });
@@ -115,11 +116,12 @@ export function VideoPlayer({
   const isLive = video?.isLive === true;
 
   // Handle progress bar hover preview (only for non-live videos)
-  const handleProgressBarMouseMove = useCallback((e: React.MouseEvent<HTMLInputElement>) => {
+  // Updated to work with wrapper div hitbox instead of input element
+  const handleProgressBarMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (isLive) return; // Don't show preview for live videos
     
-    const progressBar = e.currentTarget;
-    const rect = progressBar.getBoundingClientRect();
+    const hitbox = e.currentTarget;
+    const rect = hitbox.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, x / rect.width));
     
@@ -127,12 +129,21 @@ export function VideoPlayer({
     setHoverTime(time);
     setHoverPosition(percentage * 100);
     setShowPreview(true);
+    
+    // Sync shadow video to hover time for dynamic frame preview
+    if (previewVideoRef.current && !isNaN(time) && time >= 0 && time <= duration) {
+      previewVideoRef.current.currentTime = time;
+    }
   }, [duration, isLive]);
 
   const handleProgressBarMouseLeave = useCallback(() => {
     setShowPreview(false);
     setHoverTime(0);
     setHoverPosition(0);
+    // Reset shadow video when preview is hidden
+    if (previewVideoRef.current) {
+      previewVideoRef.current.currentTime = 0;
+    }
   }, []);
 
   // Robust toggle play/pause function
@@ -756,67 +767,69 @@ export function VideoPlayer({
             ref={progressBarContainerRef}
             className="absolute bottom-0 left-0 right-0 z-[60]" 
             style={{ paddingBottom: '4px' }}
-            onMouseLeave={handleProgressBarMouseLeave}
           >
             {/* Progress Bar Hover Preview (for non-live videos only) */}
             {showPreview && !isLive && (
               <div
-                className="absolute bottom-full mb-2 pointer-events-none z-50"
+                className="absolute bottom-full mb-8 pointer-events-none z-50"
                 style={{ left: `${hoverPosition}%`, transform: 'translateX(-50%)' }}
               >
                 {/* Preview Tooltip */}
                 <div className="bg-black/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap mb-1">
                   {formatTime(hoverTime)}
                 </div>
-                {/* Preview Thumbnail (Mock) */}
-                <div className="w-32 h-18 bg-surface border border-surface rounded overflow-hidden">
-                  {thumbnailUrl ? (
-                    <img
-                      src={thumbnailUrl}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-text-secondary text-xs">
-                      {formatTime(hoverTime)}
-                    </div>
-                  )}
+                {/* Preview Video Frame (Dynamic) */}
+                <div className="w-64 aspect-video bg-surface border border-surface rounded overflow-hidden">
+                  <video
+                    ref={previewVideoRef}
+                    src={videoUrl}
+                    muted
+                    preload="auto"
+            className="w-full h-full object-cover"
+                    style={{ pointerEvents: 'none' }}
+                  />
                 </div>
               </div>
             )}
             
-            <input
-              ref={progressBarRef}
-              type="range"
-              min="0"
-              max={effectiveDuration || 0}
-              value={effectiveCurrentTime}
-              onChange={handleSeek}
-              onInput={handleSeek} // Also handle onInput for better compatibility
-              disabled={isLive}
-              className={`miniplayer-progress-bar w-full appearance-none transition-all ${
-                isLive ? 'cursor-default' : 'cursor-pointer'
-              } ${showMiniplayerControls ? 'h-1' : 'h-0.5'} ${
-                isLive ? 'accent-red-600' : 'accent-white'
-              }`}
-              style={{
-                background: isLive
-                  ? `linear-gradient(to right, rgb(220 38 38) 0%, rgb(220 38 38) 100%)`
-                  : `linear-gradient(to right, white 0%, white ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 100%)`,
-                pointerEvents: 'auto',
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => {
-                e.stopPropagation(); // Stop drag handler from interfering
-                if (isLive) {
-                  e.preventDefault();
-                }
-                // Don't preventDefault for non-live - allow native range input behavior
-              }}
-              onMouseUp={(e) => e.stopPropagation()}
+            {/* Expanded Hitbox Wrapper for easier hover detection */}
+            <div
+              className="relative h-10 flex items-center"
               onMouseMove={handleProgressBarMouseMove}
               onMouseEnter={() => !isLive && setShowPreview(true)}
-            />
+              onMouseLeave={handleProgressBarMouseLeave}
+            >
+              <input
+                ref={progressBarRef}
+                type="range"
+                min="0"
+                max={effectiveDuration || 0}
+                value={effectiveCurrentTime}
+                onChange={handleSeek}
+                onInput={handleSeek} // Also handle onInput for better compatibility
+                disabled={isLive}
+                className={`miniplayer-progress-bar w-full appearance-none transition-all ${
+                  isLive ? 'cursor-default' : 'cursor-pointer'
+                } ${showMiniplayerControls ? 'h-1' : 'h-0.5'} ${
+                  isLive ? 'accent-red-600' : 'accent-white'
+                }`}
+                style={{
+                  background: isLive
+                    ? `linear-gradient(to right, rgb(220 38 38) 0%, rgb(220 38 38) 100%)`
+                    : `linear-gradient(to right, white 0%, white ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 100%)`,
+                  pointerEvents: 'auto',
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => {
+                  e.stopPropagation(); // Stop drag handler from interfering
+                  if (isLive) {
+                    e.preventDefault();
+                  }
+                  // Don't preventDefault for non-live - allow native range input behavior
+                }}
+                onMouseUp={(e) => e.stopPropagation()}
+              />
+            </div>
           </div>
 
           {/* Hover-Only Controls Overlay - Visual only, doesn't block clicks */}
@@ -879,7 +892,7 @@ export function VideoPlayer({
                   <div className="bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
                     <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                     <span>LIVE</span>
-                  </div>
+        </div>
                 ) : (
                   <span className="text-white text-xs font-medium">
                     {formatTime(currentTime)} / {formatTime(duration)}
@@ -903,9 +916,9 @@ export function VideoPlayer({
             }}
           >
             {/* Expand/Restore Button */}
-            <Button
-              variant="ghost"
-              size="icon"
+              <Button
+                variant="ghost"
+                size="icon"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -919,8 +932,8 @@ export function VideoPlayer({
               title="Expand to Full View"
             >
               <Maximize className="h-4 w-4" />
-            </Button>
-            
+              </Button>
+              
             {/* Close (X) Button */}
             <Button
               variant="ghost"
@@ -975,49 +988,60 @@ export function VideoPlayer({
                   {/* Progress Bar Hover Preview (for non-live videos only) */}
                   {showPreview && !isLive && (
                     <div
-                      className="absolute bottom-full mb-2 pointer-events-none z-50"
+                      className="absolute bottom-full mb-8 pointer-events-none z-50"
                       style={{ left: `${hoverPosition}%`, transform: 'translateX(-50%)' }}
                     >
                       {/* Preview Tooltip */}
                       <div className="bg-black/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap mb-1">
                         {formatTime(hoverTime)}
-                      </div>
-                      {/* Preview Thumbnail (Mock) */}
-                      <div className="w-32 h-18 bg-surface border border-surface rounded overflow-hidden">
-                        {thumbnailUrl ? (
-                          <img
-                            src={thumbnailUrl}
-                            alt="Preview"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-text-secondary text-xs">
-                            {formatTime(hoverTime)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+            </div>
+                      {/* Preview Video Frame (Dynamic) */}
+                      <div className="w-64 aspect-video bg-surface border border-surface rounded overflow-hidden">
+                        <video
+                          ref={previewVideoRef}
+                          src={videoUrl}
+                          muted
+                          preload="auto"
+                          className="w-full h-full object-cover"
+                          style={{ pointerEvents: 'none' }}
+                        />
+          </div>
+        </div>
                   )}
-                  
-                  <input
-                    ref={progressBarRef}
-                    type="range"
-                    min="0"
-                    max={effectiveDuration || 0}
-                    value={effectiveCurrentTime}
-                    onChange={handleSeek}
-                    disabled={isLive}
-                    className={`w-full h-1 rounded-none appearance-none mb-0 ${
-                      isLive ? 'cursor-default accent-red-600' : 'cursor-pointer accent-white'
-                    }`}
-                    style={{
-                      background: isLive
-                        ? `linear-gradient(to right, rgb(220 38 38) 0%, rgb(220 38 38) 100%)`
-                        : `linear-gradient(to right, white 0%, white ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 100%)`,
-                    }}
+
+                  {/* Expanded Hitbox Wrapper for easier hover detection */}
+                  <div
+                    className="relative h-10 flex items-center"
                     onMouseMove={handleProgressBarMouseMove}
                     onMouseEnter={() => !isLive && setShowPreview(true)}
-                  />
+                    onMouseLeave={handleProgressBarMouseLeave}
+                  >
+                    <input
+                      ref={progressBarRef}
+                      type="range"
+                      min="0"
+                      max={effectiveDuration || 0}
+                      value={effectiveCurrentTime}
+                      onChange={handleSeek}
+                      disabled={isLive}
+                      className={`w-full h-1 rounded-none appearance-none mb-0 ${
+                        isLive ? 'cursor-default accent-red-600' : 'cursor-pointer accent-white'
+                      }`}
+                      style={{
+                        background: isLive
+                          ? `linear-gradient(to right, rgb(220 38 38) 0%, rgb(220 38 38) 100%)`
+                          : `linear-gradient(to right, white 0%, white ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 100%)`,
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        if (isLive) {
+                          e.preventDefault();
+                        }
+                      }}
+                      onMouseUp={(e) => e.stopPropagation()}
+                    />
+                  </div>
                 </div>
         
           {/* Main Controls Row - Compact Layout */}
@@ -1095,7 +1119,7 @@ export function VideoPlayer({
                 </div>
               ) : (
                 <span className="text-white text-xs font-medium ml-1 min-w-[4rem]">
-                  {formatTime(currentTime)} / {formatTime(duration)}
+            {formatTime(currentTime)} / {formatTime(duration)}
                 </span>
               )}
           </div>
@@ -1104,9 +1128,9 @@ export function VideoPlayer({
             <div className="flex items-center gap-2">
               {/* Close Button (Miniplayer Mode Only) */}
               {isInMiniplayerMode && (
-                <Button
-                  variant="ghost"
-                  size="icon"
+            <Button
+              variant="ghost"
+              size="icon"
                   onClick={() => {
                     // Stop video playback
                     if (videoRef.current) {
@@ -1120,7 +1144,7 @@ export function VideoPlayer({
                   title="Close Miniplayer"
                 >
                   <X className="h-5 w-5" />
-                </Button>
+            </Button>
               )}
 
               {/* Settings Menu - Hidden in miniplayer mode */}

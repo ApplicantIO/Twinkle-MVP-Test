@@ -357,6 +357,48 @@ function getSampleVideoById(id: string): any | null {
         profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
       },
     },
+    // Twinkle Star - Paid Content Test
+    {
+      id: 'twinkle_paid_content',
+      userId: 'twinkle-creator-1',
+      title: 'Twinkle Star - Paid Content Test',
+      description: 'A test video for the Twinkle platform featuring paid content. This video requires purchase to view.',
+      thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Star&background=7C5FD9&color=fff&size=128',
+      videoUrl: '/videos/twinkle-video.mp4',
+      views: 8500,
+      category: 'Entertainment',
+      type: 'paid',
+      price: 4.99,
+      currency: 'USD',
+      duration: 15,
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
+      user: {
+        id: 'twinkle-creator-1',
+        name: 'Twinkle Official',
+        profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
+      },
+    },
+    // Twinkle Star - Membership Content Test
+    {
+      id: 'twinkle_membership_content',
+      userId: 'twinkle-creator-1',
+      title: 'Twinkle Star - Membership Content Test',
+      description: 'A test video for the Twinkle platform featuring subscription/membership content. This video requires channel membership to view.',
+      thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Star&background=7C5FD9&color=fff&size=128',
+      videoUrl: '/videos/twinkle-video.mp4',
+      views: 6200,
+      category: 'Entertainment',
+      type: 'subscription',
+      duration: 15,
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
+      user: {
+        id: 'twinkle-creator-1',
+        name: 'Twinkle Official',
+        profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
+      },
+    },
     // Twinkle Live Video Test
     {
       id: 'twinkle_live_video_test',
