@@ -209,19 +209,20 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Backdrop overlay when sidebar is expanded on watch page */}
+      {/* Backdrop overlay when sidebar is expanded on watch page (desktop only) */}
       {isWatchPage && !isCollapsed && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 transition-opacity duration-300"
+          className="hidden lg:block fixed inset-0 bg-black/50 z-30 transition-opacity duration-300"
           onClick={() => {
             // Optional: Close sidebar when clicking backdrop
             // setIsCollapsed(true);
           }}
         />
       )}
+      {/* Hide sidebar on mobile/tablet (below lg breakpoint) - Desktop only */}
       <aside 
         className={cn(
-          "fixed left-0 top-16 h-[calc(100vh-4rem)] bg-background border-r border-surface pt-4 overflow-y-auto transition-all duration-300",
+          "hidden lg:block fixed left-0 top-16 h-[calc(100vh-4rem)] bg-background border-r border-surface pt-4 overflow-y-auto transition-all duration-300",
           "sidebar-scrollbar-hide", // Custom class for hiding scrollbar
           isCollapsed ? "w-16 z-40" : isWatchPage ? "w-52 z-50" : "w-52 z-40"
         )}

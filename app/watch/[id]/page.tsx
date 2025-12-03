@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Video } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply, LayoutList, LayoutGrid, Minimize2 } from 'lucide-react';
+import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply, LayoutList, LayoutGrid, Minimize2, MessageSquare } from 'lucide-react';
+import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 
@@ -123,6 +124,43 @@ export default function WatchPage() {
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const notificationsModalRef = useRef<HTMLDivElement>(null);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false); // Mobile comments overlay state
+
+  // Mock access state functions (matching VideoPlayer logic)
+  const hasPurchasedVideo = useCallback((videoId: string): boolean => {
+    // TODO: Replace with actual purchase check from API
+    return false;
+  }, []);
+
+  const isChannelSubscriber = useCallback((channelId: string): boolean => {
+    // TODO: Replace with actual subscription check from API
+    return false;
+  }, []);
+
+  // Determine if user has full access to the video
+  const hasFullAccess = useMemo(() => {
+    if (!video) return true; // No video data, allow access
+    
+    const videoType = video.type || 'free';
+    
+    // Free videos always have access
+    if (videoType === 'free') {
+      return true;
+    }
+    
+    // Paid content: check if user has purchased
+    if (videoType === 'paid') {
+      return hasPurchasedVideo(video.id);
+    }
+    
+    // Subscription content: check if user is subscribed to channel
+    if (videoType === 'subscription') {
+      return isChannelSubscriber(video.userId);
+    }
+    
+    // Default: allow access
+    return true;
+  }, [video, hasPurchasedVideo, isChannelSubscriber]);
 
   // Automatically collapse sidebar when entering watch page
   useEffect(() => {
@@ -2017,6 +2055,21 @@ export default function WatchPage() {
                 <Bookmark className={`h-5 w-5 ${isSaved ? 'fill-current' : ''}`} />
               </Button>
 
+              {/* Comment Icon Button (Mobile only) - Disabled if no access */}
+              <Button
+                variant="ghost"
+                onClick={() => setIsCommentsOpen(true)}
+                disabled={!hasFullAccess}
+                className={`lg:hidden rounded-full h-10 w-10 p-0 hover:bg-surface ${
+                  !hasFullAccess
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+                title={!hasFullAccess ? 'Comments unavailable for restricted content' : 'Open comments'}
+              >
+                <MessageSquare className="h-5 w-5" />
+              </Button>
+
               {/* More */}
               <div className="relative">
                 <Button
@@ -2074,6 +2127,23 @@ export default function WatchPage() {
               {video.description || 'No description provided.'}
             </p>
             </div>
+
+          {/* Monetization CTA Section - Replace comments area when access restricted */}
+          {!hasFullAccess && (
+            <div className="lg:hidden">
+              <MonetizationCTASection 
+                video={video}
+                onPurchase={() => {
+                  // TODO: Implement purchase flow
+                  console.log('Purchase clicked for video:', video.id);
+                }}
+                onSubscribe={() => {
+                  // TODO: Implement subscription flow
+                  console.log('Subscribe clicked for channel:', video.userId);
+                }}
+              />
+            </div>
+          )}
 
           {/* Recommended Videos Section */}
           <div className="mt-6 w-full max-w-full">
@@ -2268,8 +2338,29 @@ export default function WatchPage() {
             </div>
           </div>
         
-      {/* Right Column - Comments Section */}
-      <div className="w-[400px] flex-shrink-0 flex flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
+      {/* Right Column - Comments Section or Monetization CTA */}
+      {/* Desktop: Always show right column */}
+      {/* Mobile: Hide by default, show via overlay */}
+      {!hasFullAccess && (
+        /* Monetization CTA Section - Replace comments when access restricted */
+        <div className="hidden lg:block w-[400px] flex-shrink-0">
+          <MonetizationCTASection 
+            video={video}
+            onPurchase={() => {
+              // TODO: Implement purchase flow
+              console.log('Purchase clicked for video:', video.id);
+            }}
+            onSubscribe={() => {
+              // TODO: Implement subscription flow
+              console.log('Subscribe clicked for channel:', video.userId);
+            }}
+          />
+        </div>
+      )}
+      
+      {/* Comments Section - Only show if user has access */}
+      {hasFullAccess && (
+        <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
           {/* Sticky Header with Tab Navigation or Report Header or Donation Header */}
           <div className="sticky top-0 z-10 bg-[#1A1A1A] border-b border-surface/50">
             {isDonationViewActive ? (
@@ -2937,7 +3028,32 @@ export default function WatchPage() {
               </div>
             </div>
           ) : null}
-      </div>
+        </div>
+      )}
+
+      {/* Mobile Comments Overlay */}
+      {hasFullAccess && isCommentsOpen && (
+        <div className="fixed inset-0 bg-black/80 z-50 lg:hidden">
+          <div className="absolute right-0 top-0 bottom-0 w-[90vw] max-w-[400px] bg-[#1A1A1A] flex flex-col overflow-hidden">
+            {/* Close Button */}
+            <div className="flex items-center justify-between p-4 border-b border-surface/50">
+              <h2 className="text-lg font-semibold text-text-primary">Comments</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsCommentsOpen(false)}
+                className="text-text-secondary hover:text-text-primary"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            {/* Comments Content - Same as desktop but scrollable */}
+            <div className="flex-1 overflow-y-auto">
+              {/* Render comments here - same structure as desktop */}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

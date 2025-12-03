@@ -7,6 +7,7 @@ import { MiniplayerProvider } from "@/contexts/MiniplayerContext";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
+import { BottomNavbar } from "@/components/layout/BottomNavbar";
 import { CentralizedVideoPlayer } from "@/components/CentralizedVideoPlayer";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -32,6 +33,7 @@ export default function RootLayout({
               <MainContent>
                 {children}
               </MainContent>
+              <BottomNavbar />
               <CentralizedVideoPlayer />
             </MiniplayerProvider>
           </SidebarProvider>

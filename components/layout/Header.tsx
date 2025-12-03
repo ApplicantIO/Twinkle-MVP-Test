@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import AuthModal from '@/components/AuthModal';
+import { MobileMenu } from './MobileMenu';
 import { cn } from '@/lib/utils';
 
 // Mock user object for simulated logged-in state
@@ -33,6 +34,8 @@ export function Header() {
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'appearance' | 'switchAccount'>('main');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Use actual user role if available, otherwise default to viewer
   const userRole = (user?.role as 'viewer' | 'creator' | 'admin') || 'viewer';
@@ -84,30 +87,39 @@ export function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 h-16 bg-background border-b border-surface z-50 flex items-center px-4">
-      {/* Menu Toggle Button */}
+      {/* Desktop: Menu Toggle Button */}
       <Button
         variant="ghost"
         size="icon"
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="mr-3 text-text-secondary hover:text-text-primary hover:bg-surface"
+        className="hidden lg:block mr-3 text-text-secondary hover:text-text-primary hover:bg-surface"
         aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         <Menu className="h-5 w-5" />
       </Button>
 
+      {/* Logo - Always visible */}
       <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-2xl font-bold text-accent">Twinkle</span>
+        <span className="text-xl lg:text-2xl font-bold text-accent">Twinkle</span>
       </Link>
 
-      {/* Centered search bar */}
-      <form onSubmit={handleSearch} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg px-4">
+      {/* Centered search bar - Responsive */}
+      {/* Desktop/Large: 30% width search bar */}
+      <form 
+        onSubmit={(e) => {
+          handleSearch(e);
+          setIsSearchExpanded(false);
+        }} 
+        className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        style={{ width: '30%', minWidth: '200px', maxWidth: '400px' }}
+      >
         <div className="relative">
           <Input
             type="text"
             placeholder="Search videos..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-4 pr-12 bg-surface border border-gray-700 text-text-primary placeholder:text-text-secondary rounded-full h-10 focus:border-gray-600"
+            className="pl-4 pr-12 bg-surface border border-gray-700 text-text-primary placeholder:text-text-secondary rounded-full h-10 focus:border-gray-600 w-full"
           />
           <button
             type="submit"
@@ -119,7 +131,22 @@ export function Header() {
         </div>
       </form>
 
-      <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+      {/* Mobile: Search removed - only logo and menu icon visible */}
+      {/* Search functionality moved to mobile menu */}
+
+      {/* Mobile Menu Button (only on mobile/tablet) */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setIsMobileMenuOpen(true)}
+        className="lg:hidden ml-auto text-text-secondary hover:text-text-primary hover:bg-surface"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+
+      {/* Right side actions - Desktop only, Fixed width container to prevent overlap */}
+      <div className="hidden lg:flex ml-auto items-center gap-2 flex-shrink-0 min-w-0">
         {user ? (
           <>
             {/* User Profile Button - Opens Settings Modal */}
@@ -731,6 +758,9 @@ export function Header() {
 
       {/* Auth Modal */}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} initialMode={authModalMode} />
+      
+      {/* Mobile Menu Slide-out */}
+      <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
     </header>
   );
 }

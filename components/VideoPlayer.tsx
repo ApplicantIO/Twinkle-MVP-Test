@@ -15,6 +15,9 @@ import {
   Minimize2,
   ArrowLeft,
   X,
+  Lock,
+  DollarSign,
+  Crown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Video } from '@/types';
@@ -115,6 +118,42 @@ export function VideoPlayer({
   // Check if video is live
   const isLive = video?.isLive === true;
 
+  // Mock access state functions (for testing - always return false)
+  const hasPurchasedVideo = useCallback((videoId: string): boolean => {
+    // TODO: Replace with actual purchase check from API
+    return false;
+  }, []);
+
+  const isChannelSubscriber = useCallback((channelId: string): boolean => {
+    // TODO: Replace with actual subscription check from API
+    return false;
+  }, []);
+
+  // Determine if user has full access to the video
+  const hasFullAccess = useMemo(() => {
+    if (!video) return true; // No video data, allow access
+    
+    const videoType = video.type || 'free';
+    
+    // Free videos always have access
+    if (videoType === 'free') {
+      return true;
+    }
+    
+    // Paid content: check if user has purchased
+    if (videoType === 'paid') {
+      return hasPurchasedVideo(video.id);
+    }
+    
+    // Subscription content: check if user is subscribed to channel
+    if (videoType === 'subscription') {
+      return isChannelSubscriber(video.userId);
+    }
+    
+    // Default: allow access
+    return true;
+  }, [video, hasPurchasedVideo, isChannelSubscriber]);
+
   // Handle progress bar hover preview (only for non-live videos)
   // Updated to work with wrapper div hitbox instead of input element
   const handleProgressBarMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -146,19 +185,34 @@ export function VideoPlayer({
     }
   }, []);
 
+  // Trailer/Teaser duration limit (in seconds) - Mock 15 seconds or 2 minutes
+  const TRAILER_DURATION = useMemo(() => {
+    return video?.type === 'paid' ? 15 : video?.type === 'subscription' ? 120 : 0;
+  }, [video?.type]);
+  
+  const [hasReachedTrailerLimit, setHasReachedTrailerLimit] = useState(false);
+
   // Robust toggle play/pause function
   const togglePlay = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) {
+    // Allow playback for trailers (first N seconds) even without full access
+    const canPlayTrailer = !hasFullAccess && TRAILER_DURATION > 0 && !hasReachedTrailerLimit;
+    
+    // Block playback if no access AND no trailer available
+    if (!hasFullAccess && !canPlayTrailer) {
+      return;
+    }
+
+    const videoElement = videoRef.current;
+    if (!videoElement) {
       console.error('Video element not found');
       return;
     }
 
     // Check if video is ready to play
-    if (video.readyState === 0) {
+    if (videoElement.readyState === 0) {
       console.warn('Video not loaded yet, waiting for metadata...');
-      video.addEventListener('loadedmetadata', () => {
-        const playPromise = video.play();
+      videoElement.addEventListener('loadedmetadata', () => {
+        const playPromise = videoElement.play();
         if (playPromise !== undefined) {
           playPromise
             .then(() => {
@@ -177,8 +231,8 @@ export function VideoPlayer({
       return;
     }
 
-    if (video.paused) {
-      const playPromise = video.play();
+    if (videoElement.paused) {
+      const playPromise = videoElement.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
@@ -194,10 +248,10 @@ export function VideoPlayer({
           });
     }
     } else {
-      video.pause();
+      videoElement.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [hasFullAccess, TRAILER_DURATION, hasReachedTrailerLimit]);
 
   // Handle video events
   useEffect(() => {
@@ -206,6 +260,24 @@ export function VideoPlayer({
 
     const handleTimeUpdate = () => {
       const time = video.currentTime;
+      
+      // Check trailer limit for restricted content
+      if (!hasFullAccess && TRAILER_DURATION > 0 && time >= TRAILER_DURATION) {
+        if (!hasReachedTrailerLimit) {
+          video.pause();
+          setIsPlaying(false);
+          setCurrentTime(TRAILER_DURATION);
+          setHasReachedTrailerLimit(true);
+          return; // Don't update progress beyond trailer limit
+        }
+        // If already at limit, keep it there
+        if (time > TRAILER_DURATION) {
+          video.currentTime = TRAILER_DURATION;
+          setCurrentTime(TRAILER_DURATION);
+          return;
+        }
+      }
+      
       setCurrentTime(time);
       onProgressUpdate?.(time);
     };
@@ -255,8 +327,8 @@ export function VideoPlayer({
       restoreProgress();
     }
 
-    // Handle autoplay - only if video is ready
-    if (autoPlay) {
+    // Handle autoplay - only if video is ready and user has access
+    if (autoPlay && hasFullAccess) {
       // Wait for video to be ready before attempting autoplay
       const attemptAutoplay = () => {
         if (video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
@@ -294,7 +366,7 @@ export function VideoPlayer({
       video.removeEventListener('volumechange', handleVolumeChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, [autoPlay, volume, isMuted, onProgressUpdate, isMiniplayerActive, miniplayerProgress]);
+  }, [autoPlay, volume, isMuted, onProgressUpdate, isMiniplayerActive, miniplayerProgress, hasFullAccess, TRAILER_DURATION, hasReachedTrailerLimit]);
 
   // Update playback speed
   useEffect(() => {
@@ -303,6 +375,33 @@ export function VideoPlayer({
       video.playbackRate = playbackSpeed;
     }
   }, [playbackSpeed]);
+
+  // Reset trailer limit flag when video changes or access changes
+  useEffect(() => {
+    setHasReachedTrailerLimit(false);
+  }, [video?.id, hasFullAccess]);
+
+  // Prevent seeking beyond trailer limit
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || hasFullAccess || TRAILER_DURATION === 0) return;
+
+    const handleSeeking = () => {
+      if (video.currentTime > TRAILER_DURATION) {
+        video.currentTime = TRAILER_DURATION;
+        setCurrentTime(TRAILER_DURATION);
+        if (hasReachedTrailerLimit) {
+          video.pause();
+          setIsPlaying(false);
+        }
+      }
+    };
+
+    video.addEventListener('seeking', handleSeeking);
+    return () => {
+      video.removeEventListener('seeking', handleSeeking);
+    };
+  }, [hasFullAccess, TRAILER_DURATION, hasReachedTrailerLimit]);
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {
@@ -354,6 +453,15 @@ export function VideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
+      // Block playback controls if user doesn't have access
+      if (!hasFullAccess) {
+        // Only allow Escape to close settings, other keys are blocked
+        if (e.key === 'Escape') {
+          return; // Let Escape work normally
+        }
+        return; // Block all other keyboard shortcuts
+      }
+
       // Spacebar or K: Toggle Play/Pause
       if (e.key === ' ' || e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -378,15 +486,15 @@ export function VideoPlayer({
         return;
       }
 
-      // Arrow Left: Seek backward 5s
-      if (e.key === 'ArrowLeft') {
+      // Arrow Left: Seek backward 5s (only if has access)
+      if (e.key === 'ArrowLeft' && hasFullAccess) {
         e.preventDefault();
         video.currentTime = Math.max(0, video.currentTime - 5);
         return;
       }
 
-      // Arrow Right: Seek forward 5s
-      if (e.key === 'ArrowRight') {
+      // Arrow Right: Seek forward 5s (only if has access)
+      if (e.key === 'ArrowRight' && hasFullAccess) {
         e.preventDefault();
         video.currentTime = Math.min(duration, video.currentTime + 5);
         return;
@@ -397,7 +505,7 @@ export function VideoPlayer({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isYouTubeEmbed, showSettings, duration, togglePlay, toggleFullscreen]);
+  }, [isYouTubeEmbed, showSettings, duration, togglePlay, toggleFullscreen, hasFullAccess]);
 
   // Controls fade out on inactivity (Fullscreen only)
   const resetControlsTimeout = useCallback(() => {
@@ -476,6 +584,12 @@ export function VideoPlayer({
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Disable seeking for live videos
     if (isLive) {
+      e.preventDefault();
+      return;
+    }
+    
+    // Disable seeking if user doesn't have access
+    if (!hasFullAccess) {
       e.preventDefault();
       return;
     }
@@ -758,6 +872,76 @@ export function VideoPlayer({
         onClick={handleVideoClick}
       />
       
+      {/* Access Restriction CTA Overlay - Show if no access OR trailer limit reached */}
+      {!hasFullAccess && video && (hasReachedTrailerLimit || TRAILER_DURATION === 0) && (
+        <div className={`absolute inset-0 flex items-center justify-center z-[100] transition-opacity ${
+          hasReachedTrailerLimit ? 'bg-black/60' : 'bg-black/80'
+        }`}>
+          <div className="bg-surface border border-surface rounded-lg p-8 max-w-md mx-4 text-center">
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              {video.type === 'paid' ? (
+                <Lock className="h-16 w-16 text-text-secondary" />
+              ) : video.type === 'subscription' ? (
+                <Crown className="h-16 w-16 text-text-secondary" />
+              ) : (
+                <Lock className="h-16 w-16 text-text-secondary" />
+              )}
+            </div>
+            
+            {/* Message */}
+            <h3 className="text-xl font-semibold text-text-primary mb-2">
+              {hasReachedTrailerLimit
+                ? video.type === 'paid'
+                  ? 'Buy to Continue Watching'
+                  : 'Subscribe to Continue Watching'
+                : video.type === 'paid' 
+                ? 'This content requires a one-time purchase'
+                : video.type === 'subscription'
+                ? 'This content requires a channel subscription'
+                : 'Access Restricted'}
+            </h3>
+            
+            <p className="text-text-secondary mb-6">
+              {hasReachedTrailerLimit
+                ? video.type === 'paid'
+                  ? `You've reached the preview limit. Purchase to watch the full video.`
+                  : `You've reached the preview limit. Subscribe to watch the full video.`
+                : video.type === 'paid'
+                ? `Purchase this video to watch it in full.`
+                : video.type === 'subscription'
+                ? `Subscribe to ${video.user?.name || 'this channel'} to access exclusive content.`
+                : 'You need to purchase or subscribe to access this content.'}
+            </p>
+            
+            {/* CTA Button */}
+            <Button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // TODO: Implement purchase/subscription flow
+                console.log('CTA clicked:', video.type === 'paid' ? 'Purchase' : 'Subscribe');
+              }}
+              className="w-full bg-accent hover:bg-accent/90 text-white rounded-full py-6 text-lg font-semibold"
+            >
+              {video.type === 'paid' ? (
+                <>
+                  <DollarSign className="h-5 w-5 mr-2 inline" />
+                  Buy Now for {video.price?.toLocaleString(undefined, { style: 'currency', currency: video.currency || 'USD' }) || '$4.99'}
+                </>
+              ) : video.type === 'subscription' ? (
+                <>
+                  <Crown className="h-5 w-5 mr-2 inline" />
+                  Subscribe to Channel
+                </>
+              ) : (
+                'Get Access'
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+      
       {/* Controls Overlay */}
       {isInMiniplayerMode ? (
         /* Miniplayer Mode - Simplified UI with Hover Controls */
@@ -780,9 +964,9 @@ export function VideoPlayer({
                 </div>
                 {/* Preview Video Frame (Dynamic) */}
                 <div className="w-64 aspect-video bg-surface border border-surface rounded overflow-hidden">
-                  <video
+      <video
                     ref={previewVideoRef}
-                    src={videoUrl}
+        src={videoUrl}
                     muted
                     preload="auto"
             className="w-full h-full object-cover"
@@ -807,7 +991,7 @@ export function VideoPlayer({
                 value={effectiveCurrentTime}
                 onChange={handleSeek}
                 onInput={handleSeek} // Also handle onInput for better compatibility
-                disabled={isLive}
+                disabled={isLive || !hasFullAccess}
                 className={`miniplayer-progress-bar w-full appearance-none transition-all ${
                   isLive ? 'cursor-default' : 'cursor-pointer'
                 } ${showMiniplayerControls ? 'h-1' : 'h-0.5'} ${
@@ -892,15 +1076,15 @@ export function VideoPlayer({
                   <div className="bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
                     <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                     <span>LIVE</span>
-        </div>
+                    </div>
                 ) : (
                   <span className="text-white text-xs font-medium">
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
                 )}
-              </div>
-            </div>
+                    </div>
                   </div>
+                    </div>
                   
           {/* Interactive Header Buttons Layer - Separate, Always Clickable (only visible on hover) */}
           <div 
@@ -1016,18 +1200,18 @@ export function VideoPlayer({
                     onMouseEnter={() => !isLive && setShowPreview(true)}
                     onMouseLeave={handleProgressBarMouseLeave}
                   >
-                    <input
+        <input
                       ref={progressBarRef}
-                      type="range"
-                      min="0"
+          type="range"
+          min="0"
                       max={effectiveDuration || 0}
                       value={effectiveCurrentTime}
-                      onChange={handleSeek}
-                      disabled={isLive}
+          onChange={handleSeek}
+                      disabled={isLive || !hasFullAccess}
                       className={`w-full h-1 rounded-none appearance-none mb-0 ${
                         isLive ? 'cursor-default accent-red-600' : 'cursor-pointer accent-white'
                       }`}
-                      style={{
+          style={{
                         background: isLive
                           ? `linear-gradient(to right, rgb(220 38 38) 0%, rgb(220 38 38) 100%)`
                           : `linear-gradient(to right, white 0%, white ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) ${duration > 0 ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 100%)`,
@@ -1042,7 +1226,7 @@ export function VideoPlayer({
                       onMouseUp={(e) => e.stopPropagation()}
                     />
                   </div>
-                </div>
+          </div>
         
           {/* Main Controls Row - Compact Layout */}
           <div className="flex items-center justify-between">

@@ -10,14 +10,18 @@ export function MainContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isWatchPage = pathname?.startsWith('/watch');
 
-  // On watch page, always use collapsed sidebar width (overlay mode)
-  // On other pages, adjust based on sidebar state
-  const marginLeft = isWatchPage ? 'ml-16' : (isCollapsed ? 'ml-16' : 'ml-52');
+  // Mobile/Tablet: No sidebar margin (sidebar hidden)
+  // Desktop: Adjust based on sidebar state
+  const marginLeft = isWatchPage 
+    ? 'lg:ml-16' 
+    : (isCollapsed 
+      ? 'lg:ml-16' 
+      : 'lg:ml-52');
 
   return (
     <main
       className={cn(
-        "pt-16 min-h-screen transition-all duration-300",
+        "pt-16 pb-16 lg:pb-0 min-h-screen transition-all duration-300",
         marginLeft
       )}
     >
