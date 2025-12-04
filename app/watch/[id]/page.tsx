@@ -1731,9 +1731,10 @@ export default function WatchPage() {
             {/* Report Modal - Centered in Video Player Area */}
             {reportStep !== 'CLOSED' && (
               <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg">
-                {/* Backdrop Overlay */}
+                {/* Backdrop Overlay - No blur, clean solid overlay */}
                 <div 
-                  className="absolute inset-0 bg-black/70 rounded-lg"
+                  className="absolute inset-0 bg-black/80 rounded-lg"
+                  style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
                   onClick={handleCloseReport}
                 />
                 
@@ -1855,9 +1856,10 @@ export default function WatchPage() {
           {/* Notifications Modal - Only show when player placeholder is visible */}
           {!isMiniplayerActive && isNotificationsModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center">
-                {/* Backdrop Overlay */}
+                {/* Backdrop Overlay - No blur, clean solid overlay */}
                 <div 
-                className="absolute inset-0 bg-black/70"
+                className="absolute inset-0 bg-black/80"
+                  style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
                   onClick={handleCloseNotifications}
                 />
                 
@@ -2142,7 +2144,7 @@ export default function WatchPage() {
                   console.log('Subscribe clicked for channel:', video.userId);
                 }}
               />
-            </div>
+          </div>
           )}
 
           {/* Recommended Videos Section */}
@@ -2343,7 +2345,7 @@ export default function WatchPage() {
       {/* Mobile: Hide by default, show via overlay */}
       {!hasFullAccess && (
         /* Monetization CTA Section - Replace comments when access restricted */
-        <div className="hidden lg:block w-[400px] flex-shrink-0">
+        <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full">
           <MonetizationCTASection 
             video={video}
             onPurchase={() => {
@@ -3028,7 +3030,7 @@ export default function WatchPage() {
               </div>
             </div>
           ) : null}
-        </div>
+      </div>
       )}
 
       {/* Mobile Comments Overlay */}

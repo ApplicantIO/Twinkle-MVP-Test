@@ -16,8 +16,8 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe }: Monet
   const isSubscription = videoType === 'subscription';
 
   return (
-    <div className="w-full bg-gradient-to-br from-surface via-surface to-background border border-surface/50 rounded-xl p-6 md:p-8 shadow-lg">
-      <div className="max-w-xl mx-auto">
+    <div className="w-full h-full flex flex-col bg-gradient-to-br from-surface via-surface to-background border border-surface/50 rounded-xl p-6 md:p-8 shadow-lg">
+      <div className="max-w-xl mx-auto flex-1 flex flex-col justify-center">
         {/* Header Section */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-accent/10 mb-4">

@@ -28,6 +28,9 @@ export interface Video {
   type?: VideoType; // 'free', 'paid', 'subscription'
   price?: number; // Price in local currency for paid videos
   currency?: string; // Currency code (e.g., 'USD', 'UZS')
+  // Dual source strategy for paid/subscription content
+  teaserVideoUrl?: string; // Teaser/trailer video URL (shown when no access)
+  fullVideoUrl?: string; // Full video URL (shown when access granted)
   // Live streaming fields
   isLive?: boolean; // Whether the video is currently live
   liveViewers?: number; // Current number of live viewers

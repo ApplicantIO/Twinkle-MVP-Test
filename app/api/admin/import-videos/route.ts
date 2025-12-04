@@ -170,6 +170,12 @@ async function importVideo(videoData: YouTubeVideoData): Promise<boolean> {
         userId: creatorId,
         views: videoData.viewCount,
         createdAt: uploadDate,
+        // NOTE: Duration field is fetched from YouTube (line 53) but not saved because
+        // it doesn't exist in the Prisma schema yet. To fix:
+        // 1. Add "duration Int?" to the Video model in prisma/schema.prisma
+        // 2. Run: npx prisma migrate dev --name add_video_duration
+        // 3. Uncomment the line below:
+        // duration: videoData.duration > 0 ? Math.round(videoData.duration) : null,
       },
     });
     

@@ -368,7 +368,9 @@ function getSampleVideos(): any[] {
       title: 'Twinkle Star - Paid Content Test',
       description: 'A test video for the Twinkle platform featuring paid content. This video requires purchase to view.',
       thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Star&background=7C5FD9&color=fff&size=128',
-      videoUrl: '/videos/twinkle-video.mp4',
+      videoUrl: '/videos/twinkle-video.mp4', // Fallback for backward compatibility
+      teaserVideoUrl: '/videos/twinkle-video.mp4', // Teaser shown when no access (using existing file for testing)
+      fullVideoUrl: '/videos/twinkle-video.mp4', // Full video shown when access granted (using existing file for testing)
       views: 8500,
       category: 'Entertainment',
       type: 'paid',
@@ -390,7 +392,9 @@ function getSampleVideos(): any[] {
       title: 'Twinkle Star - Membership Content Test',
       description: 'A test video for the Twinkle platform featuring subscription/membership content. This video requires channel membership to view.',
       thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Star&background=7C5FD9&color=fff&size=128',
-      videoUrl: '/videos/twinkle-video.mp4',
+      videoUrl: '/videos/twinkle-video.mp4', // Fallback for backward compatibility
+      teaserVideoUrl: '/videos/twinkle-video.mp4', // Teaser shown when no access (using existing file for testing)
+      fullVideoUrl: '/videos/twinkle-video.mp4', // Full video shown when access granted (using existing file for testing)
       views: 6200,
       category: 'Entertainment',
       type: 'subscription',

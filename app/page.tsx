@@ -24,8 +24,7 @@ export default function HomePage() {
       if (width < 768) return 2;
       if (width < 1024) return 2;
       if (width < 1920) return 3; // Laptops: 3 columns (smaller cards)
-      if (width < 2560) return 4; // Larger monitors: 4 columns
-      return 5; // Very large displays: 5 columns
+      return 4; // Large monitors and above: Maximum 4 columns
     };
 
     const updateColumns = () => {
@@ -304,13 +303,13 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
   return (
           <Link
             href={`/watch/${video.id}`}
-      className="group cursor-pointer flex flex-col relative"
+      className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
       onMouseEnter={() => setHoveredVideo(video.id)}
       onMouseLeave={() => setHoveredVideo(null)}
     >
       {/* Ambient Mode Container - wraps entire card with background tint (static, no scaling) */}
       <div
-        className="rounded-xl transition-colors duration-300 p-3 hover:z-20 relative"
+        className={`rounded-xl transition-colors duration-300 p-3 hover:z-20 relative ${isMenuOpen ? 'z-[90]' : ''}`}
         style={{
           backgroundColor: isHovered ? hexToRgba(glowColor, 0.32) : 'transparent',
         }}
@@ -473,7 +472,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
       </div>
           
           {/* Column 3: More Icon (3 dots) - Discreet, doesn't take ambient color */}
-          <div className="flex-shrink-0 relative">
+          <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -490,8 +489,9 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
             {isMenuOpen && (
               <div
                 ref={menuRef}
-                className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-50"
+                className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[100]"
                 onClick={(e) => e.stopPropagation()}
+                style={{ zIndex: 9999 }}
               >
                 <button
                   onClick={(e) => {

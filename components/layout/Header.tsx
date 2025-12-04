@@ -104,14 +104,14 @@ export function Header() {
       </Link>
 
       {/* Centered search bar - Responsive */}
-      {/* Desktop/Large: 30% width search bar */}
+      {/* Desktop/Large: 25% width search bar */}
       <form 
         onSubmit={(e) => {
           handleSearch(e);
           setIsSearchExpanded(false);
         }} 
-        className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-        style={{ width: '30%', minWidth: '200px', maxWidth: '400px' }}
+        className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:w-[25%]"
+        style={{ minWidth: '200px' }}
       >
         <div className="relative">
           <Input

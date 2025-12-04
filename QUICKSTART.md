@@ -125,10 +125,36 @@ You should see the Vite dev server running (usually on `http://localhost:3000`)
 - Run: `npx prisma generate` again
 - Check database connection in `.env`
 
-## 📝 Default Admin Credentials
+## 📝 Default User Credentials
 
-- **Email:** `admin@twinkle.uz`
-- **Password:** `admin123`
+- **Username:** `yupbekha` or `@yupbekha`
+- **Email:** `yupbekha@twinkle.uz`
+- **Password:** `#User123`
+- **Name:** Bekha Say
+- **Role:** viewer (user)
 
 **⚠️ Change these in production!**
+
+### Reset Users (Optional)
+
+**⚠️ IMPORTANT: Before running this, ensure your database is connected!**
+
+See `DATABASE_SETUP.md` for database connection troubleshooting.
+
+To remove all existing users and create the default user:
+
+```bash
+npm run reset:user
+```
+
+This will:
+- Delete all existing users and their data
+- Create a new default user with the credentials above
+
+**If you get a database connection error:**
+1. Check PostgreSQL is running: `pg_isready`
+2. Verify `.env` file exists with correct `DATABASE_URL`
+3. Create database: `psql postgres` then `CREATE DATABASE twinkle;`
+4. Run: `npx prisma db push`
+5. Then try `npm run reset:user` again
 

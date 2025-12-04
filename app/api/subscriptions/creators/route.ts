@@ -55,24 +55,37 @@ export async function GET(request: NextRequest) {
     // Get latest video for each creator to determine activity and live status
     const creatorsWithActivity: CreatorWithActivity[] = await Promise.all(
       creators.map(async (creator) => {
-        // Get latest video to determine activity timestamp
+        // Get latest video to determine activity timestamp and live status
         const latestVideo = await prisma.video.findFirst({
           where: { userId: creator.id },
           orderBy: { createdAt: 'desc' },
           select: { 
             createdAt: true,
+            // NOTE: isLive and liveViewers fields are hardcoded to false/0 because
+            // they don't exist in the Prisma schema yet. To properly implement:
+            // 1. Add "isLive Boolean @default(false)" and "liveViewers Int?" to Video model
+            // 2. Run: npx prisma migrate dev --name add_video_live_fields
+            // 3. Uncomment the lines below and remove hardcoding:
+            // isLive: true,
+            // liveViewers: true,
           },
         });
 
         // Get the most recent activity timestamp
         const latestActivity = latestVideo?.createdAt || null;
 
+        // Check live status from latest video (default to false if field doesn't exist)
+        // @ts-ignore - isLive may not exist in schema
+        const isLive = latestVideo?.isLive === true;
+        // @ts-ignore - liveViewers may not exist in schema
+        const liveViewers = (latestVideo?.liveViewers as number) || 0;
+
         return {
           id: creator.id,
           name: creator.name || undefined,
           profileImageUrl: creator.profileImageUrl || undefined,
-          isLive: false, // Live streaming not implemented yet
-          liveViewers: 0,
+          isLive: isLive || false, // Default to false if not available
+          liveViewers: liveViewers || 0,
           latestActivity,
         };
       })

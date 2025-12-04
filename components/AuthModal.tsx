@@ -136,8 +136,12 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
         return;
       }
 
-      const name = `${firstName.trim()} ${lastName.trim()}`.trim();
-      await signUp(email, password, name || undefined);
+      // Use username if provided (strip @ prefix if user typed it), otherwise use first/last name combination
+      const normalizedUsername = username.trim().startsWith('@') 
+        ? username.trim().slice(1) 
+        : username.trim();
+      const displayName = normalizedUsername || `${firstName.trim()} ${lastName.trim()}`.trim();
+      await signUp(email, password, displayName || undefined);
       // Close on success
       onClose();
     } catch (err) {

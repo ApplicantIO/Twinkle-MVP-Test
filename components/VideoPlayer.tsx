@@ -69,6 +69,7 @@ export function VideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showMiniplayerControls, setShowMiniplayerControls] = useState(false); // Miniplayer hover state
+  const [isHoveringPlayer, setIsHoveringPlayer] = useState(false); // Track hover state for normal/fullscreen mode
   
   // Progress bar hover preview state
   const [showPreview, setShowPreview] = useState(false);
@@ -185,22 +186,33 @@ export function VideoPlayer({
     }
   }, []);
 
-  // Trailer/Teaser duration limit (in seconds) - Mock 15 seconds or 2 minutes
-  const TRAILER_DURATION = useMemo(() => {
-    return video?.type === 'paid' ? 15 : video?.type === 'subscription' ? 120 : 0;
-  }, [video?.type]);
+  // Dual source strategy: Clean single source swap - teaser or full video based on access
+  const effectiveVideoUrl = useMemo(() => {
+    if (!video) return videoUrl;
+    
+    // Clean source replacement: Single video element, one source at a time
+    // If user has full access, use fullVideoUrl (with fallback to videoUrl for non-paid content)
+    if (hasFullAccess) {
+      return video.fullVideoUrl || video.videoUrl || videoUrl;
+    }
+    
+    // If no access, ONLY use teaserVideoUrl - NEVER fallback to full video URL
+    // This prevents unauthorized access to the full video resource
+    if (video.teaserVideoUrl) {
+      return video.teaserVideoUrl;
+    }
+    
+    // If no teaser available, return null to prevent loading any video
+    return null;
+  }, [video, hasFullAccess, videoUrl]);
   
-  const [hasReachedTrailerLimit, setHasReachedTrailerLimit] = useState(false);
+  // Check if currently watching teaser
+  const isWatchingTeaser = !hasFullAccess && video && (video.type === 'paid' || video.type === 'subscription');
 
   // Robust toggle play/pause function
   const togglePlay = useCallback(() => {
-    // Allow playback for trailers (first N seconds) even without full access
-    const canPlayTrailer = !hasFullAccess && TRAILER_DURATION > 0 && !hasReachedTrailerLimit;
-    
-    // Block playback if no access AND no trailer available
-    if (!hasFullAccess && !canPlayTrailer) {
-      return;
-    }
+    // Allow playback for teasers (dual source strategy)
+    // No blocking - teaser video plays normally
 
     const videoElement = videoRef.current;
     if (!videoElement) {
@@ -251,7 +263,7 @@ export function VideoPlayer({
       videoElement.pause();
       setIsPlaying(false);
     }
-  }, [hasFullAccess, TRAILER_DURATION, hasReachedTrailerLimit]);
+  }, []);
 
   // Handle video events
   useEffect(() => {
@@ -260,24 +272,6 @@ export function VideoPlayer({
 
     const handleTimeUpdate = () => {
       const time = video.currentTime;
-      
-      // Check trailer limit for restricted content
-      if (!hasFullAccess && TRAILER_DURATION > 0 && time >= TRAILER_DURATION) {
-        if (!hasReachedTrailerLimit) {
-          video.pause();
-          setIsPlaying(false);
-          setCurrentTime(TRAILER_DURATION);
-          setHasReachedTrailerLimit(true);
-          return; // Don't update progress beyond trailer limit
-        }
-        // If already at limit, keep it there
-        if (time > TRAILER_DURATION) {
-          video.currentTime = TRAILER_DURATION;
-          setCurrentTime(TRAILER_DURATION);
-          return;
-        }
-      }
-      
       setCurrentTime(time);
       onProgressUpdate?.(time);
     };
@@ -327,8 +321,8 @@ export function VideoPlayer({
       restoreProgress();
     }
 
-    // Handle autoplay - only if video is ready and user has access
-    if (autoPlay && hasFullAccess) {
+    // Handle autoplay - works for both teaser and full video
+    if (autoPlay) {
       // Wait for video to be ready before attempting autoplay
       const attemptAutoplay = () => {
         if (video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
@@ -366,7 +360,7 @@ export function VideoPlayer({
       video.removeEventListener('volumechange', handleVolumeChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, [autoPlay, volume, isMuted, onProgressUpdate, isMiniplayerActive, miniplayerProgress, hasFullAccess, TRAILER_DURATION, hasReachedTrailerLimit]);
+  }, [autoPlay, volume, isMuted, onProgressUpdate, isMiniplayerActive, miniplayerProgress, effectiveVideoUrl]);
 
   // Update playback speed
   useEffect(() => {
@@ -376,32 +370,34 @@ export function VideoPlayer({
     }
   }, [playbackSpeed]);
 
-  // Reset trailer limit flag when video changes or access changes
-  useEffect(() => {
-    setHasReachedTrailerLimit(false);
-  }, [video?.id, hasFullAccess]);
-
-  // Prevent seeking beyond trailer limit
+  // Update video source when effectiveVideoUrl changes
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || hasFullAccess || TRAILER_DURATION === 0) return;
-
-    const handleSeeking = () => {
-      if (video.currentTime > TRAILER_DURATION) {
-        video.currentTime = TRAILER_DURATION;
-        setCurrentTime(TRAILER_DURATION);
-        if (hasReachedTrailerLimit) {
-          video.pause();
-          setIsPlaying(false);
-        }
-      }
-    };
-
-    video.addEventListener('seeking', handleSeeking);
-    return () => {
-      video.removeEventListener('seeking', handleSeeking);
-    };
-  }, [hasFullAccess, TRAILER_DURATION, hasReachedTrailerLimit]);
+    if (!video) return;
+    
+    // If no effectiveVideoUrl (e.g., no access and no teaser), clear the video source
+    if (!effectiveVideoUrl) {
+      video.src = '';
+      video.load(); // Reset the video element
+      setCurrentTime(0);
+      setIsPlaying(false);
+      return;
+    }
+    
+    // Get current src (handle both absolute and relative URLs)
+    const currentSrc = video.src;
+    const currentSrcPath = typeof window !== 'undefined' 
+      ? currentSrc.replace(window.location.origin, '')
+      : currentSrc;
+    
+    // Only update src if it's different to avoid unnecessary reloads
+    if (currentSrcPath !== effectiveVideoUrl && currentSrc !== effectiveVideoUrl) {
+      video.src = effectiveVideoUrl;
+      // Reset playback state when source changes
+      setCurrentTime(0);
+      setIsPlaying(false);
+    }
+  }, [effectiveVideoUrl]);
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {
@@ -425,6 +421,14 @@ export function VideoPlayer({
         });
       }
     }
+  }, []);
+
+  // Toggle mute
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
   }, []);
 
   // Keyboard shortcuts
@@ -453,16 +457,7 @@ export function VideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
-      // Block playback controls if user doesn't have access
-      if (!hasFullAccess) {
-        // Only allow Escape to close settings, other keys are blocked
-        if (e.key === 'Escape') {
-          return; // Let Escape work normally
-        }
-        return; // Block all other keyboard shortcuts
-      }
-
-      // Spacebar or K: Toggle Play/Pause
+      // Spacebar or K: Toggle Play/Pause (works for both teaser and full video)
       if (e.key === ' ' || e.key.toLowerCase() === 'k') {
         e.preventDefault();
         if (e.key === ' ') {
@@ -472,7 +467,7 @@ export function VideoPlayer({
         return;
       }
 
-      // F: Toggle Fullscreen
+      // F: Toggle Fullscreen (works for both teaser and full video)
       if (e.key.toLowerCase() === 'f') {
         e.preventDefault();
         toggleFullscreen();
@@ -486,15 +481,15 @@ export function VideoPlayer({
         return;
       }
 
-      // Arrow Left: Seek backward 5s (only if has access)
-      if (e.key === 'ArrowLeft' && hasFullAccess) {
+      // Arrow Left: Seek backward 5s (works for both teaser and full video)
+      if (e.key === 'ArrowLeft') {
         e.preventDefault();
         video.currentTime = Math.max(0, video.currentTime - 5);
         return;
       }
 
-      // Arrow Right: Seek forward 5s (only if has access)
-      if (e.key === 'ArrowRight' && hasFullAccess) {
+      // Arrow Right: Seek forward 5s (works for both teaser and full video)
+      if (e.key === 'ArrowRight') {
         e.preventDefault();
         video.currentTime = Math.min(duration, video.currentTime + 5);
         return;
@@ -505,7 +500,7 @@ export function VideoPlayer({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isYouTubeEmbed, showSettings, duration, togglePlay, toggleFullscreen, hasFullAccess]);
+  }, [isYouTubeEmbed, showSettings, duration, togglePlay, toggleFullscreen, toggleMute]);
 
   // Controls fade out on inactivity (Fullscreen only)
   const resetControlsTimeout = useCallback(() => {
@@ -528,7 +523,7 @@ export function VideoPlayer({
         setShowControls(false);
       }
     }, 3000);
-    } else {
+      } else {
       // Always show controls when not in fullscreen
       setShowControls(true);
     }
@@ -580,16 +575,10 @@ export function VideoPlayer({
     togglePlay();
   };
 
-  // Handle seek
+  // Handle seek (works for both teaser and full video, disabled only for live)
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Disable seeking for live videos
+    // Disable seeking for live videos only
     if (isLive) {
-      e.preventDefault();
-      return;
-    }
-    
-    // Disable seeking if user doesn't have access
-    if (!hasFullAccess) {
       e.preventDefault();
       return;
     }
@@ -605,13 +594,6 @@ export function VideoPlayer({
   const effectiveDuration = isLive ? (duration || 100) : duration;
   const effectiveCurrentTime = isLive ? effectiveDuration : currentTime;
 
-  // Toggle mute
-  const toggleMute = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.muted = !video.muted;
-    setIsMuted(video.muted);
-  };
 
   // Handle volume change
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -818,7 +800,7 @@ export function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className={`bg-black group ${
+      className={`bg-transparent group ${
         isInMiniplayerMode
           ? 'fixed w-96 h-56 z-50 rounded-xl overflow-hidden shadow-2xl'
           : isFullscreen
@@ -840,6 +822,9 @@ export function VideoPlayer({
         // Show miniplayer controls on hover
         if (isInMiniplayerMode) {
           setShowMiniplayerControls(true);
+        } else {
+          // Track hover for normal/fullscreen mode
+          setIsHoveringPlayer(true);
         }
         // Only hide controls on mouse leave in fullscreen mode
         if (isFullscreen && isPlaying) {
@@ -850,6 +835,9 @@ export function VideoPlayer({
         // Hide miniplayer controls on mouse leave
         if (isInMiniplayerMode) {
           setShowMiniplayerControls(false);
+        } else {
+          // Track hover for normal/fullscreen mode
+          setIsHoveringPlayer(false);
         }
         // Only hide controls on mouse leave in fullscreen mode
         if (isFullscreen && isPlaying) {
@@ -860,7 +848,7 @@ export function VideoPlayer({
       {/* Video Element */}
       <video
         ref={videoRef}
-        src={videoUrl}
+        src={effectiveVideoUrl || undefined}
         className={`w-full ${
           isInMiniplayerMode 
             ? `h-full object-cover ${isDragging ? 'cursor-grabbing' : 'cursor-default'}` 
@@ -872,11 +860,9 @@ export function VideoPlayer({
         onClick={handleVideoClick}
       />
       
-      {/* Access Restriction CTA Overlay - Show if no access OR trailer limit reached */}
-      {!hasFullAccess && video && (hasReachedTrailerLimit || TRAILER_DURATION === 0) && (
-        <div className={`absolute inset-0 flex items-center justify-center z-[100] transition-opacity ${
-          hasReachedTrailerLimit ? 'bg-black/60' : 'bg-black/80'
-        }`}>
+      {/* Access Restriction CTA Overlay - Only show if no teaser available (fallback for old videos) */}
+      {!hasFullAccess && video && !video.teaserVideoUrl && (
+        <div className="absolute inset-0 flex items-center justify-center z-[100] bg-black/80">
           <div className="bg-surface border border-surface rounded-lg p-8 max-w-md mx-4 text-center">
             {/* Icon */}
             <div className="flex justify-center mb-4">
@@ -891,11 +877,7 @@ export function VideoPlayer({
             
             {/* Message */}
             <h3 className="text-xl font-semibold text-text-primary mb-2">
-              {hasReachedTrailerLimit
-                ? video.type === 'paid'
-                  ? 'Buy to Continue Watching'
-                  : 'Subscribe to Continue Watching'
-                : video.type === 'paid' 
+              {video.type === 'paid' 
                 ? 'This content requires a one-time purchase'
                 : video.type === 'subscription'
                 ? 'This content requires a channel subscription'
@@ -903,11 +885,7 @@ export function VideoPlayer({
             </h3>
             
             <p className="text-text-secondary mb-6">
-              {hasReachedTrailerLimit
-                ? video.type === 'paid'
-                  ? `You've reached the preview limit. Purchase to watch the full video.`
-                  : `You've reached the preview limit. Subscribe to watch the full video.`
-                : video.type === 'paid'
+              {video.type === 'paid'
                 ? `Purchase this video to watch it in full.`
                 : video.type === 'subscription'
                 ? `Subscribe to ${video.user?.name || 'this channel'} to access exclusive content.`
@@ -915,7 +893,7 @@ export function VideoPlayer({
             </p>
             
             {/* CTA Button */}
-            <Button
+              <Button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -937,8 +915,8 @@ export function VideoPlayer({
               ) : (
                 'Get Access'
               )}
-            </Button>
-          </div>
+              </Button>
+            </div>
         </div>
       )}
       
@@ -965,13 +943,13 @@ export function VideoPlayer({
                 {/* Preview Video Frame (Dynamic) */}
                 <div className="w-64 aspect-video bg-surface border border-surface rounded overflow-hidden">
       <video
-                    ref={previewVideoRef}
-        src={videoUrl}
-                    muted
-                    preload="auto"
-            className="w-full h-full object-cover"
-                    style={{ pointerEvents: 'none' }}
-                  />
+                                ref={previewVideoRef}
+                                src={effectiveVideoUrl || undefined}
+                                muted
+                                preload="auto"
+                                className="w-full h-full object-cover"
+                                style={{ pointerEvents: 'none' }}
+                              />
                 </div>
               </div>
             )}
@@ -991,7 +969,7 @@ export function VideoPlayer({
                 value={effectiveCurrentTime}
                 onChange={handleSeek}
                 onInput={handleSeek} // Also handle onInput for better compatibility
-                disabled={isLive || !hasFullAccess}
+                disabled={isLive}
                 className={`miniplayer-progress-bar w-full appearance-none transition-all ${
                   isLive ? 'cursor-default' : 'cursor-pointer'
                 } ${showMiniplayerControls ? 'h-1' : 'h-0.5'} ${
@@ -1016,23 +994,23 @@ export function VideoPlayer({
             </div>
           </div>
 
-          {/* Hover-Only Controls Overlay - Visual only, doesn't block clicks */}
+          {/* Hover-Only Controls - No dimming overlay */}
       <div
-            className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pointer-events-none ${
+            className={`absolute inset-0 transition-opacity duration-300 pointer-events-none ${
               showMiniplayerControls ? 'opacity-100' : 'opacity-0'
         }`}
       >
-            {/* Miniplayer Header - Visual Background Only */}
-            <div className="miniplayer-header absolute top-0 left-0 right-0 px-3 py-2 z-30 flex justify-between items-start bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+            {/* Miniplayer Header - No background gradient */}
+            <div className="miniplayer-header absolute top-0 left-0 right-0 px-3 py-2 z-30 flex justify-between items-start pointer-events-none">
               {/* Left Group: Metadata (Title and Channel) - Stacked Vertically */}
               <div className="flex flex-col flex-grow min-w-0 pr-2 max-w-[calc(100%-80px)]">
                 {video?.title && (
-                  <h3 className="text-white text-sm font-medium truncate drop-shadow-lg leading-tight">
+                  <h3 className="text-white text-sm font-medium truncate leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                     {video.title}
                   </h3>
                 )}
                 {video?.user?.name && (
-                  <p className="text-white/80 text-xs truncate drop-shadow-lg leading-tight mt-0.5">
+                  <p className="text-white/90 text-xs truncate leading-tight mt-0.5 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                     {video.user.name}
                   </p>
                 )}
@@ -1057,7 +1035,7 @@ export function VideoPlayer({
                   e.preventDefault();
                   e.stopPropagation();
                 }}
-                className="text-white hover:bg-white/30 rounded-full w-14 h-14 bg-black/50 transition-opacity z-50 relative"
+                className="text-white hover:bg-white/30 rounded-full w-14 h-14 bg-black/70 backdrop-blur-sm transition-opacity z-50 relative drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
@@ -1068,22 +1046,31 @@ export function VideoPlayer({
               </Button>
             </div>
 
-            {/* Bottom Bar - Timing/LIVE Badge (always above progress bar, only visible on hover) */}
-            <div className="absolute bottom-0 left-0 right-0 px-3 z-30 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" style={{ paddingBottom: '40px' }}>
-              {/* Timing or LIVE Badge - Left aligned like YouTube */}
+            {/* Bottom Bar - Timing/LIVE/TEASER Badge (only visible on hover, no dimming) */}
+            <div className={`absolute bottom-0 left-0 right-0 px-3 z-30 pointer-events-none transition-opacity duration-300 ${showMiniplayerControls ? 'opacity-100' : 'opacity-0'}`} style={{ paddingBottom: '40px' }}>
+              {/* Timing, LIVE, or TEASER Badge - Left aligned like YouTube */}
               <div className="flex items-center justify-start">
                 {isLive ? (
                   <div className="bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
                     <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                     <span>LIVE</span>
                     </div>
+                ) : isWatchingTeaser ? (
+                  <div className="flex items-center gap-2">
+                    <div className="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold">
+                      TEASER
+                    </div>
+                    <span className="text-white text-xs font-medium">
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </span>
+                  </div>
                 ) : (
                   <span className="text-white text-xs font-medium">
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
                 )}
                     </div>
-                  </div>
+            </div>
                     </div>
                   
           {/* Interactive Header Buttons Layer - Separate, Always Clickable (only visible on hover) */}
@@ -1143,26 +1130,33 @@ export function VideoPlayer({
                     </div>
         </>
       ) : (
-        /* Normal/Fullscreen Mode - Full Controls */
+        /* Normal/Fullscreen Mode - Full Controls - No dimming overlay */
         (() => {
-          const controlsVisible = isFullscreen ? showControls : true;
+          // Controls visibility (no gradient overlay dimming the video)
+          const controlsVisible = isFullscreen ? showControls : isHoveringPlayer;
           return (
             <div
-              className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 ${
+              className={`absolute inset-0 transition-opacity duration-300 pointer-events-none ${
                 controlsVisible ? 'opacity-100' : 'opacity-0'
               }`}
+              style={{ zIndex: 110 }}
             >
-              {/* Top-Left: Video Title (Fullscreen Only) */}
+              {/* Top-Left: Video Title (Fullscreen Only) - Strong drop shadow for visibility */}
               {isFullscreen && video?.title && (
                 <div className="absolute top-3 left-3 z-10">
-                  <h2 className="text-white text-xl font-semibold drop-shadow-lg">
+                  <h2 className="text-white text-xl font-semibold drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                     {video.title}
                   </h2>
                 </div>
               )}
 
               {/* Bottom Control Bar - Compact, minimal padding */}
-              <div className="absolute bottom-0 left-0 right-0 px-3 pb-1 z-0">
+              <div 
+                className="absolute bottom-0 left-0 right-0 px-3 pb-1 pointer-events-auto"
+                style={{ zIndex: 110 }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
                 {/* Progress Bar - Positioned above button row with hover preview */}
                 <div 
                   ref={progressBarContainerRef}
@@ -1207,7 +1201,7 @@ export function VideoPlayer({
                       max={effectiveDuration || 0}
                       value={effectiveCurrentTime}
           onChange={handleSeek}
-                      disabled={isLive || !hasFullAccess}
+                      disabled={isLive}
                       className={`w-full h-1 rounded-none appearance-none mb-0 ${
                         isLive ? 'cursor-default accent-red-600' : 'cursor-pointer accent-white'
                       }`}
@@ -1229,14 +1223,26 @@ export function VideoPlayer({
           </div>
         
           {/* Main Controls Row - Compact Layout */}
-          <div className="flex items-center justify-between">
+          <div 
+            className="flex items-center justify-between pointer-events-auto"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Left Group - Reordered: Play/Pause -> Next -> Volume -> Timecode */}
         <div className="flex items-center gap-2">
               {/* Play/Pause Button */}
             <Button
               variant="ghost"
               size="icon"
-              onClick={togglePlay}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                togglePlay();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
                 className="text-white hover:bg-white/20 rounded-full p-1.5"
                 title={isPlaying ? 'Pause' : 'Play'}
             >
@@ -1295,15 +1301,24 @@ export function VideoPlayer({
               )}
           </div>
           
-              {/* Timecode or LIVE Badge - Immediately after Volume */}
+              {/* Timecode, LIVE Badge, or TEASER Badge - Immediately after Volume */}
               {isLive ? (
                 <div className="bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold ml-1">
                   <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                   <span>LIVE</span>
                 </div>
+              ) : isWatchingTeaser ? (
+                <div className="flex items-center gap-2 ml-1">
+                  <div className="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold">
+                    TEASER
+                  </div>
+                  <span className="text-white text-xs font-medium min-w-[4rem]">
+            {formatTime(currentTime)} / {formatTime(duration)}
+                  </span>
+                </div>
               ) : (
                 <span className="text-white text-xs font-medium ml-1 min-w-[4rem]">
-            {formatTime(currentTime)} / {formatTime(duration)}
+                  {formatTime(currentTime)} / {formatTime(duration)}
                 </span>
               )}
           </div>

@@ -32,21 +32,44 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await hashPassword(password);
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        name: name || null,
-        role: 'viewer',
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        name: true,
-        profileImageUrl: true,
-        createdAt: true,
-      },
+    
+    // Normalize name: strip "@" prefix if present and trim whitespace (for username-style signup)
+    const normalizedName = name 
+      ? (name.startsWith('@') ? name.slice(1) : name).trim()
+      : null;
+    
+    // Atomic username check and user creation using transaction to prevent race conditions
+    const user = await prisma.$transaction(async (tx) => {
+      // Check if username (name) already exists (case-insensitive) - atomic check
+      if (normalizedName) {
+        const existingUsers = await tx.user.findMany({
+          where: { name: { not: null } },
+        });
+        const nameExists = existingUsers.some(
+          (u) => u.name && u.name.toLowerCase() === normalizedName.toLowerCase()
+        );
+        if (nameExists) {
+          throw new Error('USERNAME_TAKEN');
+        }
+      }
+      
+      // Create user atomically within the same transaction
+      return await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          name: normalizedName,
+          role: 'viewer',
+        },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          name: true,
+          profileImageUrl: true,
+          createdAt: true,
+        },
+      });
     });
 
     const token = generateToken({
@@ -59,8 +82,31 @@ export async function POST(request: NextRequest) {
       user,
       token,
     });
-  } catch (_error: unknown) {
-    console.error('Signup error:', _error);
+  } catch (error: unknown) {
+    console.error('Signup error:', error);
+    
+    // Handle username taken error from transaction
+    if (error instanceof Error && error.message === 'USERNAME_TAKEN') {
+      return NextResponse.json(
+        { error: 'Username already taken' },
+        { status: 409 }
+      );
+    }
+    
+    // Handle Prisma unique constraint errors (e.g., duplicate email)
+    if (error && typeof error === 'object' && 'code' in error) {
+      // P2002 is Prisma's unique constraint violation error code
+      if (error.code === 'P2002') {
+        const target = (error as { meta?: { target?: string[] } }).meta?.target;
+        if (target?.includes('email')) {
+          return NextResponse.json(
+            { error: 'User with this email already exists' },
+            { status: 409 }
+          );
+        }
+      }
+    }
+    
     return NextResponse.json(
       { error: 'Failed to create user' },
       { status: 500 }
