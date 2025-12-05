@@ -52,31 +52,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (identifier: string, password: string) => {
     try {
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
-      });
+    const response = await fetch('/api/auth/signin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password }),
+    });
 
-      if (!response.ok) {
+    if (!response.ok) {
         let errorMessage = 'Failed to sign in';
         try {
-          const error = await response.json();
+      const error = await response.json();
           errorMessage = error.error || errorMessage;
         } catch (parseError) {
           // If response is not JSON, use status text
           errorMessage = response.statusText || errorMessage;
         }
         throw new Error(errorMessage);
-      }
+    }
 
-      const data = await response.json();
+    const data = await response.json();
       if (!data.token || !data.user) {
         throw new Error('Invalid response from server');
       }
       
-      localStorage.setItem('token', data.token);
-      setUser(data.user);
+    localStorage.setItem('token', data.token);
+    setUser(data.user);
     } catch (error) {
       // Re-throw with better error message
       if (error instanceof Error) {

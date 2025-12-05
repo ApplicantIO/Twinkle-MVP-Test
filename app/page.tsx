@@ -7,6 +7,7 @@ import { Video } from '@/types';
 import { Play, Lock, Crown, Volume2, VolumeX, MoreVertical } from 'lucide-react';
 import { FastAverageColor } from 'fast-average-color';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModal } from '@/contexts/ModalContext';
 
 export default function HomePage() {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -217,6 +218,7 @@ interface VideoCardProps {
 function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, formatViews, formatDuration }: VideoCardProps) {
   const isHovered = hoveredVideo === video.id;
   const { user } = useAuth();
+  const { openShareModal, openReportModal } = useModal();
   const [glowColor, setGlowColor] = useState<string>('#947CF2'); // Default to Twinkle Purple
   const [isMuted, setIsMuted] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -509,7 +511,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                     e.preventDefault();
                     e.stopPropagation();
                     setIsMenuOpen(false);
-                    // TODO: Implement share
+                    openShareModal(video.id, video.title);
                   }}
                   className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
                 >
@@ -520,7 +522,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                     e.preventDefault();
                     e.stopPropagation();
                     setIsMenuOpen(false);
-                    // TODO: Implement report
+                    openReportModal(video.id, video.title);
                   }}
                   className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
                 >

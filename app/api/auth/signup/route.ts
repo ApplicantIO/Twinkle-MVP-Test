@@ -55,20 +55,20 @@ export async function POST(request: NextRequest) {
       
       // Create user atomically within the same transaction
       return await tx.user.create({
-        data: {
-          email,
-          passwordHash,
+      data: {
+        email,
+        passwordHash,
           name: normalizedName,
-          role: 'viewer',
-        },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          name: true,
-          profileImageUrl: true,
-          createdAt: true,
-        },
+        role: 'viewer',
+      },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        name: true,
+        profileImageUrl: true,
+        createdAt: true,
+      },
       });
     });
 

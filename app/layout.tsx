@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
 import { MiniplayerProvider } from "@/contexts/MiniplayerContext";
+import { ModalProvider } from "@/contexts/ModalContext";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
 import { BottomNavbar } from "@/components/layout/BottomNavbar";
 import { CentralizedVideoPlayer } from "@/components/CentralizedVideoPlayer";
-
-const inter = Inter({ subsets: ["latin"] });
+import { ShareModal } from "@/components/modals/ShareModal";
+import { ReportModal } from "@/components/modals/ReportModal";
 
 export const metadata: Metadata = {
   title: "Twinkle",
@@ -24,17 +24,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className="font-sans">
         <AuthProvider>
           <SidebarProvider>
             <MiniplayerProvider>
-              <Header />
-              <Sidebar />
-              <MainContent>
-                {children}
-              </MainContent>
-              <BottomNavbar />
-              <CentralizedVideoPlayer />
+              <ModalProvider>
+                <Header />
+                <Sidebar />
+                <MainContent>
+                  {children}
+                </MainContent>
+                <BottomNavbar />
+                <CentralizedVideoPlayer />
+                <ShareModal />
+                <ReportModal />
+              </ModalProvider>
             </MiniplayerProvider>
           </SidebarProvider>
         </AuthProvider>

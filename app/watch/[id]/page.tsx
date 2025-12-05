@@ -11,6 +11,8 @@ import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, Dolla
 import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
+import { useModal } from '@/contexts/ModalContext';
+import { FastAverageColor } from 'fast-average-color';
 
 interface Comment {
   id: string;
@@ -41,6 +43,13 @@ export default function WatchPage() {
   const [activeTab, setActiveTab] = useState<'public' | 'donated'>('public');
   const [recommendedTab, setRecommendedTab] = useState<'recommendations' | 'playlist' | 'creator' | 'topic'>('recommendations');
   const [isCardViewActive, setIsCardViewActive] = useState(false);
+  const [columns, setColumns] = useState(1);
+  const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
+  const [openMenuVideoId, setOpenMenuVideoId] = useState<string | null>(null);
+  const [videoGlowColors, setVideoGlowColors] = useState<Record<string, string>>({});
+  const imageRefs = useRef<Record<string, HTMLImageElement | null>>({});
+  const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const processedVideosRef = useRef<Set<string>>(new Set());
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentReactions, setCommentReactions] = useState<Record<string, 'NONE' | 'LIKE' | 'DISLIKE'>>({});
@@ -664,15 +673,158 @@ export default function WatchPage() {
     };
   }, [params.id, setCurrentWatchVideo, setIsMiniplayerActive]);
 
-  const formatTimeAgo = (date: Date) => {
+  // Calculate optimal number of columns based on viewport width (for grid layout)
+  useEffect(() => {
+    const calculateColumns = () => {
+      const width = window.innerWidth;
+      if (width < 640) return 1;
+      if (width < 768) return 2;
+      if (width < 1024) return 2;
+      if (width < 1920) return 3; // Laptops: 3 columns (smaller cards)
+      return 4; // Large monitors and above: Maximum 4 columns
+    };
+
+    const updateColumns = () => {
+      setColumns(calculateColumns());
+    };
+
+    updateColumns();
+    window.addEventListener('resize', updateColumns);
+    window.addEventListener('orientationchange', updateColumns);
+
+    return () => {
+      window.removeEventListener('resize', updateColumns);
+      window.removeEventListener('orientationchange', updateColumns);
+    };
+  }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openMenuVideoId) {
+        const menuElement = menuRefs.current[openMenuVideoId];
+        if (menuElement && !menuElement.contains(event.target as Node)) {
+          // Also check if click is on the button itself
+          const buttonElement = (event.target as HTMLElement).closest('button[aria-label="More options"]');
+          if (!buttonElement) {
+            setOpenMenuVideoId(null);
+          }
+        }
+      }
+    };
+
+    if (openMenuVideoId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openMenuVideoId]);
+
+  // Extract dominant color from thumbnails for ambient mode
+  useEffect(() => {
+    const processVideoColor = (video: Video) => {
+      // Skip if no thumbnail URL
+      if (!video.thumbnailUrl) return;
+      
+      // Skip if already processed (using ref to avoid state dependency)
+      if (processedVideosRef.current.has(video.id)) return;
+      
+      // Get image element
+      const imgElement = imageRefs.current[video.id];
+      if (!imgElement) return;
+      
+      const extractColor = () => {
+        // Mark as processed before starting to prevent duplicates
+        processedVideosRef.current.add(video.id);
+        
+        const fac = new FastAverageColor();
+        fac.getColorAsync(imgElement)
+          .then((color) => {
+            const rgba = color.value;
+            const brightness = (rgba[0] * 299 + rgba[1] * 587 + rgba[2] * 114) / 1000;
+            
+            if (brightness < 30 || brightness > 220) {
+              setVideoGlowColors(prev => ({ ...prev, [video.id]: '#947CF2' }));
+            } else {
+              setVideoGlowColors(prev => ({ ...prev, [video.id]: color.hex }));
+            }
+          })
+          .catch((error) => {
+            console.error('Error extracting color:', error);
+            setVideoGlowColors(prev => ({ ...prev, [video.id]: '#947CF2' }));
+          })
+          .finally(() => {
+            fac.destroy();
+          });
+      };
+      
+      // Check if image is already loaded
+      if (imgElement.complete && imgElement.naturalWidth > 0) {
+        extractColor();
+      } else {
+        // Wait for image to load
+        const handleLoad = () => {
+          // Double-check we haven't processed this video yet (race condition protection)
+          if (processedVideosRef.current.has(video.id)) return;
+          extractColor();
+        };
+        
+        imgElement.addEventListener('load', handleLoad, { once: true });
+      }
+    };
+    
+    // Process each video
+    relatedVideos.forEach(processVideoColor);
+    
+    // Cleanup: remove processed refs for videos no longer in the list
+    return () => {
+      const currentVideoIds = new Set(relatedVideos.map(v => v.id));
+      processedVideosRef.current.forEach((videoId) => {
+        if (!currentVideoIds.has(videoId)) {
+          processedVideosRef.current.delete(videoId);
+        }
+      });
+    };
+  }, [relatedVideos]);
+
+  // Convert hex color to rgba with opacity
+  const hexToRgba = (hex: string, opacity: number) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  };
+
+  const formatTimeAgo = (date: Date | string) => {
     const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    // Convert to Date object if it's a string
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const diffInSeconds = Math.floor((now.getTime() - dateObj.getTime()) / 1000);
     
     if (diffInSeconds < 60) return 'just now';
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
     if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
     return `${Math.floor(diffInSeconds / 604800)}w ago`;
+  };
+
+  const formatViews = (views: number) => {
+    if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
+    if (views >= 1000) return `${(views / 1000).toFixed(1)}K`;
+    return views.toString();
+  };
+
+  const formatDuration = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleLike = () => {
@@ -1198,6 +1350,15 @@ export default function WatchPage() {
   const handleReportClick = () => {
     setIsMoreMenuOpen(false);
     setReportStep('SELECT_REASON');
+  };
+
+  // Get modal functions from context
+  const { openShareModal, openReportModal } = useModal();
+
+  const handleRecommendedSaveToPlaylist = (videoId: string, videoTitle: string) => {
+    // For MVP: Show alert, in production this would open playlist selection modal
+    alert(`Save to playlist:\n\n"${videoTitle}"\n\nThis feature will allow you to save videos to your playlists.`);
+    console.log('Save to playlist:', { videoId, videoTitle });
   };
 
   const handleNotificationsClick = () => {
@@ -2243,95 +2404,307 @@ export default function WatchPage() {
 
               // Render based on view mode
               if (isCardViewActive) {
-                // Grid/Card View
+                // Grid/Card View - Match Homepage styling with dynamic columns
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredVideos.map((relatedVideo) => (
-                      <Link
-                        key={relatedVideo.id}
-                        href={`/watch/${relatedVideo.id}`}
-                        className="flex flex-col hover:bg-surface/30 rounded-lg overflow-hidden transition-colors group"
-                      >
-                        {/* Thumbnail */}
-                        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-surface">
-                          {relatedVideo.thumbnailUrl ? (
-                            <img
-                              src={relatedVideo.thumbnailUrl}
-                              alt={relatedVideo.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-surface">
-                              <span className="text-text-secondary text-xs">No thumbnail</span>
+                  <div 
+                    className="grid gap-x-0 gap-y-4"
+                    style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+                  >
+                    {filteredVideos.map((relatedVideo) => {
+                      const isHovered = hoveredVideo === relatedVideo.id;
+                      const isMenuOpen = openMenuVideoId === relatedVideo.id;
+                      
+                      return (
+                        <Link
+                          key={relatedVideo.id}
+                          href={`/watch/${relatedVideo.id}`}
+                          className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {/* Card Container with Ambient Mode */}
+                          <div 
+                            className={`rounded-xl transition-colors duration-300 p-3 hover:z-20 relative ${isMenuOpen ? 'z-[90]' : ''}`}
+                            style={{
+                              backgroundColor: isHovered && videoGlowColors[relatedVideo.id] 
+                                ? hexToRgba(videoGlowColors[relatedVideo.id], 0.32) 
+                                : 'transparent',
+                            }}
+                          >
+                            {/* Thumbnail Container */}
+                            <div className="relative w-full aspect-video bg-surface rounded-lg overflow-hidden mb-3">
+                              {relatedVideo.thumbnailUrl ? (
+                                <img
+                                  ref={(el) => {
+                                    imageRefs.current[relatedVideo.id] = el;
+                                  }}
+                                  src={relatedVideo.thumbnailUrl}
+                                  alt={relatedVideo.title}
+                                  className="w-full h-full object-cover"
+                                  crossOrigin="anonymous"
+                                  onLoad={() => {
+                                    // Image loaded - color extraction will happen automatically via effect
+                                  }}
+                                  onError={() => {
+                                    // Image failed to load - skip color extraction
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-surface">
+                                  <span className="text-text-secondary text-xs">No thumbnail</span>
+                                </div>
+                              )}
+                              
+                              {/* Duration Badge */}
+                              {!relatedVideo.isLive && relatedVideo.duration && (
+                                <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold z-20">
+                                  {formatDuration(relatedVideo.duration)}
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {relatedVideo.duration && (
-                            <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
-                              {Math.floor(relatedVideo.duration / 60)}:{(relatedVideo.duration % 60).toString().padStart(2, '0')}
-                            </div>
-                          )}
-                        </div>
 
-                        {/* Video Info */}
-                        <div className="flex flex-col gap-1 p-2">
-                          <h4 className="text-sm font-medium text-text-primary line-clamp-2 group-hover:text-accent transition-colors">
-                            {relatedVideo.title}
-                          </h4>
-                          <p className="text-xs text-text-secondary">
-                            {relatedVideo.user?.name || 'Unknown Creator'}
-                          </p>
-                          <p className="text-xs text-text-secondary">
-                            {relatedVideo.views.toLocaleString()} views
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
+                            {/* Video Info - 3-Column Layout like Homepage */}
+                            <div className="flex items-start gap-3 mt-3">
+                              {/* Column 1: Avatar */}
+                              <div className="flex-shrink-0 relative">
+                                {relatedVideo.user?.profileImageUrl ? (
+                                  <img
+                                    src={relatedVideo.user.profileImageUrl}
+                                    alt={relatedVideo.user.name || 'Creator'}
+                                    className="w-10 h-10 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center"></div>
+                                )}
+                              </div>
+                              
+                              {/* Column 2: Details Block (Flex-Grow) */}
+                              <div className="flex-1 min-w-0 relative">
+                                <h3 className="font-medium text-sm text-text-primary line-clamp-2 mb-1 leading-5">
+                                  {relatedVideo.title}
+                                </h3>
+                                
+                                {/* Channel Name, Views, Date */}
+                                <div className="flex flex-wrap items-center gap-1.5 text-xs text-white/70">
+                                  <span className="line-clamp-1">{relatedVideo.user?.name || 'Unknown Creator'}</span>
+                                  <span>•</span>
+                                  {relatedVideo.isLive ? (
+                                    <span className="text-white font-semibold">
+                                      {relatedVideo.liveViewers ? `${formatViews(relatedVideo.liveViewers)} watching` : 'Live'}
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span>{formatViews(relatedVideo.views)} views</span>
+                                      <span>•</span>
+                                      <span>{formatTimeAgo(relatedVideo.createdAt)}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Column 3: More Icon (3 dots) */}
+                              <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setOpenMenuVideoId(isMenuOpen ? null : relatedVideo.id);
+                                  }}
+                                  className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+                                  aria-label="More options"
+                                >
+                                  <MoreVertical className="h-5 w-5" />
+                                </button>
+                                
+                                {/* Dropdown Menu */}
+                                {isMenuOpen && (
+                                  <div
+                                    ref={(el) => {
+                                      menuRefs.current[relatedVideo.id] = el;
+                                    }}
+                                    className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[100]"
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ zIndex: 9999 }}
+                                  >
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleRecommendedSaveToPlaylist(relatedVideo.id, relatedVideo.title);
+                                        setOpenMenuVideoId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                                    >
+                                      Save to playlist
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        openShareModal(relatedVideo.id, relatedVideo.title);
+                                        setOpenMenuVideoId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                                    >
+                                      Share
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        openReportModal(relatedVideo.id, relatedVideo.title);
+                                        setOpenMenuVideoId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                                    >
+                                      Report
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
                   </div>
                 );
               } else {
-                // List View (Vertical)
+                // List View (Vertical) - Larger thumbnails and More button
                 return (
-                  <div className="space-y-3">
-                    {filteredVideos.map((relatedVideo) => (
-                      <Link
-                        key={relatedVideo.id}
-                        href={`/watch/${relatedVideo.id}`}
-                        className="flex gap-3 hover:bg-surface/30 rounded-lg p-2 transition-colors group"
-                      >
-                        {/* Thumbnail */}
-                        <div className="flex-shrink-0 relative w-[168px] h-[94px] rounded-lg overflow-hidden bg-surface">
-                          {relatedVideo.thumbnailUrl ? (
-                            <img
-                              src={relatedVideo.thumbnailUrl}
-                              alt={relatedVideo.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-surface">
-                              <span className="text-text-secondary text-xs">No thumbnail</span>
-                            </div>
-                          )}
-                          {relatedVideo.duration && (
-                            <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
-                              {Math.floor(relatedVideo.duration / 60)}:{(relatedVideo.duration % 60).toString().padStart(2, '0')}
-                            </div>
-                          )}
-                        </div>
+                  <div className="space-y-4">
+                    {filteredVideos.map((relatedVideo) => {
+                      const isMenuOpen = openMenuVideoId === relatedVideo.id;
+                      
+                      return (
+                        <Link
+                          key={relatedVideo.id}
+                          href={`/watch/${relatedVideo.id}`}
+                          className={`flex gap-4 rounded-lg p-3 transition-colors group relative ${
+                            hoveredVideo === relatedVideo.id 
+                              ? 'bg-surface/50 hover:bg-surface/60' 
+                              : 'hover:bg-surface/30'
+                          }`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {/* Thumbnail - Larger on desktop */}
+                          <div className="flex-shrink-0 relative w-40 md:w-64 lg:w-72 aspect-video rounded-lg overflow-hidden bg-surface">
+                            {relatedVideo.thumbnailUrl ? (
+                              <img
+                                ref={(el) => {
+                                  imageRefs.current[relatedVideo.id] = el;
+                                }}
+                                src={relatedVideo.thumbnailUrl}
+                                alt={relatedVideo.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                crossOrigin="anonymous"
+                                onLoad={() => {
+                                  // Image loaded - color extraction will happen automatically via effect
+                                }}
+                                onError={() => {
+                                  // Image failed to load - skip color extraction
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-surface">
+                                <span className="text-text-secondary text-xs">No thumbnail</span>
+                              </div>
+                            )}
+                            {!relatedVideo.isLive && relatedVideo.duration && (
+                              <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold">
+                                {formatDuration(relatedVideo.duration)}
+                              </div>
+                            )}
+                          </div>
 
-                        {/* Video Info */}
-                        <div className="flex-1 min-w-0 flex flex-col gap-1">
-                          <h4 className="text-sm font-medium text-text-primary line-clamp-2 group-hover:text-accent transition-colors">
-                            {relatedVideo.title}
-                          </h4>
-                          <p className="text-xs text-text-secondary">
-                            {relatedVideo.user?.name || 'Unknown Creator'}
-                          </p>
-                          <p className="text-xs text-text-secondary">
-                            {relatedVideo.views.toLocaleString()} views
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
+                          {/* Video Info - Flex grow with More button */}
+                          <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0 flex flex-col gap-2">
+                              <h4 className="text-base font-medium text-text-primary line-clamp-2 group-hover:text-accent transition-colors leading-snug">
+                                {relatedVideo.title}
+                              </h4>
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                                <span>{relatedVideo.user?.name || 'Unknown Creator'}</span>
+                                {relatedVideo.isLive ? (
+                                  <span className="text-white font-semibold">
+                                    {relatedVideo.liveViewers ? `${formatViews(relatedVideo.liveViewers)} watching` : 'Live'}
+                                  </span>
+                                ) : (
+                                  <>
+                                    <span>•</span>
+                                    <span>{formatViews(relatedVideo.views)} views</span>
+                                    <span>•</span>
+                                    <span>{formatTimeAgo(relatedVideo.createdAt)}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* More Button - Right side */}
+                            <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setOpenMenuVideoId(isMenuOpen ? null : relatedVideo.id);
+                                }}
+                                className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10"
+                                aria-label="More options"
+                              >
+                                <MoreVertical className="h-5 w-5" />
+                              </button>
+                              
+                              {/* Dropdown Menu */}
+                              {isMenuOpen && (
+                                <div
+                                  ref={(el) => {
+                                    menuRefs.current[relatedVideo.id] = el;
+                                  }}
+                                  className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[100]"
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ zIndex: 9999 }}
+                                >
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleRecommendedSaveToPlaylist(relatedVideo.id, relatedVideo.title);
+                                      setOpenMenuVideoId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                                  >
+                                    Save to playlist
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      openShareModal(relatedVideo.id, relatedVideo.title);
+                                      setOpenMenuVideoId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                                  >
+                                    Share
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      openReportModal(relatedVideo.id, relatedVideo.title);
+                                      setOpenMenuVideoId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                                  >
+                                    Report
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
                   </div>
                 );
               }
