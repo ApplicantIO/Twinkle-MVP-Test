@@ -2718,7 +2718,7 @@ export default function WatchPage() {
       {/* Mobile: Hide by default, show via overlay */}
       {!hasFullAccess && (
         /* Monetization CTA Section - Replace comments when access restricted */
-        <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full">
+        <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full min-h-0">
           <MonetizationCTASection 
             video={video}
             onPurchase={() => {

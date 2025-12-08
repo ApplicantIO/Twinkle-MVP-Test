@@ -31,6 +31,7 @@ export interface Video {
   // Dual source strategy for paid/subscription content
   teaserVideoUrl?: string; // Teaser/trailer video URL (shown when no access)
   fullVideoUrl?: string; // Full video URL (shown when access granted)
+  purchaseCoverUrl?: string; // Custom image URL for purchase screen (optional, defaults to lock icon)
   // Live streaming fields
   isLive?: boolean; // Whether the video is currently live
   liveViewers?: number; // Current number of live viewers

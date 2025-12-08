@@ -374,9 +374,10 @@ function getSampleVideos(): any[] {
       views: 8500,
       category: 'Entertainment',
       type: 'paid',
-      price: 4.99,
-      currency: 'USD',
+      price: 50000,
+      currency: 'UZS',
       duration: 15,
+      purchaseCoverUrl: 'https://img.youtube.com/vi/ScMzIvxBSi4/maxresdefault.jpg', // Custom purchase screen image
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
       updatedAt: new Date(),
       user: {
@@ -399,6 +400,7 @@ function getSampleVideos(): any[] {
       category: 'Entertainment',
       type: 'subscription',
       duration: 15,
+      purchaseCoverUrl: 'https://img.youtube.com/vi/fJ9rUzIMcZQ/maxresdefault.jpg', // Custom purchase screen image
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
       updatedAt: new Date(),
       user: {

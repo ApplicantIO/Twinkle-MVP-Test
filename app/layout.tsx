@@ -11,6 +11,7 @@ import { BottomNavbar } from "@/components/layout/BottomNavbar";
 import { CentralizedVideoPlayer } from "@/components/CentralizedVideoPlayer";
 import { ShareModal } from "@/components/modals/ShareModal";
 import { ReportModal } from "@/components/modals/ReportModal";
+import { PurchaseFlowModal } from "@/components/modals/PurchaseFlowModal";
 
 export const metadata: Metadata = {
   title: "Twinkle",
@@ -38,6 +39,7 @@ export default function RootLayout({
                 <CentralizedVideoPlayer />
                 <ShareModal />
                 <ReportModal />
+                <PurchaseFlowModal />
               </ModalProvider>
             </MiniplayerProvider>
           </SidebarProvider>
