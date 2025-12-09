@@ -1607,7 +1607,7 @@ export default function WatchPage() {
               {isLiveMode ? (
                 <button
                   onClick={() => handleMentionClick(comment.username)}
-                  className="text-sm font-medium text-text-primary truncate hover:text-accent transition-colors cursor-pointer text-left"
+                  className="text-sm font-medium text-text-primary truncate hover:text-white transition-colors cursor-pointer text-left"
                 >
                   {comment.username}
                 </button>
@@ -1618,7 +1618,7 @@ export default function WatchPage() {
               )}
               {/* Donation Badge (if applicable) */}
               {comment.isDonated && comment.donationAmount && (
-                <span className="text-xs font-semibold text-accent flex-shrink-0">
+                <span className="text-xs font-semibold text-white flex-shrink-0">
                   {comment.donationAmount.toLocaleString()} UZS
                 </span>
               )}
@@ -1842,7 +1842,7 @@ export default function WatchPage() {
                         className={`rounded-full gap-2 ${
                           isLinkCopied
                             ? 'bg-green-600 hover:bg-green-700'
-                            : 'bg-accent hover:bg-accent/90'
+                            : 'bg-accent hover:bg-accent/90 text-white'
                         }`}
                       >
                         {isLinkCopied ? (
@@ -1982,7 +1982,7 @@ export default function WatchPage() {
                         <Button
                           onClick={handleReportSubmit}
                           disabled={!reportDetails.trim()}
-                          className="flex-1 rounded-full bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex-1 rounded-full bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Submit
                         </Button>
@@ -2051,7 +2051,7 @@ export default function WatchPage() {
                           onClick={() => setNotificationState('ALL')}
                           className={`flex items-center justify-between gap-3 p-3 rounded-lg transition-colors text-left ${
                             notificationState === 'ALL'
-                              ? 'bg-background border border-accent'
+                              ? 'bg-background border border-white/20'
                               : 'hover:bg-background border border-transparent'
                           }`}
                         >
@@ -2063,14 +2063,14 @@ export default function WatchPage() {
                             </div>
                           </div>
                           {notificationState === 'ALL' && (
-                            <Check className="h-5 w-5 text-accent" />
+                            <Check className="h-5 w-5 text-white" />
                           )}
                         </button>
                         <button
                           onClick={() => setNotificationState('NONE')}
                           className={`flex items-center justify-between gap-3 p-3 rounded-lg transition-colors text-left ${
                             notificationState === 'NONE'
-                              ? 'bg-background border border-accent'
+                              ? 'bg-background border border-white/20'
                               : 'hover:bg-background border border-transparent'
                           }`}
                         >
@@ -2082,14 +2082,14 @@ export default function WatchPage() {
                             </div>
                           </div>
                           {notificationState === 'NONE' && (
-                            <Check className="h-5 w-5 text-accent" />
+                            <Check className="h-5 w-5 text-white" />
                           )}
                         </button>
                         <button
                           onClick={() => setNotificationState('PERSONALIZED')}
                           className={`flex items-center justify-between gap-3 p-3 rounded-lg transition-colors text-left ${
                             notificationState === 'PERSONALIZED'
-                              ? 'bg-background border border-accent'
+                              ? 'bg-background border border-white/20'
                               : 'hover:bg-background border border-transparent'
                           }`}
                         >
@@ -2101,7 +2101,7 @@ export default function WatchPage() {
                             </div>
                           </div>
                           {notificationState === 'PERSONALIZED' && (
-                            <Check className="h-5 w-5 text-accent" />
+                            <Check className="h-5 w-5 text-white" />
                           )}
                         </button>
                       </div>
@@ -2136,7 +2136,7 @@ export default function WatchPage() {
               {/* Channel Name / Subscriber Count */}
               <div className="flex-shrink-0">
                 <Link href={`/creator/${video.userId}`}>
-                  <h3 className="font-medium text-text-primary hover:text-accent whitespace-nowrap">
+                  <h3 className="font-medium text-text-primary hover:text-white whitespace-nowrap">
                     {video.user?.name || 'Unknown Creator'}
                   </h3>
                 </Link>
@@ -2149,7 +2149,7 @@ export default function WatchPage() {
               {!isSubscribed && (
                 <Button
                   onClick={handleSubscribe}
-                  className="rounded-full h-10 px-4 bg-accent hover:bg-accent/90 transition-all duration-300 flex-shrink-0 whitespace-nowrap"
+                  className="rounded-full h-10 px-4 bg-accent hover:bg-accent/90 text-white transition-all duration-300 flex-shrink-0 whitespace-nowrap"
                 >
                 Subscribe
               </Button>
@@ -2261,7 +2261,7 @@ export default function WatchPage() {
                             <span className="font-medium text-sm">Notifications</span>
                           </div>
                           {notificationState === 'ALL' && (
-                            <Check className="h-4 w-4 text-accent" />
+                            <Check className="h-4 w-4 text-white" />
                           )}
                         </button>
                       )}
@@ -2318,7 +2318,7 @@ export default function WatchPage() {
                     onClick={() => setRecommendedTab('recommendations')}
                     className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
                       recommendedTab === 'recommendations'
-                        ? 'border-accent text-text-primary font-semibold'
+                        ? 'border-white text-text-primary font-semibold'
                         : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
                     }`}
                   >
@@ -2328,7 +2328,7 @@ export default function WatchPage() {
                     onClick={() => setRecommendedTab('playlist')}
                     className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
                       recommendedTab === 'playlist'
-                        ? 'border-accent text-text-primary font-semibold'
+                        ? 'border-white text-text-primary font-semibold'
                         : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
                     }`}
                   >
@@ -2338,7 +2338,7 @@ export default function WatchPage() {
                     onClick={() => setRecommendedTab('creator')}
                     className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
                       recommendedTab === 'creator'
-                        ? 'border-accent text-text-primary font-semibold'
+                        ? 'border-white text-text-primary font-semibold'
                         : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
                     }`}
                   >
@@ -2348,7 +2348,7 @@ export default function WatchPage() {
                     onClick={() => setRecommendedTab('topic')}
                     className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
                       recommendedTab === 'topic'
-                        ? 'border-accent text-text-primary font-semibold'
+                        ? 'border-white text-text-primary font-semibold'
                         : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
                     }`}
                   >
@@ -2621,7 +2621,7 @@ export default function WatchPage() {
                           {/* Video Info - Flex grow with More button */}
                           <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0 flex flex-col gap-2">
-                              <h4 className="text-base font-medium text-text-primary line-clamp-2 group-hover:text-accent transition-colors leading-snug">
+                              <h4 className="text-base font-medium text-text-primary line-clamp-2 group-hover:text-white transition-colors leading-snug">
                                 {relatedVideo.title}
                               </h4>
                               <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
@@ -2718,7 +2718,7 @@ export default function WatchPage() {
       {/* Mobile: Hide by default, show via overlay */}
       {!hasFullAccess && (
         /* Monetization CTA Section - Replace comments when access restricted */
-        <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full min-h-0">
+        <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full min-h-0 purchase-window-container">
           <MonetizationCTASection 
             video={video}
             onPurchase={() => {
@@ -2937,7 +2937,7 @@ export default function WatchPage() {
                             (cardType === 'local' && smsSent && smsCode.length !== 6) ||
                             ((cardType === 'international' || cardType === null) && newCardCVC.length !== 3)
                           }
-                          className="h-10 py-0 px-4 bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+                          className="h-10 py-0 px-4 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
                         >
                           {cardType === 'local' 
                             ? (!smsSent ? 'SMS Yuborish' : (isVerificationVerified ? 'Tasdiqlandi' : 'Tasdiqlash'))
@@ -2964,7 +2964,7 @@ export default function WatchPage() {
                         !isVerificationVerified ||
                         paymentProcessing
                       }
-                      className="w-full h-10 bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Kartani Saqlash
                     </Button>
@@ -3010,7 +3010,7 @@ export default function WatchPage() {
                         type="button"
                         onClick={() => setIsAnonymousDonation(!isAnonymousDonation)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          isAnonymousDonation ? 'bg-accent' : 'bg-surface/50'
+                          isAnonymousDonation ? 'bg-white' : 'bg-surface/50'
                         }`}
                       >
                         <span
@@ -3072,7 +3072,7 @@ export default function WatchPage() {
                           }}
                           className={`relative w-full px-3 py-3 rounded-md border transition-colors h-14 cursor-pointer ${
                             selectedPaymentMethod === card.id && paymentCategory === 'card'
-                              ? 'border-accent bg-accent/10'
+                              ? 'border-white/20 bg-white/10'
                               : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
                           }`}
                         >
@@ -3162,7 +3162,7 @@ export default function WatchPage() {
                           setIsVerificationVerified(false);
                           setSmsSent(false);
                         }}
-                        className="w-full px-2 py-2 rounded-md border border-dashed border-accent/50 bg-transparent hover:bg-accent/10 transition-colors text-xs text-accent hover:text-accent/80 font-medium flex items-center justify-center gap-1 h-10"
+                        className="w-full px-2 py-2 rounded-md border border-dashed border-white/20 bg-transparent hover:bg-white/10 transition-colors text-xs text-white hover:text-white/80 font-medium flex items-center justify-center gap-1 h-10"
                       >
                         <span>+</span>
                         <span>Add card</span>
@@ -3192,7 +3192,7 @@ export default function WatchPage() {
                             }}
                             className={`flex-shrink-0 w-24 px-3 py-3 rounded-md border transition-colors h-14 flex flex-col items-center justify-center gap-1 ${
                               selectedPaymentMethod === wallet.id && paymentCategory === 'ewallet'
-                                ? 'border-accent bg-accent/10'
+                                ? 'border-white/20 bg-white/10'
                                 : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
                             }`}
                           >
@@ -3218,7 +3218,7 @@ export default function WatchPage() {
                       !selectedPaymentMethod ||
                       waitingForPayment
                     }
-                    className="w-full h-10 bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {waitingForPayment 
                       ? `Waiting for payment on ${getInvoiceSystemName()}`
@@ -3366,7 +3366,7 @@ export default function WatchPage() {
                 <Button
                         onClick={handleProcessDonation}
                   size="icon"
-                        className="rounded-full bg-accent hover:bg-accent/90 h-10 w-10"
+                        className="rounded-full bg-accent hover:bg-accent/90 text-white h-10 w-10"
                         disabled={
                           !commentText.trim() || 
                           commentText.length > MAX_COMMENT_LENGTH ||
@@ -3396,7 +3396,7 @@ export default function WatchPage() {
                 <Button
                   onClick={handleCommentReportSubmit}
                   disabled={!commentReportDetails.trim()}
-                  className="flex-1 rounded-full bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-full bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Submit
                 </Button>

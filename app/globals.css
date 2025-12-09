@@ -69,12 +69,87 @@ body {
 
 /* Hide scrollbar for general use but keep scrolling functionality */
 .scrollbar-hide {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Force hide scrollbar in purchase window - Very aggressive */
+.purchase-window-container,
+.purchase-window-container *,
+.purchase-window-container * > *,
+.purchase-window-container * > * > * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.purchase-window-container::-webkit-scrollbar,
+.purchase-window-container *::-webkit-scrollbar,
+.purchase-window-container * > *::-webkit-scrollbar,
+.purchase-window-container * > * > *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+/* Hide all video controls completely */
+.preview-video-no-controls,
+.preview-video-no-controls video,
+video.preview-video-no-controls {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+.preview-video-no-controls::-webkit-media-controls,
+.preview-video-no-controls video::-webkit-media-controls,
+video.preview-video-no-controls::-webkit-media-controls {
+  display: none !important;
+}
+
+.preview-video-no-controls::-webkit-media-controls-enclosure,
+.preview-video-no-controls video::-webkit-media-controls-enclosure,
+video.preview-video-no-controls::-webkit-media-controls-enclosure {
+  display: none !important;
+}
+
+.preview-video-no-controls::-webkit-media-controls-panel,
+.preview-video-no-controls video::-webkit-media-controls-panel,
+video.preview-video-no-controls::-webkit-media-controls-panel {
+  display: none !important;
+}
+
+.preview-video-no-controls::-webkit-media-controls-play-button,
+.preview-video-no-controls video::-webkit-media-controls-play-button,
+video.preview-video-no-controls::-webkit-media-controls-play-button {
+  display: none !important;
+}
+
+.preview-video-no-controls::-webkit-media-controls-start-playback-button,
+.preview-video-no-controls video::-webkit-media-controls-start-playback-button,
+video.preview-video-no-controls::-webkit-media-controls-start-playback-button {
+  display: none !important;
+}
+
+/* Additional video control hiding */
+.preview-video-no-controls video::--webkit-media-controls,
+video.preview-video-no-controls::--webkit-media-controls {
+  display: none !important;
+}
+
+/* Hide any overlay controls */
+.preview-video-no-controls::before,
+.preview-video-no-controls::after,
+.preview-video-no-controls video::before,
+.preview-video-no-controls video::after {
+  display: none !important;
 }
 
 /* Typography */
