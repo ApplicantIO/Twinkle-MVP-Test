@@ -50,3 +50,23 @@ export interface Analytics {
   viewerIp?: string;
   viewedAt: Date;
 }
+
+// Transaction/Receipt data structure for permanent storage
+export interface Transaction {
+  transactionId: string;
+  userId: string;
+  productId: string; // Video/Subscription ID
+  productTitle: string;
+  productType: 'paid' | 'subscription';
+  creatorId: string;
+  creatorName?: string;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  currency: string;
+  paymentMethodUsed: string; // e.g., 'UzCard', 'Visa', 'Payme', 'Click'
+  securityProvider: string; // e.g., 'Multibank'
+  purchaseDate: Date;
+  billingAddress?: string;
+  userName?: string;
+}

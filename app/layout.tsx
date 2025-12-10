@@ -30,11 +30,11 @@ export default function RootLayout({
           <SidebarProvider>
             <MiniplayerProvider>
               <ModalProvider>
-                <Header />
-                <Sidebar />
-                <MainContent>
-                  {children}
-                </MainContent>
+          <Header />
+          <Sidebar />
+            <MainContent>
+        {children}
+            </MainContent>
                 <BottomNavbar />
                 <CentralizedVideoPlayer />
                 <ShareModal />

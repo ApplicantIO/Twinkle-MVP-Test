@@ -12,7 +12,6 @@ import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { useModal } from '@/contexts/ModalContext';
-import { FastAverageColor } from 'fast-average-color';
 
 interface Comment {
   id: string;
@@ -46,10 +45,8 @@ export default function WatchPage() {
   const [columns, setColumns] = useState(1);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [openMenuVideoId, setOpenMenuVideoId] = useState<string | null>(null);
-  const [videoGlowColors, setVideoGlowColors] = useState<Record<string, string>>({});
   const imageRefs = useRef<Record<string, HTMLImageElement | null>>({});
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const processedVideosRef = useRef<Set<string>>(new Set());
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentReactions, setCommentReactions] = useState<Record<string, 'NONE' | 'LIKE' | 'DISLIKE'>>({});
@@ -722,80 +719,6 @@ export default function WatchPage() {
     };
   }, [openMenuVideoId]);
 
-  // Extract dominant color from thumbnails for ambient mode
-  useEffect(() => {
-    const processVideoColor = (video: Video) => {
-      // Skip if no thumbnail URL
-      if (!video.thumbnailUrl) return;
-      
-      // Skip if already processed (using ref to avoid state dependency)
-      if (processedVideosRef.current.has(video.id)) return;
-      
-      // Get image element
-      const imgElement = imageRefs.current[video.id];
-      if (!imgElement) return;
-      
-      const extractColor = () => {
-        // Mark as processed before starting to prevent duplicates
-        processedVideosRef.current.add(video.id);
-        
-        const fac = new FastAverageColor();
-        fac.getColorAsync(imgElement)
-          .then((color) => {
-            const rgba = color.value;
-            const brightness = (rgba[0] * 299 + rgba[1] * 587 + rgba[2] * 114) / 1000;
-            
-            if (brightness < 30 || brightness > 220) {
-              setVideoGlowColors(prev => ({ ...prev, [video.id]: '#947CF2' }));
-            } else {
-              setVideoGlowColors(prev => ({ ...prev, [video.id]: color.hex }));
-            }
-          })
-          .catch((error) => {
-            console.error('Error extracting color:', error);
-            setVideoGlowColors(prev => ({ ...prev, [video.id]: '#947CF2' }));
-          })
-          .finally(() => {
-            fac.destroy();
-          });
-      };
-      
-      // Check if image is already loaded
-      if (imgElement.complete && imgElement.naturalWidth > 0) {
-        extractColor();
-      } else {
-        // Wait for image to load
-        const handleLoad = () => {
-          // Double-check we haven't processed this video yet (race condition protection)
-          if (processedVideosRef.current.has(video.id)) return;
-          extractColor();
-        };
-        
-        imgElement.addEventListener('load', handleLoad, { once: true });
-      }
-    };
-    
-    // Process each video
-    relatedVideos.forEach(processVideoColor);
-    
-    // Cleanup: remove processed refs for videos no longer in the list
-    return () => {
-      const currentVideoIds = new Set(relatedVideos.map(v => v.id));
-      processedVideosRef.current.forEach((videoId) => {
-        if (!currentVideoIds.has(videoId)) {
-          processedVideosRef.current.delete(videoId);
-        }
-      });
-    };
-  }, [relatedVideos]);
-
-  // Convert hex color to rgba with opacity
-  const hexToRgba = (hex: string, opacity: number) => {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  };
 
   const formatTimeAgo = (date: Date | string) => {
     const now = new Date();
@@ -2304,6 +2227,10 @@ export default function WatchPage() {
                   // TODO: Implement subscription flow
                   console.log('Subscribe clicked for channel:', video.userId);
                 }}
+                onPurchaseComplete={() => {
+                  // Refresh page or update state to show comments
+                  window.location.reload();
+                }}
               />
           </div>
           )}
@@ -2422,22 +2349,16 @@ export default function WatchPage() {
                           onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
                           onMouseLeave={() => setHoveredVideo(null)}
                         >
-                          {/* Card Container with Ambient Mode */}
+                          {/* Card Container - flat design with uniform neutral hover effect */}
                           <div 
-                            className={`rounded-xl transition-colors duration-300 p-3 hover:z-20 relative ${isMenuOpen ? 'z-[90]' : ''}`}
-                            style={{
-                              backgroundColor: isHovered && videoGlowColors[relatedVideo.id] 
-                                ? hexToRgba(videoGlowColors[relatedVideo.id], 0.32) 
-                                : 'transparent',
-                            }}
+                            className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-[90]' : ''} ${
+                              isHovered ? 'bg-white/10' : 'bg-transparent'
+                            }`}
                           >
                             {/* Thumbnail Container */}
                             <div className="relative w-full aspect-video bg-surface rounded-lg overflow-hidden mb-3">
                               {relatedVideo.thumbnailUrl ? (
                                 <img
-                                  ref={(el) => {
-                                    imageRefs.current[relatedVideo.id] = el;
-                                  }}
                                   src={relatedVideo.thumbnailUrl}
                                   alt={relatedVideo.title}
                                   className="w-full h-full object-cover"
@@ -2580,10 +2501,8 @@ export default function WatchPage() {
                         <Link
                           key={relatedVideo.id}
                           href={`/watch/${relatedVideo.id}`}
-                          className={`flex gap-4 rounded-lg p-3 transition-colors group relative ${
-                            hoveredVideo === relatedVideo.id 
-                              ? 'bg-surface/50 hover:bg-surface/60' 
-                              : 'hover:bg-surface/30'
+                          className={`flex gap-4 rounded-lg p-3 transition-colors duration-200 group relative ${
+                            hoveredVideo === relatedVideo.id ? 'bg-white/10' : 'bg-transparent'
                           }`}
                           onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
                           onMouseLeave={() => setHoveredVideo(null)}
@@ -2728,6 +2647,10 @@ export default function WatchPage() {
             onSubscribe={() => {
               // TODO: Implement subscription flow
               console.log('Subscribe clicked for channel:', video.userId);
+            }}
+            onPurchaseComplete={() => {
+              // Refresh page or update state to show comments
+              window.location.reload();
             }}
           />
         </div>

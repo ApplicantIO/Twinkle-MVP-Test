@@ -5,7 +5,6 @@ import React from 'react';
 import Link from 'next/link';
 import { Video } from '@/types';
 import { Play, Lock, Crown, Volume2, VolumeX, MoreVertical } from 'lucide-react';
-import { FastAverageColor } from 'fast-average-color';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModal } from '@/contexts/ModalContext';
 
@@ -219,7 +218,6 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
   const isHovered = hoveredVideo === video.id;
   const { user } = useAuth();
   const { openShareModal, openReportModal } = useModal();
-  const [glowColor, setGlowColor] = useState<string>('#947CF2'); // Default to Twinkle Purple
   const [isMuted, setIsMuted] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -229,44 +227,6 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
   // Check if user has access to subscription/purchased content
   // TODO: Replace with actual subscription/purchase check from API
   const hasAccess = false; // Placeholder - should check user's subscriptions/purchases
-
-  // Extract dominant color from thumbnail using FastAverageColor
-  useEffect(() => {
-    if (!video.thumbnailUrl || !imgRef.current || !imageLoaded) return;
-
-    const fac = new FastAverageColor();
-    
-    fac.getColorAsync(imgRef.current)
-      .then((color) => {
-        // Check if color is too dark/light (black/white) and use fallback
-        const rgba = color.value; // [R, G, B, A]
-        const brightness = (rgba[0] * 299 + rgba[1] * 587 + rgba[2] * 114) / 1000;
-        
-        // If color is too dark (< 30) or too light (> 220), use default
-        if (brightness < 30 || brightness > 220) {
-          setGlowColor('#947CF2'); // Twinkle Purple fallback
-        } else {
-          setGlowColor(color.hex);
-        }
-      })
-      .catch((error) => {
-        console.error('Error extracting color:', error);
-        // Keep default color on error
-        setGlowColor('#947CF2');
-      });
-
-    return () => {
-      fac.destroy();
-    };
-  }, [video.thumbnailUrl, imageLoaded]);
-
-  // Convert hex color to rgba with opacity
-  const hexToRgba = (hex: string, opacity: number) => {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  };
 
   // Try to get a preview image for YouTube videos
   const getPreviewImage = () => {
@@ -309,12 +269,11 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
       onMouseEnter={() => setHoveredVideo(video.id)}
       onMouseLeave={() => setHoveredVideo(null)}
     >
-      {/* Ambient Mode Container - wraps entire card with background tint (static, no scaling) */}
+      {/* Card Container - flat design with uniform neutral hover effect */}
       <div
-        className={`rounded-xl transition-colors duration-300 p-3 hover:z-20 relative ${isMenuOpen ? 'z-[90]' : ''}`}
-        style={{
-          backgroundColor: isHovered ? hexToRgba(glowColor, 0.32) : 'transparent',
-        }}
+        className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-[90]' : ''} ${
+          isHovered ? 'bg-white/10' : 'bg-transparent'
+        }`}
       >
         {/* Thumbnail Container */}
         <div className="relative w-full aspect-video bg-surface rounded-lg overflow-hidden mb-3">
