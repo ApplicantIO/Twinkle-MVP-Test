@@ -32,6 +32,7 @@ export interface Video {
   teaserVideoUrl?: string; // Teaser/trailer video URL (shown when no access)
   fullVideoUrl?: string; // Full video URL (shown when access granted)
   purchaseCoverUrl?: string; // Custom image URL for purchase screen (optional, defaults to lock icon)
+  saleDescription?: string; // Custom description for purchase screen (optional, defaults to standard text)
   // Live streaming fields
   isLive?: boolean; // Whether the video is currently live
   liveViewers?: number; // Current number of live viewers

@@ -21,7 +21,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
   const isSubscription = videoType === 'subscription';
   const [saveCardEnabled, setSaveCardEnabled] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
-  const [purchaseStep, setPurchaseStep] = useState<'PAYMENT' | 'PAYMENT_SUCCESS'>('PAYMENT');
+  const [purchaseStep, setPurchaseStep] = useState<'PAYMENT' | 'SMS_VERIFICATION' | 'PAYMENT_SUCCESS'>('PAYMENT');
   const [currentTransaction, setCurrentTransaction] = useState<Transaction | null>(null);
   const [savedCards, setSavedCards] = useState([
     { id: '1', type: 'UzCard', last4: '1234', cardName: 'Uy Karta', maskedNumber: '**** 4321' },
@@ -64,17 +64,58 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
     return cleaned;
   };
 
-  // Detect card type (local UzCard/HUMO vs international Visa/Mastercard)
+  // Format phone number (Uzbekistan format: +998 XX YYY YY YY)
+  const formatPhoneNumber = (value: string) => {
+    // Remove all non-digits
+    const cleaned = value.replace(/\D/g, '');
+    
+    // If starts with 998, keep it; if starts with 9, add 998; otherwise add +998
+    let digits = cleaned;
+    if (cleaned.startsWith('998')) {
+      digits = cleaned.slice(3); // Remove 998 prefix
+    } else if (cleaned.startsWith('9')) {
+      digits = cleaned.slice(1); // Remove leading 9
+    }
+    
+    // Format as +998 XX YYY YY YY
+    if (digits.length === 0) return '';
+    if (digits.length <= 2) return `+998 ${digits}`;
+    if (digits.length <= 5) return `+998 ${digits.slice(0, 2)} ${digits.slice(2)}`;
+    if (digits.length <= 7) return `+998 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`;
+    return `+998 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
+  };
+
+  // Check if invoice system is selected
+  const isInvoiceSystemSelected = (): boolean => {
+    if (!selectedPaymentMethod) return false;
+    const invoiceSystems = ['paynet', 'click', 'payme', 'uzum'];
+    return invoiceSystems.includes(selectedPaymentMethod);
+  };
+
+  // Validate invoice phone number
+  const isInvoicePhoneValid = () => {
+    if (!isInvoiceSystemSelected()) return true; // Not required if invoice not selected
+    const cleaned = invoicePhoneNumber.replace(/\D/g, '');
+    // Uzbekistan phone: 9 digits after +998 (total 12 digits) or 9 digits starting with 9
+    return cleaned.length >= 9 && cleaned.length <= 12;
+  };
+
+  // Detect card type (local UzCard/HUMO vs international Visa/Mastercard) - BIN Lookup
   const detectCardType = (cardNumber: string): 'local' | 'international' | null => {
     const cleaned = cardNumber.replace(/\s/g, '');
-    if (cleaned.length < 6) return null;
+    if (cleaned.length < 4) return null;
     
-    // UzCard typically starts with 8600, HUMO with 9860
-    if (cleaned.startsWith('8600') || cleaned.startsWith('9860')) {
+    // Local Uzbek cards: 8600 (UzCard), 9860 (HUMO), 5614 (Local)
+    if (cleaned.startsWith('8600') || cleaned.startsWith('9860') || cleaned.startsWith('5614')) {
       return 'local';
     }
-    // Visa starts with 4, Mastercard with 5
-    if (cleaned.startsWith('4') || cleaned.startsWith('5')) {
+    // International cards: 4 (Visa), 5 (Mastercard - excluding local ranges)
+    if (cleaned.startsWith('4')) {
+      return 'international'; // Visa
+    }
+    if (cleaned.startsWith('5')) {
+      // Mastercard - but exclude local ranges (5600-5699 might be local in some regions)
+      // For this implementation, 5 is international unless it's 5614 (already handled above)
       return 'international';
     }
     return null;
@@ -99,11 +140,13 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
     if (!newCardExpiry.length || newCardExpiry.length !== 5) {
       return false;
     }
-    if (cardType === 'local') {
-      return smsCode.length === 6 && isVerificationVerified;
-    } else {
+    // For local cards: No CVV required at input stage
+    // For international cards: CVV required
+    if (cardType === 'international') {
       return newCardCVC.length === 3;
     }
+    // Local cards are valid if number and expiry are correct (CVV not needed)
+    return true;
   };
 
 
@@ -157,118 +200,205 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
 
 
   const handlePayNow = () => {
-    // Check if using saved card or new card
+    // Check if using saved card, new card, or invoice system
     const isUsingSavedCard = selectedPaymentMethod && savedCards.find(c => c.id === selectedPaymentMethod);
-    const isUsingNewCard = !isUsingSavedCard && isNewCardValid();
+    const isUsingInvoice = isInvoiceSystemSelected() && isInvoicePhoneValid();
+    const isUsingNewCard = !isUsingSavedCard && !isUsingInvoice && isNewCardValid();
     
     // Validate payment method
-    if (!isUsingSavedCard && !isUsingNewCard) {
+    if (!isUsingSavedCard && !isUsingNewCard && !isUsingInvoice) {
       return; // Don't proceed if no valid payment method
+    }
+
+    // Determine card type for routing logic
+    let detectedCardType: 'local' | 'international' | null = null;
+    let cardLast4 = '';
+    
+    if (isUsingSavedCard) {
+      const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
+      if (savedCard) {
+        // Detect type from saved card
+        detectedCardType = (savedCard.type === 'UzCard' || savedCard.type === 'HUMO') ? 'local' : 'international';
+        cardLast4 = savedCard.last4;
+      }
+    } else if (isUsingNewCard) {
+      detectedCardType = cardType;
+      cardLast4 = newCardNumber.replace(/\s/g, '').slice(-4);
     }
 
     // Process payment
     setPaymentProcessing(true);
-    
-    // If using new card and save is enabled, save the card
-    if (isUsingNewCard && saveCardEnabled) {
-      const cleanedNumber = newCardNumber.replace(/\s/g, '');
-      const last4 = cleanedNumber.slice(-4);
-      let cardTypeName = 'Card';
-      
-      if (cardType === 'local') {
-        cardTypeName = cleanedNumber.startsWith('8600') ? 'UzCard' : 'HUMO';
-      } else {
-        cardTypeName = cleanedNumber.startsWith('4') ? 'Visa' : 'Mastercard';
+
+    // Flow A: International Cards (CVV Flow) - Direct to Receipt
+    if (detectedCardType === 'international') {
+      // If using new card and save is enabled, save the card
+      if (isUsingNewCard && saveCardEnabled) {
+        const cleanedNumber = newCardNumber.replace(/\s/g, '');
+        const last4 = cleanedNumber.slice(-4);
+        const cardTypeName = cleanedNumber.startsWith('4') ? 'Visa' : 'Mastercard';
+
+        const newCard = {
+          id: Date.now().toString(),
+          type: cardTypeName,
+          last4: last4,
+          cardName: cardName.trim() || cardTypeName,
+          maskedNumber: `**** ${last4}`,
+        };
+
+        setSavedCards([...savedCards, newCard]);
       }
 
-      const newCard = {
-        id: Date.now().toString(),
-        type: cardTypeName,
-        last4: last4,
-        cardName: cardName.trim() || cardTypeName,
-        maskedNumber: `**** ${last4}`,
-      };
+      // Simulate 3D Secure processing
+      setTimeout(() => {
+        setPaymentProcessing(false);
+        processPaymentSuccess(true, cardLast4);
+      }, 2000);
+    }
+    // Flow B: Local Cards (SMS Flow) - Go to SMS Verification
+    else if (detectedCardType === 'local') {
+      // Simulate API call to initiate transaction and send SMS
+      setTimeout(() => {
+        setPaymentProcessing(false);
+        setSmsSent(true);
+        setCountdownTime(60); // 60 seconds countdown
+        setPurchaseStep('SMS_VERIFICATION'); // Switch to SMS verification view
+      }, 1500);
+    }
+    // Invoice payments - process directly
+    else if (isUsingInvoice) {
+      setTimeout(() => {
+        setPaymentProcessing(false);
+        processPaymentSuccess(false, '');
+      }, 2000);
+    } else {
+      // Fallback: process as invoice or default
+      setTimeout(() => {
+        setPaymentProcessing(false);
+        processPaymentSuccess(false, '');
+      }, 2000);
+    }
+  };
 
-      // Save card to list
-      setSavedCards([...savedCards, newCard]);
-      
-      // Note: In a real app, this would call the backend API with saveCard: true
-      // processPayment(..., { saveCard: true, cardToken: ... });
+  // Handle SMS verification confirmation (for local cards)
+  const handleConfirmPayment = async () => {
+    if (smsCode.length !== 6) {
+      return; // Don't proceed if SMS code is invalid
     }
 
+    setPaymentProcessing(true);
+
+    // TODO: API call to confirm payment with SMS code
+    // const response = await fetch('/api/payments/confirm', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     cardNumber: newCardNumber.replace(/\s/g, ''),
+    //     expiry: newCardExpiry,
+    //     smsCode: smsCode,
+    //     amount: video.price,
+    //     currency: video.currency || 'UZS',
+    //   }),
+    // });
+
+    // Simulate API call
     setTimeout(() => {
       setPaymentProcessing(false);
+      setIsVerificationVerified(true);
       
-      // Prepare transaction data for backend storage
-      const price = video.price || 50000;
-      const subtotal = price;
-      const taxRate = 0.05; // 5% VAT
-      const taxAmount = Math.round(subtotal * taxRate);
-      const total = subtotal + taxAmount;
-      
-      const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
-      const paymentMethodDisplay = savedCard 
-        ? `${savedCard.type} ending in ${savedCard.last4}`
-        : getPaymentMethodName();
-      
-      const transactionData: Transaction = {
-        transactionId: transactionId,
-        userId: 'current-user-id', // TODO: Get from auth context
-        productId: video.id,
-        productTitle: video.title,
-        productType: isSubscription ? 'subscription' : 'paid',
-        creatorId: video.userId,
-        creatorName: video.user?.name,
-        subtotal: subtotal,
-        taxAmount: taxAmount,
-        totalAmount: total,
-        currency: video.currency || 'UZS',
-        paymentMethodUsed: paymentMethodDisplay,
-        securityProvider: 'Multibank',
-        purchaseDate: new Date(),
-        billingAddress: 'Tashkent, Uzbekistan', // TODO: Get from user profile
-        userName: 'User Name', // TODO: Get from auth context
-      };
-      
-      // Store transaction data in state for receipt view
-      setCurrentTransaction(transactionData);
-      
-      // TODO: Backend API Call - Store transaction in database
-      // This should be implemented in the backend API endpoint
-      // Example:
-      // try {
-      //   await fetch('/api/transactions', {
-      //     method: 'POST',
-      //     headers: { 'Content-Type': 'application/json' },
-      //     body: JSON.stringify(transactionData),
-      //   });
-      // } catch (error) {
-      //   console.error('Failed to save transaction:', error);
-      //   // Handle error (show notification, retry, etc.)
-      // }
-      
-      // Set payment success state to show receipt
-      setPurchaseStep('PAYMENT_SUCCESS');
-      
-      // Call purchase/subscribe callbacks
-      if (isPaid && onPurchase) {
-        onPurchase();
-      } else if (isSubscription && onSubscribe) {
-        onSubscribe();
+      // If save card is enabled, save the card
+      if (saveCardEnabled) {
+        const cleanedNumber = newCardNumber.replace(/\s/g, '');
+        const last4 = cleanedNumber.slice(-4);
+        const cardTypeName = cleanedNumber.startsWith('8600') ? 'UzCard' : 'HUMO';
+
+        const newCard = {
+          id: Date.now().toString(),
+          type: cardTypeName,
+          last4: last4,
+          cardName: cardName.trim() || cardTypeName,
+          maskedNumber: `**** ${last4}`,
+        };
+
+        setSavedCards([...savedCards, newCard]);
       }
-      
-      // Reset form after successful payment
-      setCardName('');
-      setNewCardNumber('');
-      setNewCardExpiry('');
-      setNewCardCVC('');
-      setSmsCode('');
-      setCardType(null);
-      setIsVerificationVerified(false);
-      setSmsSent(false);
-      setSaveCardEnabled(false);
-      setSelectedPaymentMethod(null);
-    }, 2000);
+
+      // Process payment success
+      const cardLast4 = newCardNumber.replace(/\s/g, '').slice(-4);
+      processPaymentSuccess(false, cardLast4);
+    }, 1500);
+  };
+
+  // Helper function to process payment success and show receipt
+  const processPaymentSuccess = (isUsingSavedCard: boolean, cardLast4: string) => {
+    // Prepare transaction data for backend storage
+    const price = video.price || 50000;
+    const subtotal = price;
+    const taxRate = 0.05; // 5% VAT
+    const taxAmount = Math.round(subtotal * taxRate);
+    const total = subtotal + taxAmount;
+    
+    const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
+    let paymentMethodDisplay = '';
+    
+    if (isUsingSavedCard && savedCard) {
+      paymentMethodDisplay = `${savedCard.type} ending in ${savedCard.last4}`;
+    } else if (cardLast4) {
+      const cleanedNumber = newCardNumber.replace(/\s/g, '');
+      const cardTypeName = cleanedNumber.startsWith('8600') ? 'UzCard' 
+        : cleanedNumber.startsWith('9860') ? 'HUMO'
+        : cleanedNumber.startsWith('4') ? 'Visa'
+        : 'Mastercard';
+      paymentMethodDisplay = `${cardTypeName} ending in ${cardLast4}`;
+    } else {
+      paymentMethodDisplay = getPaymentMethodName();
+    }
+    
+    const transactionData: Transaction = {
+      transactionId: transactionId,
+      userId: 'current-user-id', // TODO: Get from auth context
+      productId: video.id,
+      productTitle: video.title,
+      productType: isSubscription ? 'subscription' : 'paid',
+      creatorId: video.userId,
+      creatorName: video.user?.name,
+      subtotal: subtotal,
+      taxAmount: taxAmount,
+      totalAmount: total,
+      currency: video.currency || 'UZS',
+      paymentMethodUsed: paymentMethodDisplay,
+      securityProvider: 'Multibank',
+      purchaseDate: new Date(),
+      billingAddress: 'Tashkent, Uzbekistan', // TODO: Get from user profile
+      userName: 'User Name', // TODO: Get from auth context
+    };
+    
+    // Store transaction data in state for receipt view
+    setCurrentTransaction(transactionData);
+    
+    // TODO: Backend API Call - Store transaction in database
+    // This should be implemented in the backend API endpoint
+    
+    // Set payment success state to show receipt
+    setPurchaseStep('PAYMENT_SUCCESS');
+    
+    // Call purchase/subscribe callbacks
+    if (isPaid && onPurchase) {
+      onPurchase();
+    } else if (isSubscription && onSubscribe) {
+      onSubscribe();
+    }
+    
+    // Reset form after successful payment
+    setCardName('');
+    setNewCardNumber('');
+    setNewCardExpiry('');
+    setNewCardCVC('');
+    setSmsCode('');
+    setCardType(null);
+    setIsVerificationVerified(false);
+    setSmsSent(false);
+    setSaveCardEnabled(false);
+    setSelectedPaymentMethod(null);
   };
 
   const handleInvoicePaymentSubmit = () => {
@@ -536,14 +666,10 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
             </div>
 
             {/* 4. Description Text Block (Plain Text) */}
+            {/* Display video.saleDescription if available, otherwise use default text */}
             <div className="mb-6">
-              <p className="text-sm text-gray-400 leading-relaxed">
-                {isPaid 
-                  ? 'Purchase this video to get lifetime access with full HD quality. Your purchase directly supports the creator and allows you to download and watch this content anytime, anywhere.'
-                  : isSubscription
-                  ? 'Subscribe to this channel to access exclusive content, full HD quality videos, and support the creator. You can cancel your subscription at any time.'
-                  : 'Get full access to this content with high-quality streaming and download options.'
-                }
+              <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-line">
+                {video.saleDescription || "By purchasing this content, you gain lifetime access to the video in maximum available quality (up to 4K). Your support directly empowers the creator to continue producing high-quality work and maintain their valuable artistic endeavors."}
               </p>
             </div>
 
@@ -551,9 +677,9 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
 
           {/* 3. Payment Methods Block */}
           <div className="flex-shrink-0 space-y-3 mb-4">
-            {/* 3.1 Payment Method: "Pay with Cards" */}
+            {/* 3.1 Payment Method: "Pay with Card(s)" */}
             <div>
-              <h3 className="text-sm font-medium text-text-secondary mb-2">Pay with Cards</h3>
+              <h3 className="text-sm font-medium text-text-secondary mb-2">Pay with Card(s)</h3>
               <div className="space-y-1.5">
                 {savedCards.map((card) => (
                       <div
@@ -569,6 +695,8 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                             setSelectedPaymentMethod(null);
                           } else {
                             setSelectedPaymentMethod(card.id);
+                            // Clear invoice input when selecting saved card
+                            setInvoicePhoneNumber('');
                             // Clear new card inputs when selecting saved card
                             setNewCardNumber('');
                             setNewCardExpiry('');
@@ -692,7 +820,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-text-secondary mb-2">
-                            Expiration Date
+                            Valid until
                           </label>
                           <Input
                             type="text"
@@ -707,114 +835,33 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                             className="w-full bg-surface border-surface text-text-primary h-10"
                           />
                         </div>
-                        <div>
-                          <label className={`block mb-2 ${
-                            cardType === 'local' && smsSent && !isSending
-                              ? '' 
-                              : 'text-sm font-medium text-text-secondary'
-                          }`}>
-                            {cardType === 'local' ? getSmsLabel() : 'CVV/CVC'}
-                          </label>
-                          <Input
-                            type="text"
-                            placeholder={cardType === 'local' ? '000000' : '000'}
-                            value={cardType === 'local' ? smsCode : newCardCVC}
-                            onChange={(e) => {
-                              const cleaned = e.target.value.replace(/\D/g, '');
-                              if (cardType === 'local') {
-                                setSmsCode(cleaned.slice(0, 6));
-                              } else {
+                        {/* CVV field - only for international cards */}
+                        {cardType === 'international' ? (
+                          <div>
+                            <label className="block text-sm font-medium text-text-secondary mb-2">
+                              CVV
+                            </label>
+                            <Input
+                              type="text"
+                              placeholder="000"
+                              value={newCardCVC}
+                              onChange={(e) => {
+                                const cleaned = e.target.value.replace(/\D/g, '');
                                 setNewCardCVC(cleaned.slice(0, 3));
-                              }
-                              setIsVerificationVerified(false);
-                              setSelectedPaymentMethod(null); // Clear saved card selection when typing
-                            }}
-                            maxLength={cardType === 'local' ? 6 : 3}
-                            disabled={cardType === 'local' && !smsSent}
-                            className="w-full bg-surface border-surface text-text-primary h-10 disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                        </div>
+                                setSelectedPaymentMethod(null); // Clear saved card selection when typing
+                              }}
+                              maxLength={3}
+                              className="w-full bg-surface border-surface text-text-primary h-10"
+                            />
+                          </div>
+                        ) : (
+                          <div></div>
+                        )}
                       </div>
-                      
-                      {/* Verification Buttons Section (Below Input Fields) */}
-                      {cardType === 'local' && (
-                        <div className="space-y-2">
-                          {smsSent && !isVerificationVerified && (
-                            <div className="flex items-center justify-between">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setIsSending(true);
-                                  setTimeout(() => {
-                                    setSmsSent(true);
-                                    setIsSending(false);
-                                    setCountdownTime(60); // 60 seconds countdown
-                                  }, 1000);
-                                }}
-                                disabled={isSending || countdownTime > 0}
-                                className="text-xs text-gray-400 hover:text-gray-300 underline disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                Resend SMS code
-                              </button>
-                              {countdownTime > 0 && (
-                                <span className="text-xs text-gray-500">
-                                  Resend in {countdownTime}s
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              if (!smsSent) {
-                                // Send SMS
-                                setIsSending(true);
-                                setTimeout(() => {
-                                  setSmsSent(true);
-                                  setIsSending(false);
-                                  setCountdownTime(60); // 60 seconds countdown
-                                }, 1000);
-                              } else {
-                                // Verify SMS code
-                                if (smsCode.length === 6) {
-                                  setIsVerificationVerified(true);
-                                  setPaymentProcessing(true);
-                                  setTimeout(() => {
-                                    setPaymentProcessing(false);
-                                  }, 500);
-                                }
-                              }
-                            }}
-                            disabled={
-                              isSending ||
-                              paymentProcessing ||
-                              isVerificationVerified ||
-                              (smsSent && smsCode.length !== 6)
-                            }
-                            className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isSending ? (
-                              <span className="flex items-center gap-2">
-                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Sending...
-                              </span>
-                            ) : !smsSent ? (
-                              'Send SMS Code'
-                            ) : isVerificationVerified ? (
-                              'Verified'
-                            ) : (
-                              'Verify Code'
-                            )}
-                          </Button>
-                        </div>
-                      )}
                       
                       {/* Save Card Toggle Switch */}
                       <div className="flex items-center justify-between mt-4 pt-2 border-t border-surface/30">
-                        <span className="text-sm text-gray-300">Save card for future payments</span>
+                        <span className="text-sm text-gray-300">Save card</span>
                         <button
                           type="button"
                           onClick={() => setSaveCardEnabled(!saveCardEnabled)}
@@ -865,15 +912,25 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                         key={wallet.id}
                         type="button"
                         onClick={() => {
-                          setSelectedPaymentMethod(wallet.id);
-                          // Clear new card inputs when selecting invoice payment
-                          setNewCardNumber('');
-                          setNewCardExpiry('');
-                          setNewCardCVC('');
-                          setSmsCode('');
-                          setCardType(null);
-                          setIsVerificationVerified(false);
-                          setSmsSent(false);
+                          // Toggle selection or set new selection
+                          if (selectedPaymentMethod === wallet.id) {
+                            setSelectedPaymentMethod(null);
+                            setInvoicePhoneNumber('');
+                          } else {
+                            setSelectedPaymentMethod(wallet.id);
+                            // Clear new card inputs when selecting invoice payment
+                            setNewCardNumber('');
+                            setNewCardExpiry('');
+                            setNewCardCVC('');
+                            setSmsCode('');
+                            setCardType(null);
+                            setIsVerificationVerified(false);
+                            setSmsSent(false);
+                            // Clear invoice input if switching between invoice systems
+                            if (!['paynet', 'click', 'payme', 'uzum'].includes(selectedPaymentMethod || '')) {
+                              setInvoicePhoneNumber('');
+                            }
+                          }
                         }}
                         className={`flex-shrink-0 w-24 px-3 py-3 rounded-md border transition-colors h-14 flex flex-col items-center justify-center gap-1 ${
                           selectedPaymentMethod === wallet.id
@@ -890,6 +947,35 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                   </div>
                 </div>
               </div>
+              
+              {/* Invoice Input Field - Appears when invoice system is selected */}
+              {isInvoiceSystemSelected() && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Phone Number to Send Invoice To
+                    <span className="text-xs text-gray-500 ml-1">(Invoice yuboriladigan telefon raqami)</span>
+                  </label>
+                  <Input
+                    type="tel"
+                    placeholder="+998 XX YYY YY YY"
+                    value={invoicePhoneNumber}
+                    onChange={(e) => {
+                      const formatted = formatPhoneNumber(e.target.value);
+                      setInvoicePhoneNumber(formatted);
+                    }}
+                    className={`w-full bg-surface border-surface text-text-primary h-10 ${
+                      invoicePhoneNumber && !isInvoicePhoneValid() 
+                        ? 'border-red-500 focus:border-red-500' 
+                        : ''
+                    }`}
+                  />
+                  {invoicePhoneNumber && !isInvoicePhoneValid() && (
+                    <p className="text-xs text-red-400 mt-1">
+                      Please enter a valid phone number (9-12 digits)
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -900,7 +986,8 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
             onClick={handlePayNow}
             disabled={
               paymentProcessing ||
-              (!selectedPaymentMethod && !isNewCardValid())
+              (!selectedPaymentMethod && !isNewCardValid()) ||
+              (isInvoiceSystemSelected() && !isInvoicePhoneValid())
             }
             className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -915,6 +1002,93 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
         </div>
       </div>
     );
+
+  // Render SMS Verification View (Local Cards Only)
+  const renderSMSVerificationView = () => {
+    const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
+    const cardDisplay = savedCard 
+      ? `${savedCard.type} ending in ${savedCard.last4}`
+      : cardType === 'local' 
+        ? (newCardNumber.replace(/\s/g, '').startsWith('8600') ? 'UzCard' : 'HUMO')
+        : 'Card';
+    const cardLast4 = savedCard 
+      ? savedCard.last4
+      : newCardNumber.replace(/\s/g, '').slice(-4);
+
+    return (
+      <div className="flex flex-col h-full bg-[#1A1A1A] rounded-xl overflow-hidden">
+        <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-white mb-2">Confirm Payment</h2>
+            <p className="text-sm text-gray-400">
+              We sent a code to the number linked with **** {cardLast4}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                {getSmsLabel()}
+              </label>
+              <Input
+                type="text"
+                placeholder="000000"
+                value={smsCode}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/\D/g, '');
+                  setSmsCode(cleaned.slice(0, 6));
+                }}
+                maxLength={6}
+                className="w-full bg-surface border-surface text-text-primary h-10"
+              />
+            </div>
+
+            {/* Resend SMS Code Button */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSending(true);
+                  setTimeout(() => {
+                    setSmsSent(true);
+                    setIsSending(false);
+                    setCountdownTime(60); // 60 seconds countdown
+                  }, 1000);
+                }}
+                disabled={isSending || countdownTime > 0}
+                className="text-xs text-gray-400 hover:text-gray-300 underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Resend Code
+              </button>
+              {countdownTime > 0 && (
+                <span className="text-xs text-gray-500">
+                  Resend in {countdownTime}s
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Fixed Bottom Action */}
+        <div className="mt-auto bg-[#1A1A1A] border-t border-surface/50 p-4">
+          <Button
+            onClick={handleConfirmPayment}
+            disabled={
+              paymentProcessing ||
+              smsCode.length !== 6
+            }
+            className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {paymentProcessing ? (
+              'Processing...'
+            ) : (
+              'Confirm Payment'
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   // Render Receipt View - Accepts transaction data for reusability in Financial Dashboard
   const renderReceiptView = (transaction?: Transaction) => {
@@ -982,115 +1156,120 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
       minute: '2-digit'
     });
 
-    // Product description based on type
-    const productDescription = tx.productType === 'subscription'
-      ? 'Subscription includes: Full HD Quality, Exclusive Content, Ad-free viewing, Download permission, Cancel Anytime'
-      : 'Purchase includes: Lifetime 4K Access, Ad-free viewing, Download permission, Full HD Quality';
+    // Product description - use default text (matches purchase description) with signature
+    const defaultDescription = "By purchasing this content, you gain lifetime access to the video in maximum available quality (up to 4K). Your support directly empowers the creator to continue producing high-quality work and maintain their valuable artistic endeavors.";
+    const productDescription = `${defaultDescription}\n\nTwinkle 🥂`;
 
     return (
       <div className="flex flex-col h-full bg-[#1A1A1A] rounded-xl overflow-hidden">
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-6">
-          <div 
-            ref={receiptRef}
-            className="max-w-md mx-auto bg-white rounded-lg shadow-xl p-6 font-mono text-sm"
-          >
-            {/* A. Transaction Header */}
-            <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-gray-300">
-              <h2 className="text-2xl font-bold text-black mb-1">TWINKLE</h2>
-              <p className="text-sm text-gray-600 mb-2">PURCHASE RECEIPT</p>
-              <div className="mt-3">
-                <span className="px-4 py-2 bg-green-100 text-green-800 rounded font-bold text-sm">PAID</span>
-              </div>
-            </div>
+        {/* Scrollable Content: Header and Receipt Preview */}
+        <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 p-4">
+          {/* 1. Header Title */}
+          <h2 className="text-xl font-bold text-white mb-4">Payment Receipt</h2>
 
-            {/* B. Purchase Details */}
-            <div className="mb-6 space-y-4">
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Product Title:</div>
-                <div className="text-black font-semibold">{tx.productTitle}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Product Description:</div>
-                <div className="text-black text-xs leading-relaxed">{productDescription}</div>
-              </div>
-              <div className="border-t border-dashed border-gray-300 my-3"></div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Creator Information:</div>
-                <div className="text-black font-semibold">{tx.creatorName || 'Unknown Creator'}</div>
-                <div className="text-black text-xs">Creator ID: {tx.creatorId || 'N/A'}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Date & Time:</div>
-                <div className="text-black font-semibold">{currentDate}</div>
-              </div>
-            </div>
-
-            {/* C. User & Billing Details */}
-            <div className="mb-6 space-y-3 border-t border-dashed border-gray-300 pt-4">
-              <div>
-                <div className="text-xs text-gray-500 mb-1">User ID/Name:</div>
-                <div className="text-black font-semibold">{tx.userName || tx.userId}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Billing Address:</div>
-                <div className="text-black text-xs">{tx.billingAddress || 'Tashkent, Uzbekistan'}</div>
-              </div>
-            </div>
-
-            {/* D. Financial Summary */}
-            <div className="mb-6 space-y-2 border-t border-dashed border-gray-300 pt-4">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal:</span>
-                <span className="text-black font-semibold">{formattedSubtotal} {tx.currency}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">VAT (5%):</span>
-                <span className="text-black font-semibold">{formattedTax} {tx.currency}</span>
-              </div>
-              <div className="border-t border-dashed border-gray-300 my-3"></div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 font-semibold">Total Amount:</span>
-                <span className="text-2xl font-bold text-black">{formattedTotal} {tx.currency}</span>
-              </div>
-            </div>
-
-            {/* E. Payment Information & Security */}
-            <div className="mb-6 space-y-3 border-t border-dashed border-gray-300 pt-4">
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Payment Method:</div>
-                <div className="text-black font-semibold">{tx.paymentMethodUsed}</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Transaction ID:</div>
-                <div className="text-black font-semibold">#{tx.transactionId}</div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-dashed border-gray-300">
-                <p className="text-xs text-gray-600 text-center">
-                  This payment was secured by {tx.securityProvider}
-                </p>
-              </div>
-            </div>
-
-            {/* Receipt Footer */}
-            <div className="text-center pt-4 border-t-2 border-dashed border-gray-300">
-              <p className="text-xs text-gray-500">Retain this check for your records.</p>
-            </div>
-          </div>
-
-          {/* Download PDF Button */}
-          <div className="max-w-md mx-auto mt-4">
-            <Button
-              onClick={handleDownloadPDF}
-              className="w-full h-10 bg-surface hover:bg-surface/80 text-text-primary border border-surface/50"
+          {/* 2. Receipt Preview (The Bill) - Scrollable if needed */}
+          <div>
+            <div 
+              ref={receiptRef}
+              className="max-w-md mx-auto bg-white rounded-lg shadow-xl p-6 font-mono text-sm"
             >
-              <Download className="h-4 w-4 mr-2" />
-              Download PDF Receipt
-            </Button>
+              {/* A. Transaction Header */}
+              <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-gray-300">
+                <h2 className="text-2xl font-bold text-black mb-1">TWINKLE</h2>
+                <p className="text-sm text-gray-600 mb-2">PURCHASE RECEIPT</p>
+                <div className="mt-3">
+                  <span className="px-4 py-2 bg-green-100 text-green-800 rounded font-bold text-sm">PAID</span>
+                </div>
+              </div>
+
+              {/* B. Purchase Details */}
+              <div className="mb-6 space-y-4">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Product Title:</div>
+                  <div className="text-black font-semibold">{tx.productTitle}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Product Description:</div>
+                  <p className="text-black text-xs leading-relaxed whitespace-pre-wrap">{productDescription}</p>
+                </div>
+                <div className="border-t border-dashed border-gray-300 my-3"></div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Creator Information:</div>
+                  <div className="text-black font-semibold">{tx.creatorName || 'Unknown Creator'}</div>
+                  <div className="text-black text-xs">Creator ID: {tx.creatorId || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Date & Time:</div>
+                  <div className="text-black font-semibold">{currentDate}</div>
+                </div>
+              </div>
+
+              {/* C. User & Billing Details */}
+              <div className="mb-6 space-y-3 border-t border-dashed border-gray-300 pt-4">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">User ID/Name:</div>
+                  <div className="text-black font-semibold">{tx.userName || tx.userId}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Billing Address:</div>
+                  <div className="text-black text-xs">{tx.billingAddress || 'Tashkent, Uzbekistan'}</div>
+                </div>
+              </div>
+
+              {/* D. Financial Summary */}
+              <div className="mb-6 space-y-2 border-t border-dashed border-gray-300 pt-4">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Subtotal:</span>
+                  <span className="text-black font-semibold">{formattedSubtotal} {tx.currency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">VAT (5%):</span>
+                  <span className="text-black font-semibold">{formattedTax} {tx.currency}</span>
+                </div>
+                <div className="border-t border-dashed border-gray-300 my-3"></div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600 font-semibold">Total Amount:</span>
+                  <span className="text-2xl font-bold text-black">{formattedTotal} {tx.currency}</span>
+                </div>
+              </div>
+
+              {/* E. Payment Information & Security */}
+              <div className="mb-6 space-y-3 border-t border-dashed border-gray-300 pt-4">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Payment Method:</div>
+                  <div className="text-black font-semibold">{tx.paymentMethodUsed}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Transaction ID:</div>
+                  <div className="text-black font-semibold">#{tx.transactionId}</div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-dashed border-gray-300">
+                  <p className="text-xs text-gray-600 text-center">
+                    This payment was secured by {tx.securityProvider}
+                  </p>
+                </div>
+              </div>
+
+              {/* Receipt Footer */}
+              <div className="text-center pt-4 border-t-2 border-dashed border-gray-300">
+                <p className="text-xs text-gray-500">Retain this check for your records.</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Continue Watching Button */}
+        {/* Fixed Footer: Download and Continue Watching Buttons */}
         <div className="mt-auto bg-[#1A1A1A] border-t border-surface/50 p-4">
+          {/* 1. Download Button (Secondary Style) */}
+          <Button
+            onClick={handleDownloadPDF}
+            className="w-full h-10 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 mb-3"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download Receipt
+          </Button>
+
+          {/* 2. Continue Watching Button (Primary Style) */}
           <Button
             onClick={handleContinueWatching}
             className="w-full h-10 bg-accent hover:bg-accent/90 text-white"
@@ -1102,11 +1281,38 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
     );
   };
 
-  // Show receipt view if payment is successful
-  if (purchaseStep === 'PAYMENT_SUCCESS') {
-    return renderReceiptView(currentTransaction || undefined);
+  // Show SMS verification view if SMS verification is required (local cards)
+  if (purchaseStep === 'SMS_VERIFICATION') {
+    return (
+      <div 
+        className="w-full h-full flex flex-col bg-[#1A1A1A] rounded-xl overflow-hidden purchase-window-container"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        {renderSMSVerificationView()}
+      </div>
+    );
   }
 
+  // Show receipt view if payment is successful
+  // ReceiptView accepts transaction data for reusability in Financial Dashboard
+  if (purchaseStep === 'PAYMENT_SUCCESS') {
+    return (
+      <div 
+        className="w-full h-full flex flex-col bg-[#1A1A1A] rounded-xl overflow-hidden purchase-window-container"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        {renderReceiptView(currentTransaction || undefined)}
+      </div>
+    );
+  }
+
+  // Default: Show payment input view
   return (
     <div 
       className="w-full h-full flex flex-col bg-[#1A1A1A] rounded-xl overflow-hidden purchase-window-container"
