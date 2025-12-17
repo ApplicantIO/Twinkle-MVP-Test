@@ -21,7 +21,8 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
   const isSubscription = videoType === 'subscription';
   const [saveCardEnabled, setSaveCardEnabled] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
-  const [purchaseStep, setPurchaseStep] = useState<'PAYMENT' | 'SMS_VERIFICATION' | 'PAYMENT_SUCCESS'>('PAYMENT');
+  const [isCardFormActive, setIsCardFormActive] = useState(false);
+  const [purchaseStep, setPurchaseStep] = useState<'PAYMENT' | 'SMS_VERIFICATION' | 'WALLET_INVOICE_REQUEST' | 'WALLET_WAITING' | 'PAYMENT_SUCCESS'>('PAYMENT');
   const [currentTransaction, setCurrentTransaction] = useState<Transaction | null>(null);
   const [savedCards, setSavedCards] = useState([
     { id: '1', type: 'UzCard', last4: '1234', cardName: 'Uy Karta', maskedNumber: '**** 4321' },
@@ -40,64 +41,114 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
   const [countdownTime, setCountdownTime] = useState(0);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [showBillingDetails, setShowBillingDetails] = useState(false);
-  const [invoicePhoneNumber, setInvoicePhoneNumber] = useState('');
+  const [invoicePhoneNumber, setInvoicePhoneNumber] = useState('+998 ');
   const [invoiceCardNumber, setInvoiceCardNumber] = useState('');
   const [invoiceCardExpiry, setInvoiceCardExpiry] = useState('');
-  const [invoicePaymentMethod, setInvoicePaymentMethod] = useState<'phone' | 'card'>('phone');
+  const [activeInvoiceIdentifier, setActiveInvoiceIdentifier] = useState<'phone' | 'card' | null>(null);
+  const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
+  const [invoicePollingInterval, setInvoicePollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [invoiceStatus, setInvoiceStatus] = useState<'pending' | 'paid' | 'failed' | null>(null);
   const cardMenuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const prevNewCardExpiryRef = useRef<string>('');
+  const prevInvoiceCardExpiryRef = useRef<string>('');
 
-  // Format new card number
+  // Format new card number - numeric only
   const formatNewCardNumber = (value: string) => {
-    const cleaned = value.replace(/\s/g, '');
-    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
-    return formatted.slice(0, 19);
+    // Strip all non-numeric characters
+    const numericValue = value.replace(/\D/g, '');
+    // Format with 4-digit spacing
+    const formatted = numericValue.match(/.{1,4}/g)?.join(' ') || numericValue;
+    return formatted.slice(0, 19); // Limit to 16 digits + 3 spaces = 19 chars max
   };
 
-  // Format expiry date (MM/YY)
-  const formatExpiry = (value: string) => {
+  // Format expiry date (MM/YY) - handles backspace properly
+  const formatExpiry = (value: string, previousValue?: string) => {
+    // Remove all non-digits
     const cleaned = value.replace(/\D/g, '');
+    const previousCleaned = previousValue ? previousValue.replace(/\D/g, '') : '';
+    
+    // If user is deleting (fewer digits) and the input value ends with '/', 
+    // they're trying to delete the slash, so return just digits without slash
+    if (previousValue && cleaned.length < previousCleaned.length && value.endsWith('/')) {
+      return cleaned;
+    }
+    
+    // Normal formatting: add slash after 2 digits
     if (cleaned.length >= 2) {
       return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
     }
     return cleaned;
   };
 
-  // Format phone number (Uzbekistan format: +998 XX YYY YY YY)
-  const formatPhoneNumber = (value: string) => {
-    // Remove all non-digits
-    const cleaned = value.replace(/\D/g, '');
+  // Format phone number - always starts with +998, prevents deletion of prefix
+  const formatPhoneNumber = (value: string, previousValue?: string) => {
+    // Allow digits, spaces, and + sign
+    const cleaned = value.replace(/[^\d\s+]/g, '');
     
-    // If starts with 998, keep it; if starts with 9, add 998; otherwise add +998
-    let digits = cleaned;
-    if (cleaned.startsWith('998')) {
-      digits = cleaned.slice(3); // Remove 998 prefix
-    } else if (cleaned.startsWith('9')) {
-      digits = cleaned.slice(1); // Remove leading 9
+    // Must always start with +998
+    const PREFIX = '+998';
+    
+    // Extract all digits (remove + and spaces)
+    const allDigits = cleaned.replace(/[^\d]/g, '');
+    
+    // Prevent deletion of 998 prefix - if user tries to delete into it, restore prefix
+    const previousDigits = previousValue ? previousValue.replace(/[^\d]/g, '') : '998';
+    if (previousDigits.startsWith('998') && allDigits.length < 3) {
+      // User tried to delete into prefix, restore it
+      return PREFIX + ' ';
     }
     
-    // Format as +998 XX YYY YY YY
-    if (digits.length === 0) return '';
-    if (digits.length <= 2) return `+998 ${digits}`;
-    if (digits.length <= 5) return `+998 ${digits.slice(0, 2)} ${digits.slice(2)}`;
-    if (digits.length <= 7) return `+998 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`;
-    return `+998 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
+    // Ensure 998 prefix exists (prevent duplication)
+    let digitsAfter998 = '';
+    if (allDigits.startsWith('998')) {
+      // Already has 998, extract what comes after
+      digitsAfter998 = allDigits.slice(3);
+    } else if (allDigits.length > 0) {
+      // Doesn't start with 998, but has digits - use them as user digits
+      digitsAfter998 = allDigits;
+    }
+    
+    // Limit user digits to 9 (Uzbek mobile format: 9X XXX XX XX)
+    if (digitsAfter998.length > 9) {
+      digitsAfter998 = digitsAfter998.slice(0, 9);
+    }
+    
+    // Format: +998 XX YYY YY YY
+    if (digitsAfter998.length === 0) return PREFIX + ' ';
+    if (digitsAfter998.length <= 2) return `${PREFIX} ${digitsAfter998}`;
+    if (digitsAfter998.length <= 5) return `${PREFIX} ${digitsAfter998.slice(0, 2)} ${digitsAfter998.slice(2)}`;
+    if (digitsAfter998.length <= 7) return `${PREFIX} ${digitsAfter998.slice(0, 2)} ${digitsAfter998.slice(2, 5)} ${digitsAfter998.slice(5)}`;
+    return `${PREFIX} ${digitsAfter998.slice(0, 2)} ${digitsAfter998.slice(2, 5)} ${digitsAfter998.slice(5, 7)} ${digitsAfter998.slice(7, 9)}`;
   };
 
-  // Check if invoice system is selected
-  const isInvoiceSystemSelected = (): boolean => {
+  // Check if wallet system is selected
+  const isWalletSystemSelected = (): boolean => {
     if (!selectedPaymentMethod) return false;
-    const invoiceSystems = ['paynet', 'click', 'payme', 'uzum'];
-    return invoiceSystems.includes(selectedPaymentMethod);
+    const walletSystems = ['paynet', 'click', 'payme', 'uzum'];
+    return walletSystems.includes(selectedPaymentMethod);
   };
 
-  // Validate invoice phone number
+  // Legacy alias for compatibility
+  const isInvoiceSystemSelected = isWalletSystemSelected;
+
+  // Validate invoice phone number - simplified validation (just needs digits after +)
   const isInvoicePhoneValid = () => {
     if (!isInvoiceSystemSelected()) return true; // Not required if invoice not selected
-    const cleaned = invoicePhoneNumber.replace(/\D/g, '');
-    // Uzbekistan phone: 9 digits after +998 (total 12 digits) or 9 digits starting with 9
-    return cleaned.length >= 9 && cleaned.length <= 12;
+    if (!invoicePhoneNumber.trim()) return false; // Must have input
+    // Must start with + and have at least 9 digits (reasonable minimum for phone numbers)
+    if (!invoicePhoneNumber.startsWith('+')) return false;
+    const digits = invoicePhoneNumber.slice(1).replace(/\D/g, ''); // Get digits after +
+    return digits.length >= 9; // At least 9 digits
+  };
+
+  // Validate invoice card details
+  const isInvoiceCardValid = () => {
+    if (!isInvoiceSystemSelected()) return true; // Not required if invoice not selected
+    const cleanedCard = invoiceCardNumber.replace(/\s/g, '');
+    const cleanedExpiry = invoiceCardExpiry.replace(/\D/g, '');
+    return cleanedCard.length >= 16 && cleanedExpiry.length === 4; // MMYY format
   };
 
   // Detect card type (local UzCard/HUMO vs international Visa/Mastercard) - BIN Lookup
@@ -169,6 +220,15 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
     }
   }, [openCardMenuId]);
 
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (invoicePollingInterval) {
+        clearInterval(invoicePollingInterval);
+      }
+    };
+  }, [invoicePollingInterval]);
+
   // Format price in UZS
   const formattedPrice = video.price?.toLocaleString('en-US', {
     minimumFractionDigits: 0,
@@ -200,14 +260,22 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
 
 
   const handlePayNow = () => {
-    // Check if using saved card, new card, or invoice system
+    // Check if using saved card, new card, or wallet
     const isUsingSavedCard = selectedPaymentMethod && savedCards.find(c => c.id === selectedPaymentMethod);
-    const isUsingInvoice = isInvoiceSystemSelected() && isInvoicePhoneValid();
-    const isUsingNewCard = !isUsingSavedCard && !isUsingInvoice && isNewCardValid();
+    const walletSystems = ['paynet', 'click', 'payme', 'uzum'];
+    const isUsingWallet = selectedPaymentMethod && walletSystems.includes(selectedPaymentMethod);
+    const isUsingNewCard = !isUsingSavedCard && !isUsingWallet && isNewCardValid();
     
     // Validate payment method
-    if (!isUsingSavedCard && !isUsingNewCard && !isUsingInvoice) {
+    if (!isUsingSavedCard && !isUsingNewCard && !isUsingWallet) {
       return; // Don't proceed if no valid payment method
+    }
+
+    // Wallet payments: Open invoice request screen
+    if (isUsingWallet) {
+      setSelectedWallet(selectedPaymentMethod);
+      setPurchaseStep('WALLET_INVOICE_REQUEST');
+      return;
     }
 
     // Determine card type for routing logic
@@ -264,19 +332,42 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
         setPurchaseStep('SMS_VERIFICATION'); // Switch to SMS verification view
       }, 1500);
     }
-    // Invoice payments - process directly
-    else if (isUsingInvoice) {
-      setTimeout(() => {
-        setPaymentProcessing(false);
-        processPaymentSuccess(false, '');
-      }, 2000);
-    } else {
-      // Fallback: process as invoice or default
-      setTimeout(() => {
-        setPaymentProcessing(false);
-        processPaymentSuccess(false, '');
-      }, 2000);
-    }
+  };
+
+  // Handle cancellation of SMS verification (cancel payment)
+  const handleCancelPayment = async () => {
+    setPaymentProcessing(true);
+
+    // TODO: API call to void/cancel the pending transaction
+    // const response = await fetch('/api/payments/void', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     cardNumber: newCardNumber.replace(/\s/g, ''),
+    //     expiry: newCardExpiry,
+    //     transactionId: transactionId, // TODO: Store transaction ID when initiating SMS
+    //   }),
+    // });
+
+    // Simulate API call to void transaction
+    setTimeout(() => {
+      setPaymentProcessing(false);
+      
+      // Reset SMS verification state
+      setSmsCode('');
+      setSmsSent(false);
+      setIsVerificationVerified(false);
+      setCountdownTime(0);
+      
+      // Clear payment processing state
+      setPaymentProcessing(false);
+      
+      // Return to main payment screen
+      setPurchaseStep('PAYMENT');
+      
+      // Optionally clear selected payment method to allow user to choose again
+      // setSelectedPaymentMethod(null); // Uncomment if you want to clear selection
+    }, 500);
   };
 
   // Handle SMS verification confirmation (for local cards)
@@ -693,14 +784,22 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                           // Toggle selection: if already selected, deselect it
                           if (selectedPaymentMethod === card.id) {
                             setSelectedPaymentMethod(null);
+                            setIsCardFormActive(false); // Deactivate card form
+                            setSelectedWallet(null); // Clear wallet selection
                           } else {
                             setSelectedPaymentMethod(card.id);
+                            setIsCardFormActive(false); // Deactivate card form when selecting saved card
+                            setSelectedWallet(null); // Clear wallet selection when selecting saved card
                             // Clear invoice input when selecting saved card
-                            setInvoicePhoneNumber('');
+                            setInvoicePhoneNumber('+998 ');
+                            setInvoiceCardNumber('');
+                            setInvoiceCardExpiry('');
+                            setActiveInvoiceIdentifier(null);
                             // Clear new card inputs when selecting saved card
                             setNewCardNumber('');
                             setNewCardExpiry('');
                             setNewCardCVC('');
+                            setCardName('');
                             setSmsCode('');
                             setCardType(null);
                             setIsVerificationVerified(false);
@@ -787,7 +886,22 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                     ))}
                     
                     {/* Card Input Form (Always Visible) */}
-                    <div className="mt-3 p-4 border border-surface/50 rounded-md bg-surface/30 space-y-4">
+                    <div 
+                      onClick={() => {
+                        setIsCardFormActive(true);
+                        setSelectedPaymentMethod(null); // Clear saved card selection when clicking form
+                        setSelectedWallet(null); // Clear wallet selection when clicking form
+                        setInvoicePhoneNumber(''); // Clear invoice inputs
+                        setInvoiceCardNumber('');
+                        setInvoiceCardExpiry('');
+                        setActiveInvoiceIdentifier(null);
+                      }}
+                      className={`mt-3 p-4 border rounded-md space-y-4 transition-colors cursor-pointer ${
+                        isCardFormActive || newCardNumber || newCardExpiry || newCardCVC || cardName
+                          ? 'border-white/20 bg-white/10'
+                          : 'border-surface/50 bg-surface/30'
+                      }`}
+                    >
                       <div>
                         <label className="block text-sm font-medium text-text-secondary mb-2">
                           Card Number
@@ -814,7 +928,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                             }
                           }}
                           maxLength={19}
-                          className="w-full bg-surface border-surface text-text-primary h-10"
+                          className="w-full bg-surface border-surface text-text-primary h-10 outline-none focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -826,13 +940,21 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                             type="text"
                             placeholder="MM/YY"
                             value={newCardExpiry}
+                            onFocus={() => {
+                              setIsCardFormActive(true);
+                              setSelectedPaymentMethod(null); // Clear saved card selection when focusing input
+                              setSelectedWallet(null); // Clear wallet selection when focusing input
+                            }}
                             onChange={(e) => {
-                              const formatted = formatExpiry(e.target.value);
+                              const formatted = formatExpiry(e.target.value, prevNewCardExpiryRef.current);
+                              prevNewCardExpiryRef.current = formatted;
                               setNewCardExpiry(formatted);
+                              setIsCardFormActive(true);
                               setSelectedPaymentMethod(null); // Clear saved card selection when typing
+                              setSelectedWallet(null); // Clear wallet selection when typing
                             }}
                             maxLength={5}
-                            className="w-full bg-surface border-surface text-text-primary h-10"
+                            className="w-full bg-surface border-surface text-text-primary h-10 outline-none focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white"
                           />
                         </div>
                         {/* CVV field - only for international cards */}
@@ -845,13 +967,20 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                               type="text"
                               placeholder="000"
                               value={newCardCVC}
+                              onFocus={() => {
+                                setIsCardFormActive(true);
+                                setSelectedPaymentMethod(null); // Clear saved card selection when focusing input
+                                setSelectedWallet(null); // Clear wallet selection when focusing input
+                              }}
                               onChange={(e) => {
                                 const cleaned = e.target.value.replace(/\D/g, '');
                                 setNewCardCVC(cleaned.slice(0, 3));
+                                setIsCardFormActive(true);
                                 setSelectedPaymentMethod(null); // Clear saved card selection when typing
+                                setSelectedWallet(null); // Clear wallet selection when typing
                               }}
                               maxLength={3}
-                              className="w-full bg-surface border-surface text-text-primary h-10"
+                              className="w-full bg-surface border-surface text-text-primary h-10 outline-none focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white"
                             />
                           </div>
                         ) : (
@@ -887,8 +1016,18 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                             type="text"
                             placeholder={getCardTypeName()}
                             value={cardName}
-                            onChange={(e) => setCardName(e.target.value)}
-                            className="w-full bg-surface border-surface text-text-primary h-10"
+                            onFocus={() => {
+                              setIsCardFormActive(true);
+                              setSelectedPaymentMethod(null); // Clear saved card selection when focusing input
+                              setSelectedWallet(null); // Clear wallet selection when focusing input
+                            }}
+                            onChange={(e) => {
+                              setCardName(e.target.value);
+                              setIsCardFormActive(true);
+                              setSelectedPaymentMethod(null); // Clear saved card selection when typing
+                              setSelectedWallet(null); // Clear wallet selection when typing
+                            }}
+                            className="w-full bg-surface border-surface text-text-primary h-10 outline-none focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white"
                           />
                         </div>
                       )}
@@ -896,9 +1035,9 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
               </div>
             </div>
 
-            {/* 3.2 Payment Method: "Payment Systems" */}
+            {/* 3.2 Payment Method: "Wallets" */}
             <div>
-              <h3 className="text-sm font-medium text-text-secondary mb-2">Invoices</h3>
+              <h3 className="text-sm font-medium text-text-secondary mb-2">Wallets</h3>
               <div className="overflow-x-auto sidebar-scrollbar-hide">
                 <div className="overflow-x-auto scrollbar-hide">
                   <div className="flex flex-row gap-2" style={{ width: 'max-content' }}>
@@ -912,24 +1051,32 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                         key={wallet.id}
                         type="button"
                         onClick={() => {
-                          // Toggle selection or set new selection
+                          // Toggle wallet selection (aligns with card selection behavior)
                           if (selectedPaymentMethod === wallet.id) {
                             setSelectedPaymentMethod(null);
-                            setInvoicePhoneNumber('');
+                            setSelectedWallet(null);
+                            setInvoicePhoneNumber('+998 ');
+                            setInvoiceCardNumber('');
+                            setInvoiceCardExpiry('');
+                            setActiveInvoiceIdentifier(null);
+                            setIsCardFormActive(false); // Deactivate card form
                           } else {
+                            setSelectedWallet(wallet.id);
                             setSelectedPaymentMethod(wallet.id);
-                            // Clear new card inputs when selecting invoice payment
+                            setIsCardFormActive(false); // Deactivate card form when selecting wallet
+                            // Clear new card inputs when selecting wallet
                             setNewCardNumber('');
                             setNewCardExpiry('');
                             setNewCardCVC('');
+                            setCardName('');
                             setSmsCode('');
                             setCardType(null);
                             setIsVerificationVerified(false);
                             setSmsSent(false);
-                            // Clear invoice input if switching between invoice systems
-                            if (!['paynet', 'click', 'payme', 'uzum'].includes(selectedPaymentMethod || '')) {
-                              setInvoicePhoneNumber('');
-                            }
+                            setInvoicePhoneNumber('+998 ');
+                            setInvoiceCardNumber('');
+                            setInvoiceCardExpiry('');
+                            setActiveInvoiceIdentifier(null);
                           }
                         }}
                         className={`flex-shrink-0 w-24 px-3 py-3 rounded-md border transition-colors h-14 flex flex-col items-center justify-center gap-1 ${
@@ -948,34 +1095,6 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                 </div>
               </div>
               
-              {/* Invoice Input Field - Appears when invoice system is selected */}
-              {isInvoiceSystemSelected() && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-text-secondary mb-2">
-                    Phone Number to Send Invoice To
-                    <span className="text-xs text-gray-500 ml-1">(Invoice yuboriladigan telefon raqami)</span>
-                  </label>
-                  <Input
-                    type="tel"
-                    placeholder="+998 XX YYY YY YY"
-                    value={invoicePhoneNumber}
-                    onChange={(e) => {
-                      const formatted = formatPhoneNumber(e.target.value);
-                      setInvoicePhoneNumber(formatted);
-                    }}
-                    className={`w-full bg-surface border-surface text-text-primary h-10 ${
-                      invoicePhoneNumber && !isInvoicePhoneValid() 
-                        ? 'border-red-500 focus:border-red-500' 
-                        : ''
-                    }`}
-                  />
-                  {invoicePhoneNumber && !isInvoicePhoneValid() && (
-                    <p className="text-xs text-red-400 mt-1">
-                      Please enter a valid phone number (9-12 digits)
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -986,8 +1105,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
             onClick={handlePayNow}
             disabled={
               paymentProcessing ||
-              (!selectedPaymentMethod && !isNewCardValid()) ||
-              (isInvoiceSystemSelected() && !isInvoicePhoneValid())
+              (!selectedPaymentMethod && !isNewCardValid())
             }
             className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -1002,6 +1120,354 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
         </div>
       </div>
     );
+
+  // Get wallet name by ID
+  const getWalletName = (walletId: string | null): string => {
+    if (!walletId) return 'Wallet';
+    const wallets: Record<string, string> = {
+      'paynet': 'Paynet',
+      'click': 'Click',
+      'payme': 'Payme',
+      'uzum': 'Uzum'
+    };
+    return wallets[walletId] || 'Wallet';
+  };
+
+  // Handle invoice request - send invoice to wallet
+  const handleSendInvoice = () => {
+    if (!selectedWallet) return;
+    
+    // Only proceed if exactly one identifier is active and valid
+    if (activeInvoiceIdentifier === 'phone') {
+      if (!isInvoicePhoneValid()) return;
+    } else if (activeInvoiceIdentifier === 'card') {
+      if (!isInvoiceCardValid()) return;
+    } else {
+      // No identifier is active - don't proceed
+      return;
+    }
+
+    setPaymentProcessing(true);
+
+    // Prepare credentials based on active identifier
+    const credentialType = activeInvoiceIdentifier;
+    let credentialToUse = '';
+    
+    if (activeInvoiceIdentifier === 'phone') {
+      credentialToUse = invoicePhoneNumber.replace(/\D/g, '');
+    } else if (activeInvoiceIdentifier === 'card') {
+      credentialToUse = invoiceCardNumber.replace(/\s/g, '');
+    }
+
+    // TODO: API call to send invoice
+    // await fetch('/api/wallets/invoice', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     wallet: selectedWallet,
+    //     [credentialType]: credentialToUse,
+    //     expiry: credentialType === 'card' ? invoiceCardExpiry.replace(/\D/g, '') : undefined,
+    //     amount: video.price,
+    //     currency: video.currency || 'UZS',
+    //   }),
+    // });
+
+    // Simulate API call
+    setTimeout(() => {
+      setPaymentProcessing(false);
+      setInvoiceStatus('pending');
+      setPurchaseStep('WALLET_WAITING');
+      startInvoicePolling();
+    }, 1500);
+  };
+
+  // Start polling for invoice status
+  const startInvoicePolling = () => {
+    // Clear any existing polling
+    if (invoicePollingInterval) {
+      clearInterval(invoicePollingInterval);
+    }
+
+    // Poll every 5 seconds
+    const interval = setInterval(async () => {
+      // TODO: API call to check invoice status
+      // const response = await fetch(`/api/wallets/invoice-status?wallet=${selectedWallet}&transactionId=${transactionId}`);
+      // const data = await response.json();
+      
+      // Simulate polling response (in real app, check actual API)
+      const mockStatus = Math.random() > 0.85 ? 'paid' : 'pending'; // 15% chance of success for testing
+      
+      if (mockStatus === 'paid') {
+        clearInterval(interval);
+        setInvoicePollingInterval(null);
+        setInvoiceStatus('paid');
+        // Process payment success
+        processPaymentSuccess(false, '');
+      }
+    }, 5000);
+
+    setInvoicePollingInterval(interval);
+
+    // Timeout after 5 minutes
+    setTimeout(() => {
+      clearInterval(interval);
+      setInvoicePollingInterval(null);
+      if (invoiceStatus === 'pending') {
+        setInvoiceStatus('failed');
+      }
+    }, 300000); // 5 minutes
+  };
+
+  // Cancel invoice/polling
+  const handleCancelInvoice = () => {
+    if (invoicePollingInterval) {
+      clearInterval(invoicePollingInterval);
+      setInvoicePollingInterval(null);
+    }
+    setInvoiceStatus(null);
+    setPurchaseStep('PAYMENT');
+    setSelectedWallet(null);
+    setInvoicePhoneNumber('');
+    setInvoiceCardNumber('');
+    setInvoiceCardExpiry('');
+    setActiveInvoiceIdentifier(null);
+  };
+
+  // Render Wallet Invoice Request View
+  const renderWalletInvoiceRequestView = () => {
+    const walletName = getWalletName(selectedWallet);
+
+    return (
+      <div className="flex flex-col h-full bg-[#1A1A1A] rounded-xl overflow-hidden">
+        <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-white mb-2">Pay with {walletName}</h2>
+            <p className="text-sm text-gray-400">
+              Enter the credentials linked to your {walletName} account
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            {/* Primary Option: Phone Number Input Block */}
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${
+                activeInvoiceIdentifier === 'card' 
+                  ? 'text-text-secondary/50' 
+                  : 'text-text-secondary'
+              }`}>
+                Phone Number
+              </label>
+              <Input
+                type="tel"
+                placeholder="+998 XX YYY YY YY"
+                value={invoicePhoneNumber}
+                disabled={activeInvoiceIdentifier === 'card'}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value, invoicePhoneNumber);
+                  setInvoicePhoneNumber(formatted);
+                  
+                  // First input wins: If user types beyond the +998 prefix, lock phone as active
+                  const digitsAfterPrefix = formatted.replace(/[^\d]/g, '').slice(3); // Get digits after 998
+                  if (digitsAfterPrefix.length > 0 && activeInvoiceIdentifier === null) {
+                    setActiveInvoiceIdentifier('phone');
+                    // Clear card inputs when phone becomes active
+                    setInvoiceCardNumber('');
+                    setInvoiceCardExpiry('');
+                  }
+                  
+                  // Reset logic: If phone input is back to just +998, return to neutral state
+                  if (digitsAfterPrefix.length === 0 && activeInvoiceIdentifier === 'phone') {
+                    setActiveInvoiceIdentifier(null);
+                  }
+                }}
+                className={`w-full h-10 outline-none ${
+                  activeInvoiceIdentifier === 'card'
+                    ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
+                        : 'bg-surface border-surface text-text-primary focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white'
+                }`}
+              />
+            </div>
+
+            {/* Visual Divider - Horizontal Line */}
+            <div className="w-full h-px bg-zinc-800 my-6"></div>
+
+            {/* Secondary Option: Card Details Input Block */}
+            <div>
+              <label className={`block text-sm font-medium mb-4 ${
+                activeInvoiceIdentifier === 'phone' 
+                  ? 'text-text-secondary/50' 
+                  : 'text-text-secondary'
+              }`}>
+                Card Details
+              </label>
+              <div className={`p-4 border rounded-md space-y-4 ${
+                activeInvoiceIdentifier === 'phone'
+                  ? 'border-surface/30 bg-surface/20'
+                  : 'border-surface/50 bg-surface/30'
+              }`}>
+                {/* Card Number */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    activeInvoiceIdentifier === 'phone' 
+                      ? 'text-text-secondary/50' 
+                      : 'text-text-secondary'
+                  }`}>
+                    Card Number
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="8600 1234 5678 9012"
+                    value={invoiceCardNumber}
+                    disabled={activeInvoiceIdentifier === 'phone'}
+                    onChange={(e) => {
+                      const formatted = formatNewCardNumber(e.target.value);
+                      setInvoiceCardNumber(formatted);
+                      
+                      // First input wins: If this is the first character typed, lock card as active
+                      if (formatted.replace(/\s/g, '').length > 0 && activeInvoiceIdentifier === null) {
+                        setActiveInvoiceIdentifier('card');
+                        // Clear phone input when card becomes active
+                        setInvoicePhoneNumber('');
+                      }
+                      
+                      // Reset logic: If card number is fully cleared, check if expiry is also cleared
+                      if (formatted.replace(/\s/g, '').length === 0) {
+                        const cleanedExpiry = invoiceCardExpiry.replace(/\D/g, '');
+                        if (cleanedExpiry.length === 0 && activeInvoiceIdentifier === 'card') {
+                          setActiveInvoiceIdentifier(null);
+                        }
+                      }
+                    }}
+                    maxLength={19}
+                    className={`w-full h-10 outline-none ${
+                      activeInvoiceIdentifier === 'phone'
+                        ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
+                        : 'bg-surface border-surface text-text-primary focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white hover:border-white/50'
+                    }`}
+                  />
+                </div>
+                {/* Expiration Date */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    activeInvoiceIdentifier === 'phone' 
+                      ? 'text-text-secondary/50' 
+                      : 'text-text-secondary'
+                  }`}>
+                    Expiration Date
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="MM/YY"
+                    value={invoiceCardExpiry}
+                    disabled={activeInvoiceIdentifier === 'phone'}
+                    onChange={(e) => {
+                      const formatted = formatExpiry(e.target.value, prevInvoiceCardExpiryRef.current);
+                      prevInvoiceCardExpiryRef.current = formatted;
+                      setInvoiceCardExpiry(formatted);
+                      
+                      // First input wins: If this is the first character typed, lock card as active
+                      if (formatted.trim().length > 0 && activeInvoiceIdentifier === null) {
+                        setActiveInvoiceIdentifier('card');
+                        // Clear phone input when card becomes active
+                        setInvoicePhoneNumber('');
+                      }
+                      
+                      // Reset logic: If expiry is fully cleared, check if card number is also cleared
+                      if (formatted.replace(/\D/g, '').length === 0) {
+                        const cleanedCard = invoiceCardNumber.replace(/\s/g, '');
+                        if (cleanedCard.length === 0 && activeInvoiceIdentifier === 'card') {
+                          setActiveInvoiceIdentifier(null);
+                        }
+                      }
+                    }}
+                    maxLength={5}
+                    className={`w-full h-10 outline-none ${
+                      activeInvoiceIdentifier === 'phone'
+                        ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
+                        : 'bg-surface border-surface text-text-primary focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white hover:border-white/50'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Fixed Bottom Actions */}
+        <div className="mt-auto bg-[#1A1A1A] border-t border-surface/50 p-4 space-y-3">
+          {/* 2nd Priority: Cancel */}
+          <Button
+            onClick={handleCancelInvoice}
+            disabled={paymentProcessing}
+            className="w-full h-10 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </Button>
+          
+          {/* 1st Priority: Send Invoice (Should be at the bottom) */}
+          <Button
+            onClick={handleSendInvoice}
+            disabled={
+              paymentProcessing ||
+              !activeInvoiceIdentifier ||
+              (activeInvoiceIdentifier === 'phone' && !isInvoicePhoneValid()) ||
+              (activeInvoiceIdentifier === 'card' && !isInvoiceCardValid())
+            }
+            className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {paymentProcessing ? 'Sending...' : 'Send Invoice'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render Wallet Waiting View
+  const renderWalletWaitingView = () => {
+    const walletName = getWalletName(selectedWallet);
+    // Determine which credential was used based on activeInvoiceIdentifier
+    const maskedNumber = activeInvoiceIdentifier === 'phone'
+      ? invoicePhoneNumber.replace(/\D/g, '').slice(-4)
+      : invoiceCardNumber.replace(/\s/g, '').slice(-4);
+
+    return (
+      <div className="flex flex-col h-full bg-[#1A1A1A] rounded-xl overflow-hidden">
+        <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-white mb-2">Waiting for Payment</h2>
+            <p className="text-sm text-gray-400">
+              We have sent an invoice to your {walletName} account linked to the number **** {maskedNumber}. Please complete the payment on your mobile app.
+            </p>
+          </div>
+
+          {/* Loading Animation */}
+          <div className="flex justify-center items-center py-12">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-accent/30 border-t-accent rounded-full animate-spin"></div>
+            </div>
+          </div>
+
+          {invoiceStatus === 'failed' && (
+            <div className="mt-6 p-4 bg-red-900/20 border border-red-500/50 rounded-md">
+              <p className="text-sm text-red-400 text-center">
+                Payment timed out or was cancelled. Please try again.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Fixed Bottom Action */}
+        <div className="mt-auto bg-[#1A1A1A] border-t border-surface/50 p-4">
+          <Button
+            onClick={handleCancelInvoice}
+            className="w-full h-10 bg-surface hover:bg-surface/80 text-text-primary border border-surface/50"
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   // Render SMS Verification View (Local Cards Only)
   const renderSMSVerificationView = () => {
@@ -1069,8 +1535,18 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
           </div>
         </div>
 
-        {/* Fixed Bottom Action */}
-        <div className="mt-auto bg-[#1A1A1A] border-t border-surface/50 p-4">
+        {/* Fixed Bottom Actions */}
+        <div className="mt-auto bg-[#1A1A1A] border-t border-surface/50 p-4 space-y-3">
+          {/* 2nd Priority: Cancel */}
+          <Button
+            onClick={handleCancelPayment}
+            disabled={paymentProcessing}
+            className="w-full h-10 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </Button>
+          
+          {/* 1st Priority: Confirm Payment (Should be at the bottom) */}
           <Button
             onClick={handleConfirmPayment}
             disabled={
@@ -1292,6 +1768,36 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
         }}
       >
         {renderSMSVerificationView()}
+      </div>
+    );
+  }
+
+  // Show wallet invoice request view
+  if (purchaseStep === 'WALLET_INVOICE_REQUEST') {
+    return (
+      <div 
+        className="w-full h-full flex flex-col bg-[#1A1A1A] rounded-xl overflow-hidden purchase-window-container"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        {renderWalletInvoiceRequestView()}
+      </div>
+    );
+  }
+
+  // Show wallet waiting view
+  if (purchaseStep === 'WALLET_WAITING') {
+    return (
+      <div 
+        className="w-full h-full flex flex-col bg-[#1A1A1A] rounded-xl overflow-hidden purchase-window-container"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        {renderWalletWaitingView()}
       </div>
     );
   }
