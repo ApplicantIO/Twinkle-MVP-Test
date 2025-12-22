@@ -286,6 +286,24 @@ small {
   opacity: 1;
 }
 
+/* Volume Slider Track - White background with radius on hover */
+.volume-slider-wrapper {
+  transition: background-color 0.2s ease;
+}
+
+.volume-slider {
+  z-index: 1;
+}
+
+.volume-slider::-webkit-slider-runnable-track {
+  background: transparent;
+}
+
+.volume-slider::-moz-range-track {
+  background: transparent;
+  border: none;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from {
