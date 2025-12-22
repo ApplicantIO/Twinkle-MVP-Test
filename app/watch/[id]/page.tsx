@@ -131,12 +131,22 @@ export default function WatchPage() {
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const notificationsModalRef = useRef<HTMLDivElement>(null);
   const [isCommentsOpen, setIsCommentsOpen] = useState(false); // Mobile comments overlay state
+  // Load purchase state from localStorage on mount
+  const [hasPurchasedVideoLocal, setHasPurchasedVideoLocal] = useState(() => {
+    if (typeof window !== 'undefined' && params.id) {
+      const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
+      return purchasedVideos.includes(params.id);
+    }
+    return false;
+  });
+  const commentsSectionRef = useRef<HTMLDivElement>(null); // Ref for desktop comments section
+  const mobileCommentsSectionRef = useRef<HTMLDivElement>(null); // Ref for mobile comments section
 
   // Mock access state functions (matching VideoPlayer logic)
   const hasPurchasedVideo = useCallback((videoId: string): boolean => {
-    // TODO: Replace with actual purchase check from API
-    return false;
-  }, []);
+    // Use local purchase state if available, otherwise check API (TODO)
+    return hasPurchasedVideoLocal;
+  }, [hasPurchasedVideoLocal]);
 
   const isChannelSubscriber = useCallback((channelId: string): boolean => {
     // TODO: Replace with actual subscription check from API
@@ -172,6 +182,20 @@ export default function WatchPage() {
   useEffect(() => {
     setIsCollapsed(true);
   }, [setIsCollapsed]);
+
+  // Update video URL when purchase state changes
+  useEffect(() => {
+    if (video && hasPurchasedVideoLocal) {
+      const videoType = video.type || 'free';
+      if (videoType === 'paid' || videoType === 'subscription') {
+        const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
+        setCurrentWatchVideo({
+          ...video,
+          videoUrl: fullVideoUrl
+        });
+      }
+    }
+  }, [hasPurchasedVideoLocal, video]);
 
   // Sample comments for demonstration
   useEffect(() => {
@@ -638,8 +662,36 @@ export default function WatchPage() {
           const data = await response.json();
           if (data.video) {
           setVideo(data.video);
-          // Store video in context for centralized player
-          setCurrentWatchVideo(data.video);
+          // Check purchase state from localStorage
+          const purchasedVideos = typeof window !== 'undefined' 
+            ? JSON.parse(localStorage.getItem('purchasedVideos') || '[]')
+            : [];
+          const hasPurchased = purchasedVideos.includes(data.video.id);
+          
+          // Determine correct video URL based on access
+          const videoType = data.video.type || 'free';
+          let videoUrlToUse = data.video.videoUrl;
+          
+          // For paid/subscription content, use teaser if no access, full video if access granted
+          if (videoType === 'paid' || videoType === 'subscription') {
+            if (hasPurchased || hasPurchasedVideoLocal || (videoType === 'subscription' && isChannelSubscriber(data.video.userId))) {
+              // User has access - use full video
+              videoUrlToUse = data.video.fullVideoUrl || data.video.videoUrl;
+              // Update local state if not already set
+              if (!hasPurchasedVideoLocal && hasPurchased) {
+                setHasPurchasedVideoLocal(true);
+              }
+            } else {
+              // No access - use teaser
+              videoUrlToUse = data.video.teaserVideoUrl || data.video.videoUrl;
+            }
+          }
+          
+          // Store video in context for centralized player with correct URL
+          setCurrentWatchVideo({
+            ...data.video,
+            videoUrl: videoUrlToUse
+          });
           // Clear miniplayer state when loading a new video on watch page
           setIsMiniplayerActive(false);
           
@@ -2228,8 +2280,39 @@ export default function WatchPage() {
                   console.log('Subscribe clicked for channel:', video.userId);
                 }}
                 onPurchaseComplete={() => {
-                  // Refresh page or update state to show comments
-                  window.location.reload();
+                  // Mark video as purchased and persist to localStorage
+                  setHasPurchasedVideoLocal(true);
+                  
+                  // Persist purchase to localStorage
+                  if (typeof window !== 'undefined' && video) {
+                    const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
+                    if (!purchasedVideos.includes(video.id)) {
+                      purchasedVideos.push(video.id);
+                      localStorage.setItem('purchasedVideos', JSON.stringify(purchasedVideos));
+                    }
+                  }
+                  
+                  // Update video URL to full video if available
+                  if (video) {
+                    const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
+                    setCurrentWatchVideo({
+                      ...video,
+                      videoUrl: fullVideoUrl
+                    });
+                  }
+                  
+                  // Open comments section
+                  // On mobile, open the comments overlay
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                    setIsCommentsOpen(true);
+                  } else {
+                    // On desktop, scroll to comments section after a brief delay
+                    setTimeout(() => {
+                      if (commentsSectionRef.current) {
+                        commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 300);
+                  }
                 }}
               />
           </div>
@@ -2658,7 +2741,7 @@ export default function WatchPage() {
       
       {/* Comments Section - Only show if user has access */}
       {hasFullAccess && (
-        <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
+        <div ref={commentsSectionRef} className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
           {/* Sticky Header with Tab Navigation or Report Header or Donation Header */}
           <div className="sticky top-0 z-10 bg-[#1A1A1A] border-b border-surface/50">
             {isDonationViewActive ? (
@@ -3331,7 +3414,7 @@ export default function WatchPage() {
 
       {/* Mobile Comments Overlay */}
       {hasFullAccess && isCommentsOpen && (
-        <div className="fixed inset-0 bg-black/80 z-50 lg:hidden">
+        <div className="fixed inset-0 bg-black/80 z-50 lg:hidden" ref={mobileCommentsSectionRef}>
           <div className="absolute right-0 top-0 bottom-0 w-[90vw] max-w-[400px] bg-[#1A1A1A] flex flex-col overflow-hidden">
             {/* Close Button */}
             <div className="flex items-center justify-between p-4 border-b border-surface/50">

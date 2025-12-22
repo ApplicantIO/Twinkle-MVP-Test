@@ -1293,7 +1293,7 @@ export function VideoPlayer({
               step="0.01"
               value={volume}
               onChange={handleVolumeChange}
-                    className="w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-white"
+                    className="volume-slider w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-white"
                   style={{
                       background: `linear-gradient(to right, white 0%, white ${volume * 100}%, rgba(255,255,255,0.2) ${volume * 100}%, rgba(255,255,255,0.2) 100%)`,
                   }}
