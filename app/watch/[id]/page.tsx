@@ -12,6 +12,7 @@ import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { useModal } from '@/contexts/ModalContext';
+import { formatRelativeTime } from '@/lib/utils';
 
 interface Comment {
   id: string;
@@ -98,6 +99,7 @@ export default function WatchPage() {
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyingToComment, setReplyingToComment] = useState<Comment | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+  const [timestampUpdateKey, setTimestampUpdateKey] = useState(0); // For real-time timestamp updates
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const cardMenuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const commentRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -957,19 +959,19 @@ export default function WatchPage() {
     // Find the comment object
     const comment = findCommentById(comments, commentId);
     if (comment) {
-      setReplyingToId(commentId);
+    setReplyingToId(commentId);
       setReplyingToComment(comment);
       // Automatically insert @username into the input field
       setCommentText(`${username} `);
       // Focus the textarea field
-      setTimeout(() => {
-        commentInputRef.current?.focus();
+    setTimeout(() => {
+      commentInputRef.current?.focus();
         // Auto-resize after focusing
         if (commentInputRef.current) {
           commentInputRef.current.style.height = 'auto';
           commentInputRef.current.style.height = `${Math.min(commentInputRef.current.scrollHeight, 120)}px`;
         }
-      }, 0);
+    }, 0);
     }
   };
 
@@ -1701,6 +1703,15 @@ export default function WatchPage() {
       }
     };
   }, [invoicePollingInterval]);
+
+  // Real-time timestamp updates (updates every 10 seconds for recent comments)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimestampUpdateKey(prev => prev + 1);
+    }, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Render Donation View (Main Form)
   const renderDonationView = () => (
@@ -2848,25 +2859,34 @@ export default function WatchPage() {
                   )}
                 </>
               )}
-              {/* Username - Clickable in Live Mode */}
-              {isLiveMode ? (
-                <button
-                  onClick={() => handleMentionClick(comment.username)}
-                  className="text-sm font-medium text-text-primary truncate hover:text-white transition-colors cursor-pointer text-left"
-                >
-                  {comment.username}
-                </button>
-              ) : (
-                <span className="text-sm font-medium text-text-primary truncate">
-                  {comment.username}
-              </span>
-              )}
-              {/* Donation Badge (if applicable) */}
-              {comment.isDonated && comment.donationAmount && (
-                <span className="text-xs font-bold text-accent flex-shrink-0">
-                  {comment.donationAmount.toLocaleString()} UZS
-                </span>
-              )}
+              {/* Header Elements Group: Username, Donation Amount, Timestamp */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {/* Username - Clickable in Live Mode (can truncate) */}
+                {isLiveMode ? (
+                  <button
+                    onClick={() => handleMentionClick(comment.username)}
+                    className="text-sm font-medium text-text-primary truncate hover:text-white transition-colors cursor-pointer text-left min-w-0"
+                  >
+                    {comment.username}
+                  </button>
+                ) : (
+                  <span className="text-sm font-medium text-text-primary truncate min-w-0">
+                    {comment.username}
+                  </span>
+                )}
+                {/* Donation Amount (if applicable) - Always visible */}
+                {comment.isDonated && comment.donationAmount && (
+                  <span className="text-xs font-bold text-accent flex-shrink-0">
+                    {comment.donationAmount.toLocaleString()} UZS
+                  </span>
+                )}
+                {/* Timestamp - Only visible for VOD (non-live) videos */}
+                {!isLiveMode && (
+                  <span className="text-xs font-medium text-zinc-500 flex-shrink-0 ml-2">
+                    {formatRelativeTime(comment.timestamp)}
+                  </span>
+                )}
+              </div>
             </div>
             {/* More Button - Available for all comments and replies */}
               <div className="relative flex-shrink-0">
