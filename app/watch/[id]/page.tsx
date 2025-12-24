@@ -13,6 +13,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { useModal } from '@/contexts/ModalContext';
 import { formatRelativeTime } from '@/lib/utils';
+import VideoDescription from '@/components/VideoDescription';
 
 interface Comment {
   id: string;
@@ -3544,17 +3545,12 @@ export default function WatchPage() {
             </div>
           </div>
 
-          {/* Video Stats */}
-          <div className="text-sm text-text-secondary">
-            {video.views.toLocaleString()} views • {new Date(video.createdAt).toLocaleDateString()}
-          </div>
-
-          {/* Description */}
-            <div className="p-4 bg-surface rounded-lg">
-            <p className="text-sm text-text-primary whitespace-pre-wrap">
-              {video.description || 'No description provided.'}
-            </p>
-            </div>
+          {/* Description with Views, Date, and Merch */}
+          <VideoDescription
+            views={video.views}
+            createdAt={video.createdAt}
+            description={video.description}
+          />
 
           {/* Monetization CTA Section - Replace comments area when access restricted */}
           {!hasFullAccess && (
