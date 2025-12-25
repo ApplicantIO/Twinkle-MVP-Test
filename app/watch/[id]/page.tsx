@@ -12,6 +12,8 @@ import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { useModal } from '@/contexts/ModalContext';
+import { formatRelativeTime } from '@/lib/utils';
+import VideoDescription from '@/components/VideoDescription';
 
 interface Comment {
   id: string;
@@ -54,6 +56,18 @@ export default function WatchPage() {
   const [commentText, setCommentText] = useState('');
   const [donationAmount, setDonationAmount] = useState('');
   const [isDonationViewActive, setIsDonationViewActive] = useState(false);
+  const [donationStep, setDonationStep] = useState<'DONATION' | 'SMS_VERIFICATION' | 'WALLET_INVOICE_REQUEST' | 'WALLET_WAITING'>('DONATION');
+  const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
+  const [invoicePhoneNumber, setInvoicePhoneNumber] = useState('+998 ');
+  const [invoiceCardNumber, setInvoiceCardNumber] = useState('');
+  const [invoiceCardExpiry, setInvoiceCardExpiry] = useState('');
+  const [activeInvoiceIdentifier, setActiveInvoiceIdentifier] = useState<'phone' | 'card' | null>(null);
+  const [invoicePollingInterval, setInvoicePollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [invoiceStatus, setInvoiceStatus] = useState<'pending' | 'paid' | 'failed' | null>(null);
+  const prevInvoiceCardExpiryRef = useRef<string>('');
+  const prevNewCardExpiryRef = useRef<string>('');
+  const [isSending, setIsSending] = useState(false);
+  const [countdownTime, setCountdownTime] = useState(0);
   const MIN_DONATION_AMOUNT = 5000;
   const recommendedAmounts = [5000, 10000, 20000, 50000];
   const [isAnonymousDonation, setIsAnonymousDonation] = useState(false);
@@ -66,6 +80,8 @@ export default function WatchPage() {
   const [invoiceGenerated, setInvoiceGenerated] = useState(false);
   const [waitingForPayment, setWaitingForPayment] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
+  const [isCardFormActive, setIsCardFormActive] = useState(false);
+  const [saveCardEnabled, setSaveCardEnabled] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [savedCards, setSavedCards] = useState([
     { id: '1', type: 'UzCard', last4: '1234', cardName: 'Uy Karta', maskedNumber: '**** 4321' },
@@ -82,8 +98,12 @@ export default function WatchPage() {
   const [isVerificationVerified, setIsVerificationVerified] = useState(false);
   const [smsSent, setSmsSent] = useState(false);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyingToComment, setReplyingToComment] = useState<Comment | null>(null);
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+  const [timestampUpdateKey, setTimestampUpdateKey] = useState(0); // For real-time timestamp updates
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const cardMenuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const commentRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   // Close card menu when clicking outside
   useEffect(() => {
@@ -131,12 +151,22 @@ export default function WatchPage() {
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const notificationsModalRef = useRef<HTMLDivElement>(null);
   const [isCommentsOpen, setIsCommentsOpen] = useState(false); // Mobile comments overlay state
+  // Load purchase state from localStorage on mount
+  const [hasPurchasedVideoLocal, setHasPurchasedVideoLocal] = useState(() => {
+    if (typeof window !== 'undefined' && params.id) {
+      const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
+      return purchasedVideos.includes(params.id);
+    }
+    return false;
+  });
+  const commentsSectionRef = useRef<HTMLDivElement>(null); // Ref for desktop comments section
+  const mobileCommentsSectionRef = useRef<HTMLDivElement>(null); // Ref for mobile comments section
 
   // Mock access state functions (matching VideoPlayer logic)
   const hasPurchasedVideo = useCallback((videoId: string): boolean => {
-    // TODO: Replace with actual purchase check from API
-    return false;
-  }, []);
+    // Use local purchase state if available, otherwise check API (TODO)
+    return hasPurchasedVideoLocal;
+  }, [hasPurchasedVideoLocal]);
 
   const isChannelSubscriber = useCallback((channelId: string): boolean => {
     // TODO: Replace with actual subscription check from API
@@ -172,6 +202,20 @@ export default function WatchPage() {
   useEffect(() => {
     setIsCollapsed(true);
   }, [setIsCollapsed]);
+
+  // Update video URL when purchase state changes
+  useEffect(() => {
+    if (video && hasPurchasedVideoLocal) {
+      const videoType = video.type || 'free';
+      if (videoType === 'paid' || videoType === 'subscription') {
+        const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
+        setCurrentWatchVideo({
+          ...video,
+          videoUrl: fullVideoUrl
+        });
+      }
+    }
+  }, [hasPurchasedVideoLocal, video]);
 
   // Sample comments for demonstration
   useEffect(() => {
@@ -638,8 +682,36 @@ export default function WatchPage() {
           const data = await response.json();
           if (data.video) {
           setVideo(data.video);
-          // Store video in context for centralized player
-          setCurrentWatchVideo(data.video);
+          // Check purchase state from localStorage
+          const purchasedVideos = typeof window !== 'undefined' 
+            ? JSON.parse(localStorage.getItem('purchasedVideos') || '[]')
+            : [];
+          const hasPurchased = purchasedVideos.includes(data.video.id);
+          
+          // Determine correct video URL based on access
+          const videoType = data.video.type || 'free';
+          let videoUrlToUse = data.video.videoUrl;
+          
+          // For paid/subscription content, use teaser if no access, full video if access granted
+          if (videoType === 'paid' || videoType === 'subscription') {
+            if (hasPurchased || hasPurchasedVideoLocal || (videoType === 'subscription' && isChannelSubscriber(data.video.userId))) {
+              // User has access - use full video
+              videoUrlToUse = data.video.fullVideoUrl || data.video.videoUrl;
+              // Update local state if not already set
+              if (!hasPurchasedVideoLocal && hasPurchased) {
+                setHasPurchasedVideoLocal(true);
+              }
+            } else {
+              // No access - use teaser
+              videoUrlToUse = data.video.teaserVideoUrl || data.video.videoUrl;
+            }
+          }
+          
+          // Store video in context for centralized player with correct URL
+          setCurrentWatchVideo({
+            ...data.video,
+            videoUrl: videoUrlToUse
+          });
           // Clear miniplayer state when loading a new video on watch page
           setIsMiniplayerActive(false);
           
@@ -870,18 +942,77 @@ export default function WatchPage() {
     setComments(prevComments => updateCommentDislikes(prevComments));
   };
 
+  // Helper function to find comment by ID (recursive)
+  const findCommentById = (comments: Comment[], id: string): Comment | null => {
+    for (const comment of comments) {
+      if (comment.id === id) {
+        return comment;
+      }
+      if (comment.replies) {
+        const found = findCommentById(comment.replies, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
   const handleReplyClick = (commentId: string, username: string) => {
+    // Find the comment object
+    const comment = findCommentById(comments, commentId);
+    if (comment) {
     setReplyingToId(commentId);
-    setCommentText(`${username} `);
-    // Focus the textarea field
+      setReplyingToComment(comment);
+      // Automatically insert @username into the input field
+      setCommentText(`${username} `);
+      // Focus the textarea field
     setTimeout(() => {
       commentInputRef.current?.focus();
-      // Auto-resize after setting text
-      if (commentInputRef.current) {
-        commentInputRef.current.style.height = 'auto';
-        commentInputRef.current.style.height = `${Math.min(commentInputRef.current.scrollHeight, 120)}px`;
-      }
+        // Auto-resize after focusing
+        if (commentInputRef.current) {
+          commentInputRef.current.style.height = 'auto';
+          commentInputRef.current.style.height = `${Math.min(commentInputRef.current.scrollHeight, 120)}px`;
+        }
     }, 0);
+    }
+  };
+
+  // Handle cancel reply
+  const handleCancelReply = () => {
+    // Preserve input focus if user was typing
+    const wasFocused = document.activeElement === commentInputRef.current;
+    
+    setReplyingToId(null);
+    setReplyingToComment(null);
+    setCommentText('');
+    // Reset textarea height
+    if (commentInputRef.current) {
+      commentInputRef.current.style.height = 'auto';
+      // Restore focus if it was previously focused
+      if (wasFocused) {
+        setTimeout(() => {
+          commentInputRef.current?.focus();
+        }, 0);
+      }
+    }
+  };
+
+  // Handle scroll to parent comment with highlight effect
+  const handleScrollToParent = () => {
+    if (replyingToId && commentRefs.current[replyingToId]) {
+      // Scroll to comment
+      commentRefs.current[replyingToId]?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+      
+      // Apply highlight effect
+      setHighlightedCommentId(replyingToId);
+      
+      // Remove highlight after 1.5 seconds
+      setTimeout(() => {
+        setHighlightedCommentId(null);
+      }, 1500);
+    }
   };
 
   // Auto-resize textarea function
@@ -891,6 +1022,64 @@ export default function WatchPage() {
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
   };
 
+  // Format number with thousand separators using Intl.NumberFormat
+  const formatNumberWithCommas = (value: string): string => {
+    // Strip non-digits and leading zeros (but allow single '0')
+    const rawValue = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    if (!rawValue) return '';
+    // Use Intl.NumberFormat for proper formatting (handles large numbers correctly)
+    const num = parseInt(rawValue, 10);
+    if (isNaN(num)) return '';
+    return new Intl.NumberFormat('en-US').format(num);
+  };
+
+  // Handle donation amount change with thousand separator formatting
+  const handleDonationAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const cursorPosition = input.selectionStart || 0;
+    const inputValue = input.value;
+    
+    // Count digits before cursor in current formatted value
+    const textBeforeCursor = inputValue.substring(0, cursorPosition);
+    const digitsBeforeCursor = textBeforeCursor.replace(/\D/g, '').length;
+    
+    // Strip all non-digits
+    let cleaned = inputValue.replace(/\D/g, '');
+    // Remove leading zeros, but allow single zero
+    if (cleaned.length > 1) {
+      cleaned = cleaned.replace(/^0+/, '');
+    }
+    
+    // Update state with cleaned numeric value (for API)
+    setDonationAmount(cleaned);
+    
+    // Format for display using Intl.NumberFormat
+    const formatted = cleaned ? formatNumberWithCommas(cleaned) : '';
+    
+    // Calculate new cursor position based on digit count
+    let newCursorPosition = formatted.length;
+    if (digitsBeforeCursor > 0 && formatted.length > 0) {
+      // Find the position in the formatted string that corresponds to the same number of digits
+      let digitCount = 0;
+      for (let i = 0; i < formatted.length; i++) {
+        if (formatted[i] !== ',') {
+          digitCount++;
+          if (digitCount === digitsBeforeCursor) {
+            newCursorPosition = i + 1;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Update input value and restore cursor position
+    setTimeout(() => {
+      input.value = formatted;
+      const finalPosition = Math.min(Math.max(newCursorPosition, 0), formatted.length);
+      input.setSelectionRange(finalPosition, finalPosition);
+    }, 0);
+  };
+
   // Format card number with spaces (UzCard/HUMO format: XXXX XXXX XXXX XXXX)
   const formatCardNumber = (value: string) => {
     const cleaned = value.replace(/\s/g, '');
@@ -898,13 +1087,43 @@ export default function WatchPage() {
     return formatted.slice(0, 19); // Max 16 digits + 3 spaces
   };
 
-  // Format expiry date (MM/YY)
-  const formatExpiry = (value: string) => {
+  // Format expiry date (MM/YY) with backspace handling
+  const formatExpiry = (value: string, previousValue?: string) => {
     const cleaned = value.replace(/\D/g, '');
+    // Handle backspace over slash
+    if (previousValue && previousValue.endsWith('/') && value.endsWith('/') && cleaned.length === 2) {
+      return cleaned.slice(0, 2);
+    }
     if (cleaned.length >= 2) {
       return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
     }
     return cleaned;
+  };
+
+  // Format new card number (numeric only, with spaces)
+  const formatNewCardNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
+    return formatted.slice(0, 19); // Max 16 digits + 3 spaces
+  };
+
+  // Detect card type (local UzCard/HUMO vs international Visa/Mastercard) - BIN Lookup
+  const detectCardType = (cardNumber: string): 'local' | 'international' | null => {
+    const cleaned = cardNumber.replace(/\s/g, '');
+    if (cleaned.length < 4) return null;
+    
+    // Local Uzbek cards: 8600 (UzCard), 9860 (HUMO), 5614 (Local)
+    if (cleaned.startsWith('8600') || cleaned.startsWith('9860') || cleaned.startsWith('5614')) {
+      return 'local';
+    }
+    // International cards: 4 (Visa), 5 (Mastercard)
+    if (cleaned.startsWith('4')) {
+      return 'international'; // Visa
+    }
+    if (cleaned.startsWith('5')) {
+      return 'international'; // Mastercard
+    }
+    return null;
   };
 
   // Validate card payment
@@ -921,28 +1140,7 @@ export default function WatchPage() {
     return true;
   };
 
-  // Detect card type (local UzCard/HUMO vs international Visa/Mastercard)
-  const detectCardType = (cardNumber: string): 'local' | 'international' | null => {
-    const cleaned = cardNumber.replace(/\s/g, '');
-    if (cleaned.length < 6) return null;
-    
-    // UzCard typically starts with 8600, HUMO with 9860
-    if (cleaned.startsWith('8600') || cleaned.startsWith('9860')) {
-      return 'local';
-    }
-    // Visa starts with 4, Mastercard with 5
-    if (cleaned.startsWith('4') || cleaned.startsWith('5')) {
-      return 'international';
-    }
-    return null;
-  };
 
-  // Format new card number
-  const formatNewCardNumber = (value: string) => {
-    const cleaned = value.replace(/\s/g, '');
-    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
-    return formatted.slice(0, 19);
-  };
 
   // Handle card name step next
   const handleCardNameNext = () => {
@@ -1060,34 +1258,159 @@ export default function WatchPage() {
     }, 1000);
   };
 
-  // Process donation payment
+  // Validate new card details
+  const isNewCardValid = () => {
+    if (!newCardNumber.replace(/\s/g, '').length || newCardNumber.replace(/\s/g, '').length !== 16) {
+      return false;
+    }
+    if (!newCardExpiry.length || newCardExpiry.length !== 5) {
+      return false;
+    }
+    // For local cards: No CVV required at input stage
+    // For international cards: CVV required
+    if (cardType === 'international') {
+      return newCardCVC.length === 3;
+    }
+    // Local cards are valid if number and expiry are correct (CVV not needed)
+    return true;
+  };
+
+  // Handle Donation "Send Donation" button - Routes to appropriate flow
   const handleProcessDonation = () => {
-    if (donationAmount && selectedPaymentMethod) {
-      // Validate minimum donation amount
-      const amount = parseInt(donationAmount);
-      if (amount < MIN_DONATION_AMOUNT) {
-        // Could show error message here
+    if (!donationAmount) {
+      return;
+    }
+
+    const amount = parseInt(donationAmount);
+    if (amount < MIN_DONATION_AMOUNT) {
+      return;
+    }
+
+    // Check if using saved card, new card, or wallet
+    const isUsingSavedCard = selectedPaymentMethod && savedCards.find((c: { id: string; type: string; last4: string; cardName: string; maskedNumber: string }) => c.id === selectedPaymentMethod);
+    const walletSystems = ['paynet', 'click', 'payme', 'uzum'];
+    const isUsingWallet = selectedPaymentMethod && walletSystems.includes(selectedPaymentMethod);
+    const isUsingNewCard = !isUsingSavedCard && !isUsingWallet && isNewCardValid();
+    
+    // Validate payment method
+    if (!isUsingSavedCard && !isUsingNewCard && !isUsingWallet) {
+      return;
+    }
+
+    // Case C: Wallet payments - Navigate to Invoice Request Screen
+    if (isUsingWallet) {
+      setSelectedWallet(selectedPaymentMethod);
+      setDonationStep('WALLET_INVOICE_REQUEST');
+      return;
+    }
+
+    // Determine card type for routing logic
+    let detectedCardType: 'local' | 'international' | null = null;
+    
+    if (isUsingSavedCard) {
+      const savedCard = savedCards.find((c: { id: string; type: string; last4: string; cardName: string; maskedNumber: string }) => c.id === selectedPaymentMethod);
+      if (savedCard) {
+        detectedCardType = (savedCard.type === 'UzCard' || savedCard.type === 'HUMO') ? 'local' : 'international';
+      }
+    } else if (isUsingNewCard) {
+      detectedCardType = cardType;
+      // Validate CVV for international cards
+      if (detectedCardType === 'international' && newCardCVC.length !== 3) {
+        return; // Don't proceed if CVV is missing for international cards
+      }
+    }
+
+    // Process payment
+    setPaymentProcessing(true);
+
+    // Case A: Local Cards (Humo/Uzcard) - Initiate payment → SMS Verification
+    if (detectedCardType === 'local') {
+      // TODO: API call to initiate payment request
+      // const response = await fetch('/api/payments/initiate', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     cardNumber: isUsingSavedCard 
+      //       ? savedCards.find((c: { id: string; type: string; last4: string; cardName: string; maskedNumber: string }) => c.id === selectedPaymentMethod)?.maskedNumber
+      //       : newCardNumber.replace(/\s/g, ''),
+      //     expiry: isUsingSavedCard ? '' : newCardExpiry,
+      //     amount: amount,
+      //     currency: 'UZS',
+      //   }),
+      // });
+
+      // Simulate API call - initiate payment and receive SMS
+      setTimeout(() => {
+        setPaymentProcessing(false);
+        setSmsSent(true);
+        setCountdownTime(60);
+        setDonationStep('SMS_VERIFICATION');
+      }, 1500);
+    }
+    // Case B: International Cards (Visa/Mastercard) - Process immediately → Receipt
+    else if (detectedCardType === 'international') {
+      // Validate CVV is present
+      if (isUsingNewCard && newCardCVC.length !== 3) {
+        setPaymentProcessing(false);
         return;
       }
-      
-      // Check if it's a manual card entry or e-wallet
-      const isCard = paymentCategory === 'card';
-      const isEwallet = ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod);
-      
-      if (isEwallet) {
-        // For e-wallet, generate invoice first
-        handleGenerateInvoice();
-        return;
+
+      // If using new card and save is enabled, save the card
+      if (isUsingNewCard && saveCardEnabled) {
+        const cleanedNumber = newCardNumber.replace(/\s/g, '');
+        const last4 = cleanedNumber.slice(-4);
+        const cardTypeName = cleanedNumber.startsWith('4') ? 'Visa' : 'Mastercard';
+
+        const newCard = {
+          id: Date.now().toString(),
+          type: cardTypeName,
+          last4: last4,
+          cardName: cardName.trim() || cardTypeName,
+          maskedNumber: `**** ${last4}`,
+        };
+
+        const updatedCards = [...savedCards, newCard];
+        setSavedCards(updatedCards);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('savedCards', JSON.stringify(updatedCards));
+        }
       }
-      // For saved cards, proceed directly
-      handleSendComment();
-      // Close donation view after successful donation
-      setIsDonationViewActive(false);
-      setDonationAmount('');
-      setSelectedPaymentMethod(null);
-    } else {
-      // No donation, just send regular comment
-      handleSendComment();
+
+      // TODO: API call to process payment
+      // const response = await fetch('/api/payments/process', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     cardNumber: isUsingSavedCard 
+      //       ? savedCards.find((c: { id: string; type: string; last4: string; cardName: string; maskedNumber: string }) => c.id === selectedPaymentMethod)?.maskedNumber
+      //       : newCardNumber.replace(/\s/g, ''),
+      //     expiry: isUsingSavedCard ? '' : newCardExpiry,
+      //     cvv: isUsingSavedCard ? '' : newCardCVC,
+      //     amount: amount,
+      //     currency: 'UZS',
+      //   }),
+      // });
+
+      // Simulate payment processing
+      setTimeout(() => {
+        setPaymentProcessing(false);
+        // Process donation success
+        handleSendComment();
+        setIsDonationViewActive(false);
+        setDonationAmount('');
+        setSelectedPaymentMethod(null);
+        setDonationStep('DONATION');
+        // Reset form
+        setNewCardNumber('');
+        setNewCardExpiry('');
+        setNewCardCVC('');
+        setCardName('');
+        setSmsCode('');
+        setCardType(null);
+        setIsVerificationVerified(false);
+        setSmsSent(false);
+        setSaveCardEnabled(false);
+      }, 2000);
     }
   };
 
@@ -1100,6 +1423,1005 @@ export default function WatchPage() {
       'uzum': 'Uzum',
     };
     return invoiceNames[selectedPaymentMethod || ''] || '';
+  };
+
+  // Get wallet name for display
+  const getWalletName = (walletId: string | null): string => {
+    if (!walletId) return 'Wallet';
+    const wallets: Record<string, string> = {
+      'paynet': 'Paynet',
+      'click': 'Click',
+      'payme': 'Payme',
+      'uzum': 'Uzum'
+    };
+    return wallets[walletId] || 'Wallet';
+  };
+
+  // Check if wallet system is selected
+  const isWalletSystemSelected = (): boolean => {
+    if (!selectedPaymentMethod) return false;
+    const walletSystems = ['paynet', 'click', 'payme', 'uzum'];
+    return walletSystems.includes(selectedPaymentMethod);
+  };
+
+  // Validate invoice phone number
+  const isInvoicePhoneValid = () => {
+    if (!isWalletSystemSelected()) return true;
+    if (!invoicePhoneNumber.trim()) return false;
+    if (!invoicePhoneNumber.startsWith('+')) return false;
+    const digits = invoicePhoneNumber.slice(1).replace(/\D/g, '');
+    return digits.length >= 9;
+  };
+
+  // Validate invoice card details
+  const isInvoiceCardValid = () => {
+    if (!isWalletSystemSelected()) return true;
+    const cleanedCard = invoiceCardNumber.replace(/\s/g, '');
+    const cleanedExpiry = invoiceCardExpiry.replace(/\D/g, '');
+    return cleanedCard.length >= 16 && cleanedExpiry.length === 4;
+  };
+
+  // Format phone number for invoice - always starts with +998
+  const formatPhoneNumber = (value: string, previousValue?: string) => {
+    const cleaned = value.replace(/[^\d\s+]/g, '');
+    const PREFIX = '+998';
+    const allDigits = cleaned.replace(/[^\d]/g, '');
+    const previousDigits = previousValue ? previousValue.replace(/[^\d]/g, '') : '998';
+    if (previousDigits.startsWith('998') && allDigits.length < 3) {
+      return PREFIX + ' ';
+    }
+    let digitsAfter998 = '';
+    if (allDigits.startsWith('998')) {
+      digitsAfter998 = allDigits.slice(3);
+    } else if (allDigits.length > 0) {
+      digitsAfter998 = allDigits;
+    }
+    if (digitsAfter998.length > 9) {
+      digitsAfter998 = digitsAfter998.slice(0, 9);
+    }
+    if (digitsAfter998.length === 0) return PREFIX + ' ';
+    if (digitsAfter998.length <= 2) return `${PREFIX} ${digitsAfter998}`;
+    if (digitsAfter998.length <= 5) return `${PREFIX} ${digitsAfter998.slice(0, 2)} ${digitsAfter998.slice(2)}`;
+    if (digitsAfter998.length <= 7) return `${PREFIX} ${digitsAfter998.slice(0, 2)} ${digitsAfter998.slice(2, 5)} ${digitsAfter998.slice(5)}`;
+    return `${PREFIX} ${digitsAfter998.slice(0, 2)} ${digitsAfter998.slice(2, 5)} ${digitsAfter998.slice(5, 7)} ${digitsAfter998.slice(7, 9)}`;
+  };
+
+  // Handle Send Invoice (Wallet payments)
+  const handleSendInvoice = async () => {
+    if (!activeInvoiceIdentifier) return;
+    if (activeInvoiceIdentifier === 'phone' && !isInvoicePhoneValid()) return;
+    if (activeInvoiceIdentifier === 'card' && !isInvoiceCardValid()) return;
+
+    setPaymentProcessing(true);
+
+    // TODO: API call to send invoice
+    // const response = await fetch('/api/payments/invoice', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     walletId: selectedWallet,
+    //     phoneNumber: activeInvoiceIdentifier === 'phone' ? invoicePhoneNumber : null,
+    //     cardNumber: activeInvoiceIdentifier === 'card' ? invoiceCardNumber.replace(/\s/g, '') : null,
+    //     cardExpiry: activeInvoiceIdentifier === 'card' ? invoiceCardExpiry : null,
+    //     amount: parseInt(donationAmount),
+    //     currency: 'UZS',
+    //   }),
+    // });
+
+    // Simulate API call
+    setTimeout(() => {
+      setPaymentProcessing(false);
+      setInvoiceStatus('pending');
+      setDonationStep('WALLET_WAITING');
+      startInvoicePolling();
+    }, 1000);
+  };
+
+  // Start polling for invoice status
+  const startInvoicePolling = () => {
+    // Clear any existing interval
+    if (invoicePollingInterval) {
+      clearInterval(invoicePollingInterval);
+    }
+    
+    // Poll every 5 seconds
+    const interval = setInterval(async () => {
+      // TODO: API call to check invoice status
+      // const response = await fetch(`/api/payments/invoice-status?transactionId=${transactionId}`, {
+      //   method: 'GET',
+      // });
+      // const data = await response.json();
+      // const status = data.status; // 'pending' | 'paid' | 'failed'
+      
+      // Simulate status check
+      const randomValue = Math.random();
+      const status: 'pending' | 'paid' | 'failed' = randomValue > 0.85 ? 'paid' : 'pending';
+      
+      if (status === 'paid') {
+        clearInterval(interval);
+        setInvoicePollingInterval(null);
+        setInvoiceStatus('paid');
+        // Process donation success
+        handleSendComment();
+        setIsDonationViewActive(false);
+        setDonationAmount('');
+        setSelectedPaymentMethod(null);
+        setDonationStep('DONATION');
+        // Reset invoice state
+        setInvoicePhoneNumber('+998 ');
+        setInvoiceCardNumber('');
+        setInvoiceCardExpiry('');
+        setActiveInvoiceIdentifier(null);
+      }
+    }, 5000);
+    
+    setInvoicePollingInterval(interval);
+    
+    // Timeout after 5 minutes
+    setTimeout(() => {
+      if (invoicePollingInterval === interval) {
+        clearInterval(interval);
+        setInvoicePollingInterval(null);
+        setInvoiceStatus('failed');
+      }
+    }, 300000);
+  };
+
+  // Handle Cancel Invoice
+  const handleCancelInvoice = () => {
+    if (invoicePollingInterval) {
+      clearInterval(invoicePollingInterval);
+      setInvoicePollingInterval(null);
+    }
+    setInvoiceStatus(null);
+    setDonationStep('DONATION');
+    setInvoicePhoneNumber('+998 ');
+    setInvoiceCardNumber('');
+    setInvoiceCardExpiry('');
+    setActiveInvoiceIdentifier(null);
+  };
+
+  // Handle Cancel Payment (SMS Verification)
+  const handleCancelDonationPayment = async () => {
+    setPaymentProcessing(true);
+
+    // TODO: API call to void/cancel the pending transaction
+    // const response = await fetch('/api/payments/void', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     transactionId: transactionId, // Store transaction ID when initiating SMS
+    //   }),
+    // });
+
+    // Simulate API call to void transaction
+    setTimeout(() => {
+      setPaymentProcessing(false);
+      
+      // Reset SMS verification state
+      setSmsCode('');
+      setSmsSent(false);
+      setIsVerificationVerified(false);
+      setCountdownTime(0);
+      
+      // Return to main donation screen
+      setDonationStep('DONATION');
+    }, 500);
+  };
+
+  // Handle Confirm Payment (SMS Verification for donations)
+  const handleConfirmDonationPayment = async () => {
+    if (smsCode.length !== 6) return;
+    
+    setPaymentProcessing(true);
+
+    // TODO: API call to confirm payment with SMS code
+    // const response = await fetch('/api/payments/confirm', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     smsCode: smsCode,
+    //     transactionId: transactionId, // Store transaction ID when initiating SMS
+    //   }),
+    // });
+
+    // Simulate API call
+    setTimeout(() => {
+      setPaymentProcessing(false);
+      setIsVerificationVerified(true);
+      
+      // If save card is enabled, save the card
+      if (saveCardEnabled && newCardNumber) {
+        const cleanedNumber = newCardNumber.replace(/\s/g, '');
+        const last4 = cleanedNumber.slice(-4);
+        const cardTypeName = cleanedNumber.startsWith('8600') ? 'UzCard' : 'HUMO';
+
+        const newCard = {
+          id: Date.now().toString(),
+          type: cardTypeName,
+          last4: last4,
+          cardName: cardName.trim() || cardTypeName,
+          maskedNumber: `**** ${last4}`,
+        };
+
+        const updatedCards = [...savedCards, newCard];
+        setSavedCards(updatedCards);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('savedCards', JSON.stringify(updatedCards));
+        }
+      }
+
+      // Process donation success
+      handleSendComment();
+      setIsDonationViewActive(false);
+      setDonationAmount('');
+      setSelectedPaymentMethod(null);
+      setDonationStep('DONATION');
+      // Reset form
+      setNewCardNumber('');
+      setNewCardExpiry('');
+      setNewCardCVC('');
+      setCardName('');
+      setSmsCode('');
+      setCardType(null);
+      setIsVerificationVerified(false);
+      setSmsSent(false);
+      setSaveCardEnabled(false);
+    }, 1500);
+  };
+
+  // Get SMS Label
+  const getSmsLabel = () => {
+    if (isSending) {
+      return "SMS Code (Sending...)";
+    }
+    if (smsSent) {
+      return (
+        <span className="flex items-center text-sm font-medium">
+          <span className="text-text-secondary mr-1">SMS Code</span>
+          <span className="text-green-400">(Sent)</span>
+        </span>
+      );
+    }
+    return "SMS Code";
+  };
+
+  // Countdown timer for SMS resend
+  useEffect(() => {
+    if (countdownTime > 0) {
+      const timer = setTimeout(() => {
+        setCountdownTime(countdownTime - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdownTime]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (invoicePollingInterval) {
+        clearInterval(invoicePollingInterval);
+      }
+    };
+  }, [invoicePollingInterval]);
+
+  // Real-time timestamp updates (updates every 10 seconds for recent comments)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimestampUpdateKey(prev => prev + 1);
+    }, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Render Donation View (Main Form)
+  const renderDonationView = () => (
+    <div className="flex flex-col h-full relative">
+      {/* Zone A: Scrollable Content */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 p-4">
+        {/* 1. Donation Amount & Anonymity */}
+        <div className="flex-shrink-0 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder={`Minimal miqdor: ${MIN_DONATION_AMOUNT.toLocaleString()} UZS`}
+                value={formatNumberWithCommas(donationAmount)}
+                onChange={handleDonationAmountChange}
+                onKeyDown={(e) => {
+                  if (
+                    [46, 8, 9, 27, 13, 110, 190].indexOf(e.keyCode) !== -1 ||
+                    (e.keyCode === 65 && e.ctrlKey === true) ||
+                    (e.keyCode >= 35 && e.keyCode <= 40)
+                  ) {
+                    return;
+                  }
+                  if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                    e.preventDefault();
+                  }
+                }}
+                className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-xs text-text-secondary whitespace-nowrap">Anonim</span>
+              <button
+                type="button"
+                onClick={() => setIsAnonymousDonation(!isAnonymousDonation)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isAnonymousDonation ? 'bg-accent' : 'bg-surface/50'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isAnonymousDonation ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Message Input */}
+        <div className="flex-shrink-0 mb-4">
+          <label className="block text-sm font-medium text-text-secondary mb-2">
+            Message (Optional)
+          </label>
+          <Textarea
+            ref={commentInputRef}
+            placeholder="Add a message with your donation..."
+            value={commentText}
+            maxLength={MAX_COMMENT_LENGTH}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              setCommentText(newValue);
+              autoResizeTextarea(e.target);
+            }}
+            className="w-full min-h-[100px] border border-zinc-800 text-text-primary text-sm resize-none bg-surface outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 placeholder:text-zinc-500"
+          />
+          {commentText.length > MAX_COMMENT_LENGTH && (
+            <span className="text-xs text-red-400 font-medium mt-1 block">
+              -{commentText.length - MAX_COMMENT_LENGTH}
+            </span>
+          )}
+        </div>
+
+        {/* 3. Payment Methods Block */}
+        <div className="flex-shrink-0 space-y-3 mb-4">
+          {/* 3.1 Payment Method: "Pay with Card(s)" */}
+          <div>
+            <h3 className="text-sm font-medium text-text-secondary mb-2">Pay with Card(s)</h3>
+            <div className="space-y-1.5">
+              {savedCards.map((card: { id: string; type: string; last4: string; cardName: string; maskedNumber: string }) => (
+                <div
+                  key={card.id}
+                  ref={(el) => {
+                    if (el) {
+                      cardMenuRefs.current[card.id] = el;
+                    }
+                  }}
+                  onClick={() => {
+                    if (selectedPaymentMethod === card.id) {
+                      setSelectedPaymentMethod(null);
+                      setIsCardFormActive(false);
+                      setSelectedWallet(null);
+                    } else {
+                      setSelectedPaymentMethod(card.id);
+                      setIsCardFormActive(false);
+                      setSelectedWallet(null);
+                      setNewCardNumber('');
+                      setNewCardExpiry('');
+                      setNewCardCVC('');
+                      setCardName('');
+                      setSmsCode('');
+                      setCardType(null);
+                      setIsVerificationVerified(false);
+                      setSmsSent(false);
+                    }
+                    setPaymentCategory('card');
+                    setOpenCardMenuId(null);
+                  }}
+                  className={`relative w-full px-3 py-3 rounded-md border transition-colors h-14 cursor-pointer ${
+                    selectedPaymentMethod === card.id
+                      ? 'border-white/20 bg-white/10'
+                      : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
+                  }`}
+                >
+                  <div className="w-full h-full flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0">
+                        <span className="text-xs font-medium text-text-primary leading-tight truncate">{card.cardName}</span>
+                        <span className="text-xs text-text-secondary leading-tight truncate">{card.maskedNumber}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex-shrink-0">
+                          {card.type === 'UzCard' ? (
+                            <div className="w-10 h-6 rounded bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm">
+                              <span className="text-[7px] font-bold text-white tracking-tight">UZCARD</span>
+                            </div>
+                          ) : card.type === 'HUMO' ? (
+                            <div className="w-10 h-6 rounded bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-sm">
+                              <span className="text-[7px] font-bold text-white tracking-tight">HUMO</span>
+                            </div>
+                          ) : card.type === 'Visa' ? (
+                            <div className="w-10 h-6 rounded bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-sm">
+                              <span className="text-[9px] font-bold text-white tracking-wider">VISA</span>
+                            </div>
+                          ) : card.type === 'Mastercard' ? (
+                            <div className="w-10 h-6 rounded bg-gradient-to-br from-orange-500 via-red-500 to-yellow-500 flex items-center justify-center shadow-sm">
+                              <div className="flex items-center gap-0.5">
+                                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-10 h-6 rounded bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center shadow-sm">
+                              <span className="text-[7px] font-bold text-white">CARD</span>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenCardMenuId(openCardMenuId === card.id ? null : card.id);
+                          }}
+                          className="p-1.5 rounded-full hover:bg-surface/50 text-text-secondary hover:text-text-primary transition-colors flex-shrink-0"
+                          aria-label="More options"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {openCardMenuId === card.id && (
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-[#1A1A1A] border border-surface rounded-lg shadow-lg overflow-hidden min-w-[120px]">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const updatedCards = savedCards.filter((c: { id: string; type: string; last4: string; cardName: string; maskedNumber: string }) => c.id !== card.id);
+                          setSavedCards(updatedCards);
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('savedCards', JSON.stringify(updatedCards));
+                          }
+                          setOpenCardMenuId(null);
+                          if (selectedPaymentMethod === card.id) {
+                            setSelectedPaymentMethod(null);
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface/50 transition-colors flex items-center gap-2"
+                      >
+                        <X className="h-4 w-4" />
+                        <span>O'chirish</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {/* Card Input Form (Always Visible) */}
+              <div 
+                onClick={() => {
+                  setIsCardFormActive(true);
+                  setSelectedPaymentMethod(null);
+                  setSelectedWallet(null);
+                }}
+                className={`mt-3 p-4 border rounded-md space-y-4 transition-colors cursor-pointer ${
+                  isCardFormActive || newCardNumber || newCardExpiry || newCardCVC || cardName
+                    ? 'border-white/20 bg-white/10'
+                    : 'border-surface/50 bg-surface/30'
+                }`}
+              >
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Card Number
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="0000 0000 0000 0000"
+                    value={newCardNumber}
+                    onChange={(e) => {
+                      const formatted = formatNewCardNumber(e.target.value);
+                      setNewCardNumber(formatted);
+                      setIsCardFormActive(true);
+                      setSelectedPaymentMethod(null);
+                      if (formatted.replace(/\s/g, '').length >= 6) {
+                        const detectedType = detectCardType(formatted);
+                        setCardType(detectedType);
+                        if (detectedType !== cardType) {
+                          setSmsSent(false);
+                          setIsVerificationVerified(false);
+                        }
+                      } else {
+                        setCardType(null);
+                        setSmsSent(false);
+                        setIsVerificationVerified(false);
+                      }
+                    }}
+                    maxLength={19}
+                    className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
+                      Valid until
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="MM/YY"
+                      value={newCardExpiry}
+                      onFocus={() => {
+                        setIsCardFormActive(true);
+                        setSelectedPaymentMethod(null);
+                        setSelectedWallet(null);
+                      }}
+                      onChange={(e) => {
+                        const formatted = formatExpiry(e.target.value, prevNewCardExpiryRef.current);
+                        prevNewCardExpiryRef.current = formatted;
+                        setNewCardExpiry(formatted);
+                        setIsCardFormActive(true);
+                        setSelectedPaymentMethod(null);
+                        setSelectedWallet(null);
+                      }}
+                      maxLength={5}
+                      className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                    />
+                  </div>
+                  {cardType === 'international' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-text-secondary mb-2">
+                        CVV
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="000"
+                        value={newCardCVC}
+                        onFocus={() => {
+                          setIsCardFormActive(true);
+                          setSelectedPaymentMethod(null);
+                          setSelectedWallet(null);
+                        }}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/\D/g, '');
+                          setNewCardCVC(cleaned.slice(0, 3));
+                          setIsCardFormActive(true);
+                          setSelectedPaymentMethod(null);
+                          setSelectedWallet(null);
+                        }}
+                        maxLength={3}
+                        className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                      />
+                    </div>
+                  ) : (
+                    <div></div>
+                  )}
+                </div>
+                
+                <div className="flex items-center justify-between mt-4 pt-2 border-t border-surface/30">
+                  <span className="text-sm text-gray-300">Save card</span>
+                  <button
+                    type="button"
+                    onClick={() => setSaveCardEnabled(!saveCardEnabled)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      saveCardEnabled ? 'bg-accent' : 'bg-surface/50'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        saveCardEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {saveCardEnabled && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
+                      Card Name (Optional)
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder={getCardTypeName()}
+                      value={cardName}
+                      onFocus={() => {
+                        setIsCardFormActive(true);
+                        setSelectedPaymentMethod(null);
+                        setSelectedWallet(null);
+                      }}
+                      onChange={(e) => {
+                        setCardName(e.target.value);
+                        setIsCardFormActive(true);
+                        setSelectedPaymentMethod(null);
+                        setSelectedWallet(null);
+                      }}
+                      className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 3.2 Payment Method: "Wallets" */}
+          <div>
+            <h3 className="text-sm font-medium text-text-secondary mb-2">Wallets</h3>
+            <div className="overflow-x-auto sidebar-scrollbar-hide">
+              <div className="flex flex-row gap-2" style={{ width: 'max-content' }}>
+                {[
+                  { id: 'paynet', name: 'Paynet', logo: '💸', color: 'bg-purple-600' },
+                  { id: 'click', name: 'Click', logo: '💳', color: 'bg-blue-600' },
+                  { id: 'payme', name: 'Payme', logo: '💵', color: 'bg-green-600' },
+                  { id: 'uzum', name: 'Uzum', logo: '🛒', color: 'bg-orange-600' },
+                ].map((wallet) => (
+                  <button
+                    key={wallet.id}
+                    type="button"
+                    onClick={() => {
+                      if (selectedPaymentMethod === wallet.id) {
+                        setSelectedPaymentMethod(null);
+                        setSelectedWallet(null);
+                        setIsCardFormActive(false);
+                      } else {
+                        setSelectedWallet(wallet.id);
+                        setSelectedPaymentMethod(wallet.id);
+                        setIsCardFormActive(false);
+                        setNewCardNumber('');
+                        setNewCardExpiry('');
+                        setNewCardCVC('');
+                        setCardName('');
+                        setSmsCode('');
+                        setCardType(null);
+                        setIsVerificationVerified(false);
+                        setSmsSent(false);
+                      }
+                      setPaymentCategory('ewallet');
+                    }}
+                    className={`flex-shrink-0 w-24 px-3 py-3 rounded-md border transition-colors h-14 flex flex-col items-center justify-center gap-1 ${
+                      selectedPaymentMethod === wallet.id
+                        ? 'border-white/20 bg-white/10'
+                        : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded flex items-center justify-center ${wallet.color} text-white text-sm font-bold`}>
+                      {wallet.logo}
+                    </div>
+                    <span className="text-xs font-medium text-text-primary whitespace-nowrap">{wallet.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Zone B: Fixed Bottom Action */}
+      <div className="mt-auto bg-[#1A1A1A] border-t border-zinc-800 p-4">
+        <Button
+          onClick={handleProcessDonation}
+          disabled={
+            paymentProcessing ||
+            !donationAmount ||
+            parseInt(donationAmount) < MIN_DONATION_AMOUNT ||
+            (!selectedPaymentMethod && !isNewCardValid())
+          }
+          className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {paymentProcessing ? 'Processing...' : 'Send Donation'}
+        </Button>
+      </div>
+    </div>
+  );
+
+  // Render SMS Verification View (Local Cards)
+  const renderDonationSMSVerificationView = () => {
+    const savedCard = savedCards.find((c: { id: string; type: string; last4: string; cardName: string; maskedNumber: string }) => c.id === selectedPaymentMethod);
+    const cardDisplay = savedCard 
+      ? `${savedCard.type} ending in ${savedCard.last4}`
+      : cardType === 'local' 
+        ? (newCardNumber.replace(/\s/g, '').startsWith('8600') ? 'UzCard' : 'HUMO')
+        : 'Card';
+    const cardLast4 = savedCard 
+      ? savedCard.last4
+      : newCardNumber.replace(/\s/g, '').slice(-4);
+
+    return (
+      <div className="flex flex-col h-full bg-[#1A1A1A] rounded-xl overflow-hidden">
+        <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-white mb-2">Confirm Payment</h2>
+            <p className="text-sm text-gray-400">
+              We sent a code to the number linked with **** {cardLast4}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                {getSmsLabel()}
+              </label>
+              <Input
+                type="text"
+                placeholder="000000"
+                value={smsCode}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/\D/g, '');
+                  setSmsCode(cleaned.slice(0, 6));
+                }}
+                maxLength={6}
+                className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSending(true);
+                  setTimeout(() => {
+                    setSmsSent(true);
+                    setIsSending(false);
+                    setCountdownTime(60);
+                  }, 1000);
+                }}
+                disabled={isSending || countdownTime > 0}
+                className="text-xs text-gray-400 hover:text-gray-300 underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Resend Code
+              </button>
+              {countdownTime > 0 && (
+                <span className="text-xs text-gray-500">
+                  Resend in {countdownTime}s
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-auto bg-[#1A1A1A] border-t border-zinc-800 p-4 space-y-3">
+          <Button
+            onClick={handleCancelDonationPayment}
+            disabled={paymentProcessing}
+            className="w-full h-10 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </Button>
+          
+          <Button
+            onClick={handleConfirmDonationPayment}
+            disabled={
+              paymentProcessing ||
+              smsCode.length !== 6
+            }
+            className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {paymentProcessing ? 'Processing...' : 'Confirm Payment'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render Wallet Invoice Request View
+  const renderDonationWalletInvoiceRequestView = () => {
+    const walletName = getWalletName(selectedWallet);
+
+    return (
+      <div className="flex flex-col h-full bg-[#1A1A1A] rounded-xl overflow-hidden">
+        <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 p-6">
+          <div className="mb-6">
+            <p className="text-sm text-gray-400">
+              Enter the credentials linked to your {walletName} account
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${
+                activeInvoiceIdentifier === 'card' 
+                  ? 'text-text-secondary/50' 
+                  : 'text-text-secondary'
+              }`}>
+                Phone Number
+              </label>
+              <Input
+                type="tel"
+                placeholder="+998 XX YYY YY YY"
+                value={invoicePhoneNumber}
+                disabled={activeInvoiceIdentifier === 'card'}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value, invoicePhoneNumber);
+                  setInvoicePhoneNumber(formatted);
+                  const digitsAfterPrefix = formatted.replace(/[^\d]/g, '').slice(3);
+                  if (digitsAfterPrefix.length > 0 && activeInvoiceIdentifier === null) {
+                    setActiveInvoiceIdentifier('phone');
+                    setInvoiceCardNumber('');
+                    setInvoiceCardExpiry('');
+                  }
+                  if (digitsAfterPrefix.length === 0 && activeInvoiceIdentifier === 'phone') {
+                    setActiveInvoiceIdentifier(null);
+                  }
+                }}
+                className={`w-full h-10 outline-none ${
+                  activeInvoiceIdentifier === 'card'
+                    ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
+                    : 'bg-surface border-zinc-800 text-text-primary hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none'
+                }`}
+              />
+            </div>
+
+            <div className="w-full h-px bg-zinc-800 my-6"></div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-4 ${
+                activeInvoiceIdentifier === 'phone' 
+                  ? 'text-text-secondary/50' 
+                  : 'text-text-secondary'
+              }`}>
+                Card Details
+              </label>
+              <div className={`p-4 border rounded-md space-y-4 ${
+                activeInvoiceIdentifier === 'phone'
+                  ? 'border-surface/30 bg-surface/20'
+                  : 'border-surface/50 bg-surface/30'
+              }`}>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    activeInvoiceIdentifier === 'phone' 
+                      ? 'text-text-secondary/50' 
+                      : 'text-text-secondary'
+                  }`}>
+                    Card Number
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="8600 1234 5678 9012"
+                    value={invoiceCardNumber}
+                    disabled={activeInvoiceIdentifier === 'phone'}
+                    onChange={(e) => {
+                      const formatted = formatNewCardNumber(e.target.value);
+                      setInvoiceCardNumber(formatted);
+                      if (formatted.replace(/\s/g, '').length > 0 && activeInvoiceIdentifier === null) {
+                        setActiveInvoiceIdentifier('card');
+                        setInvoicePhoneNumber('+998 ');
+                      }
+                      if (formatted.replace(/\s/g, '').length === 0) {
+                        const cleanedExpiry = invoiceCardExpiry.replace(/\D/g, '');
+                        if (cleanedExpiry.length === 0 && activeInvoiceIdentifier === 'card') {
+                          setActiveInvoiceIdentifier(null);
+                        }
+                      }
+                    }}
+                    maxLength={19}
+                    className={`w-full h-10 outline-none ${
+                      activeInvoiceIdentifier === 'phone'
+                        ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
+                        : 'bg-surface border-zinc-800 text-text-primary hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    activeInvoiceIdentifier === 'phone' 
+                      ? 'text-text-secondary/50' 
+                      : 'text-text-secondary'
+                  }`}>
+                    Expiration Date
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="MM/YY"
+                    value={invoiceCardExpiry}
+                    disabled={activeInvoiceIdentifier === 'phone'}
+                    onChange={(e) => {
+                      const formatted = formatExpiry(e.target.value, prevInvoiceCardExpiryRef.current);
+                      prevInvoiceCardExpiryRef.current = formatted;
+                      setInvoiceCardExpiry(formatted);
+                      if (formatted.trim().length > 0 && activeInvoiceIdentifier === null) {
+                        setActiveInvoiceIdentifier('card');
+                        setInvoicePhoneNumber('+998 ');
+                      }
+                      if (formatted.replace(/\D/g, '').length === 0) {
+                        const cleanedCard = invoiceCardNumber.replace(/\s/g, '');
+                        if (cleanedCard.length === 0 && activeInvoiceIdentifier === 'card') {
+                          setActiveInvoiceIdentifier(null);
+                        }
+                      }
+                    }}
+                    maxLength={5}
+                    className={`w-full h-10 outline-none ${
+                      activeInvoiceIdentifier === 'phone'
+                        ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
+                        : 'bg-surface border-zinc-800 text-text-primary hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-auto bg-[#1A1A1A] border-t border-zinc-800 p-4 space-y-3">
+          <Button
+            onClick={handleCancelInvoice}
+            disabled={paymentProcessing}
+            className="w-full h-10 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </Button>
+          
+          <Button
+            onClick={handleSendInvoice}
+            disabled={
+              paymentProcessing ||
+              !activeInvoiceIdentifier ||
+              (activeInvoiceIdentifier === 'phone' && !isInvoicePhoneValid()) ||
+              (activeInvoiceIdentifier === 'card' && !isInvoiceCardValid())
+            }
+            className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {paymentProcessing ? 'Sending...' : 'Send Invoice'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render Wallet Waiting View
+  const renderDonationWalletWaitingView = () => {
+    const walletName = getWalletName(selectedWallet);
+    const maskedNumber = activeInvoiceIdentifier === 'phone'
+      ? invoicePhoneNumber.replace(/\D/g, '').slice(-4)
+      : invoiceCardNumber.replace(/\s/g, '').slice(-4);
+
+    return (
+      <div className="flex flex-col h-full bg-[#1A1A1A] rounded-xl overflow-hidden">
+        <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-white mb-2">Waiting for Payment</h2>
+            <p className="text-sm text-gray-400">
+              We have sent an invoice to your {walletName} account linked to the number **** {maskedNumber}. Please complete the payment on your mobile app.
+            </p>
+          </div>
+
+          <div className="flex justify-center items-center py-12">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-accent/30 border-t-accent rounded-full animate-spin"></div>
+            </div>
+          </div>
+
+          {invoiceStatus === 'failed' && (
+            <div className="mt-6 p-4 bg-red-900/20 border border-red-500/50 rounded-md">
+              <p className="text-sm text-red-400 text-center">
+                Payment timed out or was cancelled. Please try again.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-auto bg-[#1A1A1A] border-t border-zinc-800 p-4">
+          <Button
+            onClick={handleCancelInvoice}
+            className="w-full h-10 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
+          >
+            Cancel Invoice
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper function to get card type name
+  const getCardTypeName = (): string => {
+    if (!cardType) return 'Card';
+    const cleaned = newCardNumber.replace(/\s/g, '');
+    if (cardType === 'local') {
+      return cleaned.startsWith('8600') ? 'UzCard' : 'HUMO';
+    } else {
+      return cleaned.startsWith('4') ? 'Visa' : 'Mastercard';
+    }
   };
 
   const handleSendComment = () => {
@@ -1154,6 +2476,7 @@ export default function WatchPage() {
         return addReply(prevComments);
       });
       setReplyingToId(null);
+      setReplyingToComment(null);
     } else {
       // Add as top-level comment
       setComments([newComment, ...comments]);
@@ -1478,10 +2801,21 @@ export default function WatchPage() {
   // Function to render a single comment item (no nested replies rendering)
   const renderCommentItem = (comment: Comment, isReply: boolean = false) => {
     const isLiveMode = video?.isLive === true;
+    const isHighlighted = highlightedCommentId === comment.id;
     
     return (
-      <div key={comment.id} className={isReply && !isLiveMode ? 'ml-10' : ''}>
-        <div className="px-3 py-1.5 rounded-lg bg-transparent">
+      <div 
+        key={comment.id} 
+        ref={(el) => {
+          if (el) {
+            commentRefs.current[comment.id] = el;
+          }
+        }}
+        className={isReply && !isLiveMode ? 'ml-10' : ''}
+      >
+        <div className={`px-3 py-1.5 rounded-lg transition-colors duration-1000 ${
+          isHighlighted ? 'bg-white/10' : 'bg-transparent'
+        }`}>
           {/* Top Row: Avatar, Username (Left) | More Button (Right) */}
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1526,25 +2860,34 @@ export default function WatchPage() {
                   )}
                 </>
               )}
-              {/* Username - Clickable in Live Mode */}
-              {isLiveMode ? (
-                <button
-                  onClick={() => handleMentionClick(comment.username)}
-                  className="text-sm font-medium text-text-primary truncate hover:text-white transition-colors cursor-pointer text-left"
-                >
-                  {comment.username}
-                </button>
-              ) : (
-                <span className="text-sm font-medium text-text-primary truncate">
-                  {comment.username}
-              </span>
-              )}
-              {/* Donation Badge (if applicable) */}
-              {comment.isDonated && comment.donationAmount && (
-                <span className="text-xs font-semibold text-white flex-shrink-0">
-                  {comment.donationAmount.toLocaleString()} UZS
-                </span>
-              )}
+              {/* Header Elements Group: Username, Donation Amount, Timestamp */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {/* Username - Clickable in Live Mode (can truncate) */}
+                {isLiveMode ? (
+                  <button
+                    onClick={() => handleMentionClick(comment.username)}
+                    className="text-sm font-medium text-text-primary truncate hover:text-white transition-colors cursor-pointer text-left min-w-0"
+                  >
+                    {comment.username}
+                  </button>
+                ) : (
+                  <span className="text-sm font-medium text-text-primary truncate min-w-0">
+                    {comment.username}
+                  </span>
+                )}
+                {/* Donation Amount (if applicable) - Always visible */}
+                {comment.isDonated && comment.donationAmount && (
+                  <span className="text-xs font-bold text-accent flex-shrink-0">
+                    {comment.donationAmount.toLocaleString()} UZS
+                  </span>
+                )}
+                {/* Timestamp - Only visible for VOD (non-live) videos */}
+                {!isLiveMode && (
+                  <span className="text-xs font-medium text-zinc-500 flex-shrink-0 ml-2">
+                    {formatRelativeTime(comment.timestamp)}
+                  </span>
+                )}
+              </div>
             </div>
             {/* More Button - Available for all comments and replies */}
               <div className="relative flex-shrink-0">
@@ -2202,17 +3545,12 @@ export default function WatchPage() {
             </div>
           </div>
 
-          {/* Video Stats */}
-          <div className="text-sm text-text-secondary">
-            {video.views.toLocaleString()} views • {new Date(video.createdAt).toLocaleDateString()}
-          </div>
-
-          {/* Description */}
-            <div className="p-4 bg-surface rounded-lg">
-            <p className="text-sm text-text-primary whitespace-pre-wrap">
-              {video.description || 'No description provided.'}
-            </p>
-            </div>
+          {/* Description with Views, Date, and Merch */}
+          <VideoDescription
+            views={video.views}
+            createdAt={video.createdAt}
+            description={video.description}
+          />
 
           {/* Monetization CTA Section - Replace comments area when access restricted */}
           {!hasFullAccess && (
@@ -2228,8 +3566,39 @@ export default function WatchPage() {
                   console.log('Subscribe clicked for channel:', video.userId);
                 }}
                 onPurchaseComplete={() => {
-                  // Refresh page or update state to show comments
-                  window.location.reload();
+                  // Mark video as purchased and persist to localStorage
+                  setHasPurchasedVideoLocal(true);
+                  
+                  // Persist purchase to localStorage
+                  if (typeof window !== 'undefined' && video) {
+                    const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
+                    if (!purchasedVideos.includes(video.id)) {
+                      purchasedVideos.push(video.id);
+                      localStorage.setItem('purchasedVideos', JSON.stringify(purchasedVideos));
+                    }
+                  }
+                  
+                  // Update video URL to full video if available
+                  if (video) {
+                    const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
+                    setCurrentWatchVideo({
+                      ...video,
+                      videoUrl: fullVideoUrl
+                    });
+                  }
+                  
+                  // Open comments section
+                  // On mobile, open the comments overlay
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                    setIsCommentsOpen(true);
+                  } else {
+                    // On desktop, scroll to comments section after a brief delay
+                    setTimeout(() => {
+                      if (commentsSectionRef.current) {
+                        commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 300);
+                  }
                 }}
               />
           </div>
@@ -2658,16 +4027,15 @@ export default function WatchPage() {
       
       {/* Comments Section - Only show if user has access */}
       {hasFullAccess && (
-        <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
+        <div ref={commentsSectionRef} className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
           {/* Sticky Header with Tab Navigation or Report Header or Donation Header */}
           <div className="sticky top-0 z-10 bg-[#1A1A1A] border-b border-surface/50">
             {isDonationViewActive ? (
               <div className="flex items-center gap-3 px-3 py-3">
                 <button
                   onClick={() => {
-                    if (isAddingCard) {
-                      setIsAddingCard(false);
-                      setIsVerificationVerified(false);
+                    if (donationStep === 'WALLET_INVOICE_REQUEST' || donationStep === 'WALLET_WAITING' || donationStep === 'SMS_VERIFICATION') {
+                      setDonationStep('DONATION');
                     } else {
                       setIsDonationViewActive(false);
                     }
@@ -2678,7 +4046,9 @@ export default function WatchPage() {
                   <ArrowLeft className="h-5 w-5" />
                 </button>
                 <h2 className="text-lg font-semibold text-text-primary">
-                  {isAddingCard ? 'Add Card' : 'Donation / Superchat'}
+                  {(donationStep === 'WALLET_INVOICE_REQUEST' || donationStep === 'WALLET_WAITING') && selectedWallet
+                    ? `${video?.isLive ? 'Superchat' : 'Donate'} with ${getWalletName(selectedWallet)}`
+                    : video?.isLive ? 'Superchat' : 'Donate'}
                 </h2>
               </div>
             ) : reportCommentState === 'NONE' ? (
@@ -2727,431 +4097,22 @@ export default function WatchPage() {
         </div>
         
           {/* Comments List or Report Flow or Donation Form - Scrollable */}
-          {isDonationViewActive && isAddingCard ? (
-              /* Add Card View - Full View within Sidebar */
-              <div className="flex-1 flex flex-col h-full overflow-hidden">
-                <div className="flex flex-col h-full p-4">
-                  {/* Add Card Form - All Fields on One Screen */}
-                  <div className="flex-1 overflow-y-auto space-y-4">
-                    {/* 1. Name for Card */}
-                    <div>
-                      <label className="block text-sm font-medium text-text-secondary mb-2">
-                        Name for Card
-                      </label>
-                      <Input
-                        type="text"
-                        placeholder="e.g., Mening Kartam"
-                        value={cardName}
-                        onChange={(e) => setCardName(e.target.value)}
-                        className="w-full bg-surface border-surface text-text-primary h-10"
-                      />
-                    </div>
-
-                    {/* 2. Card Number */}
-                    <div>
-                      <label className="block text-sm font-medium text-text-secondary mb-2">
-                        Card Number
-                      </label>
-                      <Input
-                        type="text"
-                        placeholder="0000 0000 0000 0000"
-                        value={newCardNumber}
-                        onChange={(e) => {
-                          const formatted = formatNewCardNumber(e.target.value);
-                          setNewCardNumber(formatted);
-                          // Auto-detect card type
-                          if (formatted.replace(/\s/g, '').length >= 6) {
-                            const detectedType = detectCardType(formatted);
-                            setCardType(detectedType);
-                            // Reset SMS sent state when card type changes
-                            if (detectedType !== cardType) {
-                              setSmsSent(false);
-                              setIsVerificationVerified(false);
-                            }
-                          } else {
-                            setCardType(null);
-                            setSmsSent(false);
-                            setIsVerificationVerified(false);
-                          }
-                        }}
-                        maxLength={19}
-                        className="w-full bg-surface border-surface text-text-primary h-10"
-                      />
-                    </div>
-
-                    {/* 3. Expiration Date */}
-                    <div>
-                      <label className="block text-sm font-medium text-text-secondary mb-2">
-                        Expiration Date
-                      </label>
-                      <Input
-                        type="text"
-                        placeholder="MM/YY"
-                        value={newCardExpiry}
-                        onChange={(e) => {
-                          const formatted = formatExpiry(e.target.value);
-                          setNewCardExpiry(formatted);
-                        }}
-                        maxLength={5}
-                        className="w-full bg-surface border-surface text-text-primary h-10"
-                      />
-                    </div>
-
-                    {/* 4. Verification (Combined/Dynamic) */}
-                    <div>
-                      <label className="block text-sm font-medium text-text-secondary mb-2">
-                        {cardType === 'local' ? 'SMS Code' : 'CVV/CVC'}
-                      </label>
-                      <div className="flex flex-row items-center gap-2">
-                        <Input
-                          type="text"
-                          placeholder={cardType === 'local' ? '000000' : '000'}
-                          value={cardType === 'local' ? smsCode : newCardCVC}
-                          onChange={(e) => {
-                            const cleaned = e.target.value.replace(/\D/g, '');
-                            if (cardType === 'local') {
-                              setSmsCode(cleaned.slice(0, 6));
-                            } else {
-                              setNewCardCVC(cleaned.slice(0, 3));
-                            }
-                            setIsVerificationVerified(false);
-                          }}
-                          maxLength={cardType === 'local' ? 6 : 3}
-                          disabled={cardType === 'local' && !smsSent}
-                          className="flex-1 bg-surface border-surface text-text-primary h-10 text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                        <Button
-                          type="button"
-                          onClick={() => {
-                            if (cardType === 'local') {
-                              // Two-step SMS flow for local cards
-                              if (!smsSent) {
-                                // Step 1: Send SMS
-                                setPaymentProcessing(true);
-                                setTimeout(() => {
-                                  setSmsSent(true);
-                                  setPaymentProcessing(false);
-                                }, 1000);
-                              } else {
-                                // Step 2: Verify SMS code
-                                if (smsCode.length === 6) {
-                                  setIsVerificationVerified(true);
-                                  setPaymentProcessing(true);
-                                  setTimeout(() => {
-                                    setPaymentProcessing(false);
-                                  }, 500);
-                                }
-                              }
-                            } else {
-                              // Single-step CVV/CVC verification for international cards
-                              const isValid = (cardType === 'international' || cardType === null) && newCardCVC.length === 3;
-                              if (isValid) {
-                                setIsVerificationVerified(true);
-                                setPaymentProcessing(true);
-                                setTimeout(() => {
-                                  setPaymentProcessing(false);
-                                }, 500);
-                              }
-                            }
-                          }}
-                          disabled={
-                            paymentProcessing ||
-                            isVerificationVerified ||
-                            (cardType === 'local' && smsSent && smsCode.length !== 6) ||
-                            ((cardType === 'international' || cardType === null) && newCardCVC.length !== 3)
-                          }
-                          className="h-10 py-0 px-4 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
-                        >
-                          {cardType === 'local' 
-                            ? (!smsSent ? 'SMS Yuborish' : (isVerificationVerified ? 'Tasdiqlandi' : 'Tasdiqlash'))
-                            : (isVerificationVerified ? 'Tasdiqlandi' : 'Tasdiqlash')
-                          }
-                        </Button>
-                      </div>
-                      {cardType === 'local' && smsSent && (
-                        <p className="text-xs text-text-secondary mt-2">
-                          We've sent a verification code to your phone.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Save and Verify Button - Fixed Bottom */}
-                  <div className="flex-shrink-0 border-t border-surface/30 pt-4 mt-4">
-                    <Button
-                      onClick={handleCardVerification}
-                      disabled={
-                        !cardName.trim() ||
-                        newCardNumber.replace(/\s/g, '').length !== 16 ||
-                        newCardExpiry.length !== 5 ||
-                        !isVerificationVerified ||
-                        paymentProcessing
-                      }
-                      className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Kartani Saqlash
-                    </Button>
-                  </div>
-                </div>
-              </div>
-          ) : isDonationViewActive ? (
-              /* Full Donation Form View */
-              <div className="flex-1 flex flex-col h-full overflow-hidden">
-                <div className="flex flex-col h-full p-4">
-                  {/* 1. Amount and Message Block (Top Priority) */}
-                  {/* 1.1 Donation Amount & Anonymity (Top Fixed) */}
-                  <div className="flex-shrink-0 mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder={`Minimal miqdor: ${MIN_DONATION_AMOUNT.toLocaleString()} UZS`}
-                        value={donationAmount}
-                        onChange={(e) => {
-                          const numericValue = e.target.value.replace(/\D/g, '');
-                          setDonationAmount(numericValue);
-                        }}
-                        onKeyDown={(e) => {
-                          if (
-                            [46, 8, 9, 27, 13, 110, 190].indexOf(e.keyCode) !== -1 ||
-                            (e.keyCode === 65 && e.ctrlKey === true) ||
-                            (e.keyCode >= 35 && e.keyCode <= 40)
-                          ) {
-                            return;
-                          }
-                          if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
-                            e.preventDefault();
-                          }
-                        }}
-                        className="w-full bg-surface border-surface text-text-primary h-10"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs text-text-secondary whitespace-nowrap">Anonim</span>
-                      <button
-                        type="button"
-                        onClick={() => setIsAnonymousDonation(!isAnonymousDonation)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          isAnonymousDonation ? 'bg-white' : 'bg-surface/50'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            isAnonymousDonation ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 1.2 Message Input (Flexible/Stretch Element - Fills Remaining Space) */}
-                <div className="flex-1 flex flex-col min-h-0 mb-4">
-                  <label className="block text-sm font-medium text-text-secondary mb-2 flex-shrink-0">
-                    Message (Optional)
-                  </label>
-                  <div className="flex-1 flex flex-col min-h-0">
-                    <Textarea
-                      ref={commentInputRef}
-                      placeholder="Add a message with your donation..."
-                      value={commentText}
-                      maxLength={MAX_COMMENT_LENGTH}
-                      onChange={(e) => {
-                        const newValue = e.target.value;
-                        setCommentText(newValue);
-                        autoResizeTextarea(e.target);
-                      }}
-                      className="w-full h-full border border-surface text-text-primary text-sm resize-none bg-surface flex-1"
-                    />
-                    {commentText.length > MAX_COMMENT_LENGTH && (
-                      <span className="text-xs text-red-400 font-medium mt-1 block flex-shrink-0">
-                        -{commentText.length - MAX_COMMENT_LENGTH}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Payment Methods Block (Middle/Bottom) */}
-                <div className="flex-shrink-0 space-y-3 mb-4">
-                  {/* 2.1 Saved/Add Card List */}
-                  <div>
-                    <h3 className="text-sm font-medium text-text-secondary mb-2">Pay with Cards</h3>
-                    <div className="space-y-1.5">
-                      {savedCards.map((card) => (
-                        <div
-                          key={card.id}
-                          ref={(el) => {
-                            if (el) {
-                              cardMenuRefs.current[card.id] = el;
-                            }
-                          }}
-                          onClick={() => {
-                            setSelectedPaymentMethod(card.id);
-                            setPaymentCategory('card');
-                            setWaitingForPayment(false);
-                            setInvoiceGenerated(false);
-                            setOpenCardMenuId(null);
-                          }}
-                          className={`relative w-full px-3 py-3 rounded-md border transition-colors h-14 cursor-pointer ${
-                            selectedPaymentMethod === card.id && paymentCategory === 'card'
-                              ? 'border-white/20 bg-white/10'
-                              : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
-                          }`}
-                        >
-                          <div className="w-full h-full flex items-center justify-between">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0">
-                                <span className="text-xs font-medium text-text-primary leading-tight truncate">{card.cardName}</span>
-                                <span className="text-xs text-text-secondary leading-tight truncate">{card.maskedNumber}</span>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {/* Card Logo */}
-                                <div className="flex-shrink-0">
-                                  {card.type === 'UzCard' ? (
-                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm">
-                                      <span className="text-[7px] font-bold text-white tracking-tight">UZCARD</span>
-                                    </div>
-                                  ) : card.type === 'HUMO' ? (
-                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-sm">
-                                      <span className="text-[7px] font-bold text-white tracking-tight">HUMO</span>
-                                    </div>
-                                  ) : card.type === 'Visa' ? (
-                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-sm">
-                                      <span className="text-[9px] font-bold text-white tracking-wider">VISA</span>
-                                    </div>
-                                  ) : card.type === 'Mastercard' ? (
-                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-orange-500 via-red-500 to-yellow-500 flex items-center justify-center shadow-sm">
-                                      <div className="flex items-center gap-0.5">
-                                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                                        <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="w-10 h-6 rounded bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center shadow-sm">
-                                      <span className="text-[7px] font-bold text-white">CARD</span>
-                                    </div>
-                                  )}
-                                </div>
-                                {/* More Button */}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenCardMenuId(openCardMenuId === card.id ? null : card.id);
-                                  }}
-                                  className="p-1.5 rounded-full hover:bg-surface/50 text-text-secondary hover:text-text-primary transition-colors flex-shrink-0"
-                                  aria-label="More options"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                          {/* Delete Dropdown Menu */}
-                          {openCardMenuId === card.id && (
-                            <div className="absolute right-0 top-full mt-1 z-50 bg-[#1A1A1A] border border-surface rounded-lg shadow-lg overflow-hidden min-w-[120px]">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSavedCards(savedCards.filter(c => c.id !== card.id));
-                                  setOpenCardMenuId(null);
-                                  // Clear selection if deleted card was selected
-                                  if (selectedPaymentMethod === card.id) {
-                                    setSelectedPaymentMethod(null);
-                                  }
-                                }}
-                                className="w-full px-4 py-2.5 text-left text-sm text-text-primary hover:bg-surface/50 transition-colors flex items-center gap-2"
-                              >
-                                <X className="h-4 w-4" />
-                                <span>O'chirish</span>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingCard(true);
-                          setAddCardStep('name');
-                          setCardName('');
-                          setNewCardNumber('');
-                          setNewCardExpiry('');
-                          setNewCardCVC('');
-                          setSmsCode('');
-                          setCardType(null);
-                          setIsVerificationVerified(false);
-                          setSmsSent(false);
-                        }}
-                        className="w-full px-2 py-2 rounded-md border border-dashed border-white/20 bg-transparent hover:bg-white/10 transition-colors text-xs text-white hover:text-white/80 font-medium flex items-center justify-center gap-1 h-10"
-                      >
-                        <span>+</span>
-                        <span>Add card</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 2.2 Invoices */}
-                  <div>
-                    <h3 className="text-sm font-medium text-text-secondary mb-2">Invoices</h3>
-                    <div className="overflow-x-auto sidebar-scrollbar-hide">
-                      <div className="flex flex-row gap-2" style={{ width: 'max-content' }}>
-                        {[
-                          { id: 'paynet', name: 'Paynet', logo: '💸', color: 'bg-purple-600' },
-                          { id: 'click', name: 'Click', logo: '💳', color: 'bg-blue-600' },
-                          { id: 'payme', name: 'Payme', logo: '💵', color: 'bg-green-600' },
-                          { id: 'uzum', name: 'Uzum', logo: '🛒', color: 'bg-orange-600' },
-                        ].map((wallet) => (
-                          <button
-                            key={wallet.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedPaymentMethod(wallet.id);
-                              setPaymentCategory('ewallet');
-                              setWaitingForPayment(false);
-                              setInvoiceGenerated(false);
-                            }}
-                            className={`flex-shrink-0 w-24 px-3 py-3 rounded-md border transition-colors h-14 flex flex-col items-center justify-center gap-1 ${
-                              selectedPaymentMethod === wallet.id && paymentCategory === 'ewallet'
-                                ? 'border-white/20 bg-white/10'
-                                : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
-                            }`}
-                          >
-                            <div className={`w-8 h-8 rounded flex items-center justify-center ${wallet.color} text-white text-sm font-bold`}>
-                              {wallet.logo}
-                            </div>
-                            <span className="text-xs font-medium text-text-primary whitespace-nowrap">{wallet.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. Submission (Fixed Bottom) */}
-                <div className="flex-shrink-0 border-t border-surface/30 pt-4">
-                  {/* 3.1 Send Donation Button */}
-                  <Button
-                    onClick={handleProcessDonation}
-                    disabled={
-                      !donationAmount ||
-                      parseInt(donationAmount) < MIN_DONATION_AMOUNT ||
-                      !selectedPaymentMethod ||
-                      waitingForPayment
-                    }
-                    className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {waitingForPayment 
-                      ? `Waiting for payment on ${getInvoiceSystemName()}`
-                      : paymentCategory === 'ewallet' && selectedPaymentMethod && ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod)
-                        ? `Pay with ${getInvoiceSystemName()}`
-                        : 'Send Donation'
-                    }
-                  </Button>
-                </div>
-              </div>
+          {isDonationViewActive ? (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              {(() => {
+                // Step-based conditional rendering for donation flow
+                if (donationStep === 'SMS_VERIFICATION') {
+                  return renderDonationSMSVerificationView();
+                }
+                if (donationStep === 'WALLET_INVOICE_REQUEST') {
+                  return renderDonationWalletInvoiceRequestView();
+                }
+                if (donationStep === 'WALLET_WAITING') {
+                  return renderDonationWalletWaitingView();
+                }
+                // Default: Main donation form
+                return renderDonationView();
+              })()}
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto space-y-1 px-3 py-1 sidebar-scrollbar-hide">
@@ -3234,24 +4195,55 @@ export default function WatchPage() {
           {reportCommentState === 'NONE' && !isDonationViewActive ? (
             <>
               {/* Standard Comment Input Bar */}
-              <div className="sticky bottom-0 border-t border-surface/50 pt-3 pb-3 px-3 bg-[#1A1A1A]">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1 min-w-0">
-                    <Textarea
+              <div className="sticky bottom-0 border-t border-surface/50 bg-[#1A1A1A]">
+                {/* Reply Preview Bar */}
+                {replyingToComment && replyingToId && (
+                  <div className="px-3 pt-3 pb-2">
+                    <div 
+                      onClick={handleScrollToParent}
+                      className="flex items-start justify-between gap-3 px-3 py-2.5 bg-zinc-900/90 border border-zinc-800 rounded-lg shadow-lg cursor-pointer hover:bg-zinc-800/90 transition-colors group"
+                    >
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        {/* Line 1: Username */}
+                        <div className="flex items-center gap-1.5">
+                          <Reply className="h-3 w-3 text-text-secondary flex-shrink-0" />
+                          <span className="text-xs font-bold text-text-primary truncate">
+                            {replyingToComment.username}
+                          </span>
+                        </div>
+                        {/* Line 2: Comment snippet */}
+                        <p className="text-xs text-text-secondary line-clamp-1">
+                          {replyingToComment.text}
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCancelReply();
+                        }}
+                        className="p-1 rounded-full hover:bg-zinc-700 text-text-secondary hover:text-text-primary transition-colors flex-shrink-0"
+                        aria-label="Cancel reply"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                  </div>
+                </div>
+              )}
+                <div className="pt-3 pb-3 px-3">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Textarea
                   ref={commentInputRef}
-                  placeholder={replyingToId ? "Reply to comment..." : "Comment"}
+                        placeholder={replyingToId && replyingToComment ? `Reply to ${replyingToComment.username}...` : "Comment"}
                   value={commentText}
-                      maxLength={MAX_COMMENT_LENGTH}
+                        maxLength={MAX_COMMENT_LENGTH}
                   onChange={(e) => {
-                        const newValue = e.target.value;
-                        setCommentText(newValue);
-                        // Auto-resize
-                        autoResizeTextarea(e.target);
-                    // Clear replyingToId if user deletes the @ mention
-                        if (replyingToId && !newValue.startsWith('@')) {
-                      setReplyingToId(null);
-                    }
-                  }}
+                          const newValue = e.target.value;
+                          setCommentText(newValue);
+                          // Auto-resize
+                          autoResizeTextarea(e.target);
+                          // Note: replyingToId is now persistent - only cleared by Cancel button
+                        }}
                       onKeyDown={(e) => {
                         // Allow Shift+Enter for new line, Enter alone submits
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -3262,10 +4254,10 @@ export default function WatchPage() {
                         }
                       }}
                       rows={1}
-                      className={`w-full border text-text-primary text-sm transition-colors resize-none overflow-hidden ${
+                      className={`w-full border text-text-primary text-sm transition-colors resize-none overflow-hidden outline-none ${
                         commentText.length > MAX_COMMENT_LENGTH
                           ? 'border-red-500'
-                          : 'border-surface'
+                          : 'border-zinc-800 hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0'
                       } bg-surface`}
                       style={{ minHeight: '40px', maxHeight: '120px' }}
                     />
@@ -3302,6 +4294,7 @@ export default function WatchPage() {
                 </Button>
               </div>
             </div>
+                  </div>
                 </div>
               </div>
             </>
@@ -3331,7 +4324,7 @@ export default function WatchPage() {
 
       {/* Mobile Comments Overlay */}
       {hasFullAccess && isCommentsOpen && (
-        <div className="fixed inset-0 bg-black/80 z-50 lg:hidden">
+        <div className="fixed inset-0 bg-black/80 z-50 lg:hidden" ref={mobileCommentsSectionRef}>
           <div className="absolute right-0 top-0 bottom-0 w-[90vw] max-w-[400px] bg-[#1A1A1A] flex flex-col overflow-hidden">
             {/* Close Button */}
             <div className="flex items-center justify-between p-4 border-b border-surface/50">

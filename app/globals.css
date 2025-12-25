@@ -253,6 +253,57 @@ small {
   border: none !important;
 }
 
+/* Volume Slider - Circular Thumb on Hover */
+.volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+.volume-slider:hover::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+.volume-slider:hover::-moz-range-thumb {
+  opacity: 1;
+}
+
+/* Volume Slider Track - White background with radius on hover */
+.volume-slider-wrapper {
+  transition: background-color 0.2s ease;
+}
+
+.volume-slider {
+  z-index: 1;
+}
+
+.volume-slider::-webkit-slider-runnable-track {
+  background: transparent;
+}
+
+.volume-slider::-moz-range-track {
+  background: transparent;
+  border: none;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from {

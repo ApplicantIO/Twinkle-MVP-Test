@@ -1286,6 +1286,7 @@ export function VideoPlayer({
                 )}
               </Button>
               {showVolumeSlider && (
+            <div className="volume-slider-wrapper relative w-16 h-1 rounded-full bg-white/20 transition-all duration-200 hover:bg-white/40">
             <input
               type="range"
               min="0"
@@ -1293,11 +1294,18 @@ export function VideoPlayer({
               step="0.01"
               value={volume}
               onChange={handleVolumeChange}
-                    className="w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-white"
+                    className="volume-slider absolute inset-0 w-full h-full appearance-none cursor-pointer bg-transparent"
                   style={{
-                      background: `linear-gradient(to right, white 0%, white ${volume * 100}%, rgba(255,255,255,0.2) ${volume * 100}%, rgba(255,255,255,0.2) 100%)`,
+                      background: `linear-gradient(to right, transparent 0%, transparent ${volume * 100}%, transparent ${volume * 100}%, transparent 100%)`,
                   }}
             />
+            <div 
+              className="absolute inset-0 h-full rounded-full pointer-events-none"
+              style={{
+                background: `linear-gradient(to right, white 0%, white ${volume * 100}%, transparent ${volume * 100}%, transparent 100%)`,
+              }}
+            />
+            </div>
               )}
           </div>
           

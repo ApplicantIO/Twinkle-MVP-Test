@@ -8,6 +8,14 @@ import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
+interface SavedCard {
+  id: string;
+  type: string;
+  last4: string;
+  cardName: string;
+  maskedNumber: string;
+}
+
 interface MonetizationCTASectionProps {
   video: Video;
   onPurchase?: () => void;
@@ -24,10 +32,24 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
   const [isCardFormActive, setIsCardFormActive] = useState(false);
   const [purchaseStep, setPurchaseStep] = useState<'PAYMENT' | 'SMS_VERIFICATION' | 'WALLET_INVOICE_REQUEST' | 'WALLET_WAITING' | 'PAYMENT_SUCCESS'>('PAYMENT');
   const [currentTransaction, setCurrentTransaction] = useState<Transaction | null>(null);
-  const [savedCards, setSavedCards] = useState([
-    { id: '1', type: 'UzCard', last4: '1234', cardName: 'Uy Karta', maskedNumber: '**** 4321' },
-    { id: '2', type: 'HUMO', last4: '5678', cardName: 'Ish Karta', maskedNumber: '**** 8765' },
-  ]);
+  // Load saved cards from localStorage on mount
+  const [savedCards, setSavedCards] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('savedCards');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          console.error('Error parsing saved cards:', e);
+        }
+      }
+    }
+    // Default cards
+    return [
+      { id: '1', type: 'UzCard', last4: '1234', cardName: 'Uy Karta', maskedNumber: '**** 4321' },
+      { id: '2', type: 'HUMO', last4: '5678', cardName: 'Ish Karta', maskedNumber: '**** 8765' },
+    ];
+  });
   const [openCardMenuId, setOpenCardMenuId] = useState<string | null>(null);
   const [cardName, setCardName] = useState('');
   const [newCardNumber, setNewCardNumber] = useState('');
@@ -261,7 +283,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
 
   const handlePayNow = () => {
     // Check if using saved card, new card, or wallet
-    const isUsingSavedCard = selectedPaymentMethod && savedCards.find(c => c.id === selectedPaymentMethod);
+    const isUsingSavedCard = selectedPaymentMethod && savedCards.find((c: SavedCard) => c.id === selectedPaymentMethod);
     const walletSystems = ['paynet', 'click', 'payme', 'uzum'];
     const isUsingWallet = selectedPaymentMethod && walletSystems.includes(selectedPaymentMethod);
     const isUsingNewCard = !isUsingSavedCard && !isUsingWallet && isNewCardValid();
@@ -283,7 +305,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
     let cardLast4 = '';
     
     if (isUsingSavedCard) {
-      const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
+      const savedCard = savedCards.find((c: SavedCard) => c.id === selectedPaymentMethod);
       if (savedCard) {
         // Detect type from saved card
         detectedCardType = (savedCard.type === 'UzCard' || savedCard.type === 'HUMO') ? 'local' : 'international';
@@ -313,7 +335,12 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
           maskedNumber: `**** ${last4}`,
         };
 
-        setSavedCards([...savedCards, newCard]);
+        const updatedCards = [...savedCards, newCard];
+        setSavedCards(updatedCards);
+        // Persist to localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('savedCards', JSON.stringify(updatedCards));
+        }
       }
 
       // Simulate 3D Secure processing
@@ -410,7 +437,12 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
           maskedNumber: `**** ${last4}`,
         };
 
-        setSavedCards([...savedCards, newCard]);
+        const updatedCards = [...savedCards, newCard];
+        setSavedCards(updatedCards);
+        // Persist to localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('savedCards', JSON.stringify(updatedCards));
+        }
       }
 
       // Process payment success
@@ -428,7 +460,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
     const taxAmount = Math.round(subtotal * taxRate);
     const total = subtotal + taxAmount;
     
-    const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
+    const savedCard = savedCards.find((c: SavedCard) => c.id === selectedPaymentMethod);
     let paymentMethodDisplay = '';
     
     if (isUsingSavedCard && savedCard) {
@@ -606,7 +638,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
     if (!selectedPaymentMethod) return 'Unknown';
     
     // Check if it's a saved card
-    const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
+    const savedCard = savedCards.find((c: SavedCard) => c.id === selectedPaymentMethod);
     if (savedCard) {
       return savedCard.type;
     }
@@ -772,7 +804,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
             <div>
               <h3 className="text-sm font-medium text-text-secondary mb-2">Pay with Card(s)</h3>
               <div className="space-y-1.5">
-                {savedCards.map((card) => (
+                {savedCards.map((card: SavedCard) => (
                       <div
                         key={card.id}
                         ref={(el) => {
@@ -869,7 +901,12 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSavedCards(savedCards.filter(c => c.id !== card.id));
+                                const updatedCards = savedCards.filter((c: SavedCard) => c.id !== card.id);
+                                setSavedCards(updatedCards);
+                                // Update localStorage
+                                if (typeof window !== 'undefined') {
+                                  localStorage.setItem('savedCards', JSON.stringify(updatedCards));
+                                }
                                 setOpenCardMenuId(null);
                                 if (selectedPaymentMethod === card.id) {
                                   setSelectedPaymentMethod(null);
@@ -928,7 +965,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                             }
                           }}
                           maxLength={19}
-                          className="w-full bg-surface border-surface text-text-primary h-10 outline-none focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white"
+                          className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-white focus:ring-0 focus-visible:border-white focus-visible:ring-0"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -954,7 +991,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                               setSelectedWallet(null); // Clear wallet selection when typing
                             }}
                             maxLength={5}
-                            className="w-full bg-surface border-surface text-text-primary h-10 outline-none focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white"
+                            className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-white focus:ring-0 focus-visible:border-white focus-visible:ring-0"
                           />
                         </div>
                         {/* CVV field - only for international cards */}
@@ -980,7 +1017,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                                 setSelectedWallet(null); // Clear wallet selection when typing
                               }}
                               maxLength={3}
-                              className="w-full bg-surface border-surface text-text-primary h-10 outline-none focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white"
+                              className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-white focus:ring-0 focus-visible:border-white focus-visible:ring-0"
                             />
                           </div>
                         ) : (
@@ -1027,7 +1064,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                               setSelectedPaymentMethod(null); // Clear saved card selection when typing
                               setSelectedWallet(null); // Clear wallet selection when typing
                             }}
-                            className="w-full bg-surface border-surface text-text-primary h-10 outline-none focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white"
+                            className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-white focus:ring-0 focus-visible:border-white focus-visible:ring-0"
                           />
                         </div>
                       )}
@@ -1283,7 +1320,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                 className={`w-full h-10 outline-none ${
                   activeInvoiceIdentifier === 'card'
                     ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
-                        : 'bg-surface border-surface text-text-primary focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white'
+                        : 'bg-surface border-zinc-800 text-text-primary hover:border-zinc-600 focus:border-white focus:ring-0 focus-visible:border-white focus-visible:ring-0'
                 }`}
               />
             </div>
@@ -1342,7 +1379,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                     className={`w-full h-10 outline-none ${
                       activeInvoiceIdentifier === 'phone'
                         ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
-                        : 'bg-surface border-surface text-text-primary focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white hover:border-white/50'
+                        : 'bg-surface border-zinc-800 text-text-primary hover:border-zinc-600 focus:border-white focus:ring-0 focus-visible:border-white focus-visible:ring-0'
                     }`}
                   />
                 </div>
@@ -1384,7 +1421,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
                     className={`w-full h-10 outline-none ${
                       activeInvoiceIdentifier === 'phone'
                         ? 'bg-surface/20 border-surface/30 text-text-secondary/50 cursor-not-allowed'
-                        : 'bg-surface border-surface text-text-primary focus:border-white focus:ring-1 focus:ring-white focus-visible:border-white focus-visible:ring-1 focus-visible:ring-white hover:border-white/50'
+                        : 'bg-surface border-zinc-800 text-text-primary hover:border-zinc-600 focus:border-white focus:ring-0 focus-visible:border-white focus-visible:ring-0'
                     }`}
                   />
                 </div>
@@ -1471,7 +1508,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
 
   // Render SMS Verification View (Local Cards Only)
   const renderSMSVerificationView = () => {
-    const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
+    const savedCard = savedCards.find((c: SavedCard) => c.id === selectedPaymentMethod);
     const cardDisplay = savedCard 
       ? `${savedCard.type} ending in ${savedCard.last4}`
       : cardType === 'local' 
@@ -1579,7 +1616,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
       const taxAmount = Math.round(subtotal * taxRate);
       const total = subtotal + taxAmount;
       
-      const savedCard = savedCards.find(c => c.id === selectedPaymentMethod);
+      const savedCard = savedCards.find((c: SavedCard) => c.id === selectedPaymentMethod);
       const paymentMethodDisplay = savedCard 
         ? `${savedCard.type} ending in ${savedCard.last4}`
         : getPaymentMethodName();
