@@ -4019,7 +4019,9 @@ export default function WatchPage() {
             }}
             onPurchaseComplete={() => {
               // Refresh page or update state to show comments
-              window.location.reload();
+              if (typeof window !== 'undefined') {
+                window.location.reload();
+              }
             }}
           />
         </div>

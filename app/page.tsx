@@ -139,7 +139,11 @@ export default function HomePage() {
         <div className="text-center">
           <p className="text-error mb-4">{error}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.reload();
+              }
+            }}
             className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90"
           >
             Retry
