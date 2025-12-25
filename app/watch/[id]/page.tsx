@@ -2873,21 +2873,21 @@ export default function WatchPage() {
                 ) : (
                   <span className="text-sm font-medium text-text-primary truncate min-w-0">
                     {comment.username}
-                  </span>
+              </span>
                 )}
                 {/* Donation Amount (if applicable) - Always visible */}
-                {comment.isDonated && comment.donationAmount && (
+              {comment.isDonated && comment.donationAmount && (
                   <span className="text-xs font-bold text-accent flex-shrink-0">
-                    {comment.donationAmount.toLocaleString()} UZS
-                  </span>
-                )}
+                  {comment.donationAmount.toLocaleString()} UZS
+                </span>
+              )}
                 {/* Timestamp - Only visible for VOD (non-live) videos */}
                 {!isLiveMode && (
                   <span className="text-xs font-medium text-zinc-500 flex-shrink-0 ml-2">
                     {formatRelativeTime(comment.timestamp)}
                   </span>
                 )}
-              </div>
+            </div>
             </div>
             {/* More Button - Available for all comments and replies */}
               <div className="relative flex-shrink-0">
@@ -3664,9 +3664,9 @@ export default function WatchPage() {
                     <LayoutGrid className="h-5 w-5" />
                   )}
                 </button>
-              </div>
             </div>
-
+          </div>
+        
             {/* Video List/Grid */}
             <div className="w-full max-w-full">
             {(() => {
