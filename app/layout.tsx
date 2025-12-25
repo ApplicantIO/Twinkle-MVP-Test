@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
 import { MiniplayerProvider } from "@/contexts/MiniplayerContext";
@@ -44,6 +45,7 @@ export default function RootLayout({
             </MiniplayerProvider>
           </SidebarProvider>
         </AuthProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
