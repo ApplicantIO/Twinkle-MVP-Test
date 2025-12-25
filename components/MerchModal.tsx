@@ -142,15 +142,15 @@ export default function MerchModal({ item, isOpen, onClose }: MerchModalProps) {
         {/* Right Column: Product Details */}
         <div className="flex-1 flex flex-col p-6 overflow-y-auto max-h-[60vh] md:max-h-none">
           <div className="space-y-4 flex-1">
+            {/* Creator Tag - First, muted */}
+            <div className="text-sm text-zinc-400">
+              By {item.creator}
+            </div>
+
             {/* Product Title - Large, Bold */}
             <h2 className="text-2xl font-bold text-text-primary pr-8">
               {item.name}
             </h2>
-
-            {/* Creator Tag - Below title, muted */}
-            <div className="text-sm text-zinc-400">
-              By {item.creator}
-            </div>
 
             {/* Price - Prominent display */}
             <p className="text-xl font-semibold text-text-primary">
