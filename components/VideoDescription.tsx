@@ -51,8 +51,8 @@ const linkifyText = (text: string): ReactNode[] => {
   let keyIndex = 0;
   let currentIndex = 0;
 
-  // Combined pattern: timecodes (HH:MM or H:MM) and URLs
-  const timecodePattern = /\d{1,2}:\d{2}/g;
+  // Combined pattern: timecodes (HH:MM:SS, MM:SS, or M:SS) and URLs
+  const timecodePattern = /\d{1,2}:\d{2}(:\d{2})?/g;
   const urlPattern = /https?:\/\/[^\s]+/g;
 
   // Find all matches with their positions
@@ -105,12 +105,24 @@ const linkifyText = (text: string): ReactNode[] => {
       result.push(
         <span
           key={`timecode-${keyIndex++}`}
-          className="text-accent font-medium cursor-pointer hover:underline"
+          className="text-blue-500 cursor-pointer hover:underline"
           onClick={() => {
-            const [minutes, seconds] = match.text.split(':').map(Number);
-            const totalSeconds = minutes * 60 + seconds;
-            console.log(`Seek to ${totalSeconds} seconds`);
-            // TODO: Integrate with video player
+            // Parse timecode format: HH:MM:SS, MM:SS, or M:SS
+            const parts = match.text.split(':').map(Number);
+            let totalSeconds = 0;
+            
+            if (parts.length === 3) {
+              // HH:MM:SS format
+              totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            } else if (parts.length === 2) {
+              // MM:SS or M:SS format
+              totalSeconds = parts[0] * 60 + parts[1];
+            }
+            
+            // Dispatch custom event for video player
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('videoSeek', { detail: { time: totalSeconds } }));
+            }
           }}
         >
           {match.text}
@@ -123,7 +135,7 @@ const linkifyText = (text: string): ReactNode[] => {
           href={match.text}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-accent hover:underline break-all"
+          className="text-blue-500 hover:underline break-all"
         >
           {match.text}
         </a>
@@ -151,8 +163,8 @@ export default function VideoDescription({
   const [selectedMerch, setSelectedMerch] = useState<MerchItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Use mock description if none provided
-  const displayDescription = description || MOCK_DESCRIPTION;
+  // Use mock description if provided description is too short (less than 250 characters)
+  const displayDescription = (description && description.trim().length > 250) ? description : MOCK_DESCRIPTION;
   
   // Real merchandise items from Tirikchilik.uz
   const defaultMerchItems: MerchItem[] = [

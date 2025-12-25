@@ -2721,19 +2721,137 @@ export default function WatchPage() {
     }
   })();
 
-  // Helper function to render comment text with highlighted @mentions
+  // Helper function to render comment text with highlighted @mentions and clickable timecodes
   const renderCommentText = (text: string) => {
-    const parts = text.split(/(@\w+)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith('@')) {
-        return (
-          <span key={index} className="text-blue-400 hover:text-blue-300 cursor-pointer">
-            {part}
+    if (!text) return null;
+
+    const result: React.ReactNode[] = [];
+    let keyIndex = 0;
+    let currentIndex = 0;
+
+    // Patterns: @mentions, timecodes (HH:MM:SS, MM:SS, or M:SS), and URLs
+    const mentionPattern = /@\w+/g;
+    const timecodePattern = /\d{1,2}:\d{2}(:\d{2})?/g;
+    const urlPattern = /https?:\/\/[^\s]+/g;
+
+    // Find all matches with their positions
+    const matches: Array<{ start: number; end: number; type: 'mention' | 'timecode' | 'url'; text: string }> = [];
+    
+    let match;
+    mentionPattern.lastIndex = 0;
+    while ((match = mentionPattern.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        type: 'mention',
+        text: match[0],
+      });
+    }
+
+    timecodePattern.lastIndex = 0;
+    while ((match = timecodePattern.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        type: 'timecode',
+        text: match[0],
+      });
+    }
+
+    urlPattern.lastIndex = 0;
+    while ((match = urlPattern.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        type: 'url',
+        text: match[0],
+      });
+    }
+
+    // Sort matches by position
+    matches.sort((a, b) => a.start - b.start);
+
+    // Remove overlapping matches (prioritize mentions, then timecodes, then URLs)
+    const filteredMatches: typeof matches = [];
+    for (const match of matches) {
+      const overlaps = filteredMatches.some(
+        (m) => !(match.end <= m.start || match.start >= m.end)
+      );
+      if (!overlaps) {
+        filteredMatches.push(match);
+      }
+    }
+
+    // Build result
+    filteredMatches.forEach((match) => {
+      // Add text before match
+      if (match.start > currentIndex) {
+        result.push(<span key={`text-${keyIndex++}`}>{text.substring(currentIndex, match.start)}</span>);
+      }
+
+      // Add the match
+      if (match.type === 'mention') {
+        const isLiveMode = video?.isLive === true;
+        result.push(
+          <span
+            key={`mention-${keyIndex++}`}
+            className="text-blue-400 hover:text-blue-300 cursor-pointer"
+            onClick={() => handleMentionClick(match.text)}
+          >
+            {match.text}
           </span>
         );
+      } else if (match.type === 'timecode') {
+        result.push(
+          <span
+            key={`timecode-${keyIndex++}`}
+            className="text-blue-500 cursor-pointer hover:underline"
+            onClick={() => {
+              // Parse timecode format: HH:MM:SS, MM:SS, or M:SS
+              const parts = match.text.split(':').map(Number);
+              let totalSeconds = 0;
+              
+              if (parts.length === 3) {
+                // HH:MM:SS format
+                totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              } else if (parts.length === 2) {
+                // MM:SS or M:SS format
+                totalSeconds = parts[0] * 60 + parts[1];
+              }
+              
+              // Dispatch custom event for video player
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('videoSeek', { detail: { time: totalSeconds } }));
+              }
+            }}
+          >
+            {match.text}
+          </span>
+        );
+      } else if (match.type === 'url') {
+        result.push(
+          <a
+            key={`url-${keyIndex++}`}
+            href={match.text}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline break-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {match.text}
+          </a>
+        );
       }
-      return <span key={index}>{part}</span>;
+
+      currentIndex = match.end;
     });
+
+    // Add remaining text
+    if (currentIndex < text.length) {
+      result.push(<span key={`text-${keyIndex++}`}>{text.substring(currentIndex)}</span>);
+    }
+
+    return result.length > 0 ? result : <span key={0}>{text}</span>;
   };
 
   // Helper function to count total replies recursively (including nested)
@@ -2885,8 +3003,8 @@ export default function WatchPage() {
                 {!isLiveMode && (
                   <span className="text-xs font-medium text-zinc-500 flex-shrink-0 ml-2">
                     {formatRelativeTime(comment.timestamp)}
-                  </span>
-                )}
+                </span>
+              )}
             </div>
             </div>
             {/* More Button - Available for all comments and replies */}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { 
   Play, 
   Pause, 
@@ -56,6 +56,7 @@ export function VideoPlayer({
   const { isMiniplayerActive, setIsMiniplayerActive, activateMiniplayer, miniplayerProgress, closeMiniplayer } = useMiniplayer();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   
   // Check if we're on the watch page
   const isOnWatchPage = pathname?.startsWith('/watch/') || false;
@@ -265,6 +266,28 @@ export function VideoPlayer({
     }
   }, []);
 
+  // Handle URL parameter ?t=seconds for deep linking
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !searchParams) return;
+
+    const timeParam = searchParams.get('t');
+    if (timeParam) {
+      const seekTime = parseFloat(timeParam);
+      if (!isNaN(seekTime) && seekTime >= 0) {
+        const seekToTime = () => {
+          if (video.readyState >= 2) {
+            video.currentTime = seekTime;
+            setCurrentTime(seekTime);
+          } else {
+            video.addEventListener('loadedmetadata', seekToTime, { once: true });
+          }
+        };
+        seekToTime();
+      }
+    }
+  }, [searchParams]);
+
   // Handle video events
   useEffect(() => {
     const video = videoRef.current;
@@ -303,6 +326,30 @@ export function VideoPlayer({
     video.addEventListener('pause', handlePause);
     video.addEventListener('volumechange', handleVolumeChange);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    // Handle videoSeek custom event from timecode clicks
+    const handleVideoSeek = (event: Event) => {
+      const customEvent = event as CustomEvent<{ time: number }>;
+      const seekTime = customEvent.detail?.time;
+      if (seekTime !== undefined && seekTime >= 0) {
+        if (video.readyState >= 2) {
+          video.currentTime = seekTime;
+          setCurrentTime(seekTime);
+        } else {
+          // Wait for video to be ready before seeking
+          const seekWhenReady = () => {
+            video.currentTime = seekTime;
+            setCurrentTime(seekTime);
+          };
+          video.addEventListener('loadedmetadata', seekWhenReady, { once: true });
+        }
+      }
+    };
+
+    // Add event listener for videoSeek
+    if (typeof window !== 'undefined') {
+      window.addEventListener('videoSeek', handleVideoSeek);
+    }
 
     // Set initial volume
     video.volume = volume;
@@ -359,6 +406,9 @@ export function VideoPlayer({
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('volumechange', handleVolumeChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('videoSeek', handleVideoSeek);
+      }
     };
   }, [autoPlay, volume, isMuted, onProgressUpdate, isMiniplayerActive, miniplayerProgress, effectiveVideoUrl]);
 
