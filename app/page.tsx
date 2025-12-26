@@ -412,7 +412,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
           {/* Column 2: Details Block (Flex-Grow) */}
               <div className="flex-1 min-w-0">
             {/* Title - Always white, no color change on hover */}
-            <h3 className="font-medium text-sm text-text-primary line-clamp-2 mb-1 leading-5">
+            <h3 className="font-medium text-sm text-text-primary line-clamp-3 mb-1 leading-5">
                   {video.title}
                 </h3>
             

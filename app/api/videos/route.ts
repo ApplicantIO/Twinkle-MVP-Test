@@ -11,7 +11,7 @@ function getSampleVideos(): any[] {
     {
       id: 'sample-live-1',
       userId: 'sample-creator-5',
-      title: 'Lo-Fi Hip Hop Radio - Beats to Relax/Study To',
+      title: 'Lofi Girl - 24/7 lofi hip hop radio - beats to relax/study to',
       description: 'Chill beats for studying, working, and relaxing',
       thumbnailUrl: 'https://img.youtube.com/vi/jfKfPfyJRdk/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/jfKfPfyJRdk',
@@ -31,7 +31,7 @@ function getSampleVideos(): any[] {
     {
       id: 'sample-live-2',
       userId: 'sample-creator-6',
-      title: 'Live Masterclass: Advanced Video Editing Techniques',
+      title: 'Pro Video Academy - Live Masterclass: Advanced Video Editing Techniques & Professional Workflow (Tutorial)',
       description: 'Join us for a live masterclass on professional video editing',
       thumbnailUrl: 'https://img.youtube.com/vi/ScMzIvxBSi4/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/ScMzIvxBSi4',
@@ -53,7 +53,7 @@ function getSampleVideos(): any[] {
     {
       id: 'sample-live-3',
       userId: 'sample-creator-7',
-      title: 'Premium Concert Live Stream - Exclusive Performance',
+      title: 'Premium Music Live - Exclusive Concert Live Stream: Premium Performance & Behind the Scenes (Live Event)',
       description: 'Join us for an exclusive live concert performance',
       thumbnailUrl: 'https://img.youtube.com/vi/fJ9rUzIMcZQ/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/fJ9rUzIMcZQ',
@@ -74,7 +74,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-C4qJeIjNd2U',
       userId: 'youtube-creator-1',
-      title: 'Lo-Fi Girl - Live Stream',
+      title: 'Lofi Girl - 24/7 lofi hip hop radio - beats to relax/study to (Live Stream)',
       description: 'Chill beats for studying and relaxing',
       thumbnailUrl: 'https://img.youtube.com/vi/C4qJeIjNd2U/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/C4qJeIjNd2U',
@@ -110,7 +110,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-jX3Sz7OGE24',
       userId: 'youtube-creator-3',
-      title: 'UPG Video',
+      title: 'UPG - Comedy Video Series: Funny Moments & Entertainment Content (Official Video)',
       description: 'UPG content',
       thumbnailUrl: 'https://img.youtube.com/vi/jX3Sz7OGE24/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/jX3Sz7OGE24',
@@ -128,7 +128,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-KusNJWidU4E',
       userId: 'youtube-creator-4',
-      title: 'Ixa Reaksiya',
+      title: 'Ixa Reaksiya - Reaction Video: Entertainment & Commentary (Official Video)',
       description: 'Reaction video',
       thumbnailUrl: 'https://img.youtube.com/vi/KusNJWidU4E/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/KusNJWidU4E',
@@ -146,7 +146,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-oqZGEwKW1SA',
       userId: 'youtube-creator-5',
-      title: "O'zimiz Uz",
+      title: "O'zimiz Uz - Uzbek Comedy & Entertainment: Latest Episodes & Funny Content (Official Video)",
       description: 'Uzbek content',
       thumbnailUrl: 'https://img.youtube.com/vi/oqZGEwKW1SA/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/oqZGEwKW1SA',
@@ -164,7 +164,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-MTQDIQ3XsjA',
       userId: 'youtube-creator-6',
-      title: 'Reaktor',
+      title: 'Reaktor - Educational Content & Science Explained: Latest Episodes & Deep Dives (Official Video)',
       description: 'Reactor content',
       thumbnailUrl: 'https://img.youtube.com/vi/MTQDIQ3XsjA/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/MTQDIQ3XsjA',
@@ -182,7 +182,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-jHxPEAzaay4',
       userId: 'youtube-creator-7',
-      title: 'NQE Podcast',
+      title: 'NQE Podcast - Weekly Episodes: Interviews, Discussions & Entertainment Content (Full Episode)',
       description: 'Podcast episode',
       thumbnailUrl: 'https://img.youtube.com/vi/jHxPEAzaay4/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/jHxPEAzaay4',
@@ -200,7 +200,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-EzvbW5QiYaA',
       userId: 'youtube-creator-8',
-      title: 'Kunduziy',
+      title: 'KUNDUZIY - Creative Content & Original Series: Latest Episodes & Behind the Scenes (Official Video)',
       description: 'Kunduziy content',
       thumbnailUrl: 'https://img.youtube.com/vi/EzvbW5QiYaA/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/EzvbW5QiYaA',
@@ -218,7 +218,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-f6LcqfWPRKc',
       userId: 'youtube-creator-9',
-      title: 'Ziyokhonov',
+      title: 'Ziyokhonov - Comedy & Entertainment: Latest Videos & Funny Content Collection (Official Video)',
       description: 'Ziyokhonov content',
       thumbnailUrl: 'https://img.youtube.com/vi/f6LcqfWPRKc/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/f6LcqfWPRKc',
@@ -236,7 +236,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-4ymODZahOc4',
       userId: 'youtube-creator-10',
-      title: 'Subyektiv',
+      title: 'Subyektiv - Thought-Provoking Content & Discussions: Latest Episodes & Deep Analysis (Official Video)',
       description: 'Subyektiv content',
       thumbnailUrl: 'https://img.youtube.com/vi/4ymODZahOc4/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/4ymODZahOc4',
@@ -254,7 +254,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-moC2ww1EPFc',
       userId: 'youtube-creator-11',
-      title: 'Abuser',
+      title: 'Abuser - Entertainment & Comedy Content: Latest Videos & Funny Moments Collection (Official Video)',
       description: 'Abuser content',
       thumbnailUrl: 'https://img.youtube.com/vi/moC2ww1EPFc/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/moC2ww1EPFc',
@@ -272,7 +272,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-LPTKcovO2X0',
       userId: 'youtube-creator-12',
-      title: 'Laylo - Music Video',
+      title: 'Laylo - Official Music Video: Latest Releases & Exclusive Content (Music Video)',
       description: 'Laylo official music video',
       thumbnailUrl: 'https://img.youtube.com/vi/LPTKcovO2X0/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/LPTKcovO2X0',
@@ -308,7 +308,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-Bybqwt4RCjI',
       userId: 'youtube-creator-13',
-      title: 'Nma Gap shaha dolimov',
+      title: "Nma Gap - Shaha Dolimov: Comedy Content & Entertainment Series (Official Video)",
       description: 'Nma Gap content',
       thumbnailUrl: 'https://img.youtube.com/vi/Bybqwt4RCjI/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/Bybqwt4RCjI',
@@ -326,7 +326,7 @@ function getSampleVideos(): any[] {
     {
       id: 'youtube-enaOSQEDhfk',
       userId: 'youtube-creator-14',
-      title: 'Mirshakar Fayzullayev',
+      title: 'Mirshakar Fayzullayev - Official Content: Latest Episodes & Entertainment Videos (Official Video)',
       description: 'Mirshakar Fayzullayev content',
       thumbnailUrl: 'https://img.youtube.com/vi/enaOSQEDhfk/maxresdefault.jpg',
       videoUrl: 'https://www.youtube.com/embed/enaOSQEDhfk',
@@ -345,7 +345,7 @@ function getSampleVideos(): any[] {
     {
       id: 'twinkle_star_test_video',
       userId: 'twinkle-creator-1',
-      title: 'Twinkle Star Test',
+      title: 'Twinkle Official - Twinkle Star Test Video: Platform Demo & Feature Showcase (Official Video)',
       description: 'A test video for the Twinkle platform featuring the official Twinkle Star content.',
       thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Star&background=7C5FD9&color=fff&size=128',
       videoUrl: '/videos/twinkle-video.mp4',
@@ -365,7 +365,7 @@ function getSampleVideos(): any[] {
     {
       id: 'twinkle_paid_content',
       userId: 'twinkle-creator-1',
-      title: 'Twinkle Star - Paid Content Test',
+      title: 'Twinkle Official - Twinkle Star Paid Content Test: Premium Features & Exclusive Content Demo (Official Video)',
       description: 'A test video for the Twinkle platform featuring paid content. This video requires purchase to view.',
       thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Star&background=7C5FD9&color=fff&size=128',
       videoUrl: '/videos/twinkle-video.mp4', // Fallback for backward compatibility
@@ -390,7 +390,7 @@ function getSampleVideos(): any[] {
     {
       id: 'twinkle_membership_content',
       userId: 'twinkle-creator-1',
-      title: 'Twinkle Star - Membership Content Test',
+      title: 'Twinkle Official - Twinkle Star Membership Content Test: Subscription Features & Members-Only Content (Official Video)',
       description: 'A test video for the Twinkle platform featuring subscription/membership content. This video requires channel membership to view.',
       thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Star&background=7C5FD9&color=fff&size=128',
       videoUrl: '/videos/twinkle-video.mp4', // Fallback for backward compatibility
@@ -413,7 +413,7 @@ function getSampleVideos(): any[] {
     {
       id: 'twinkle_live_video_test',
       userId: 'twinkle-creator-1',
-      title: 'Twinkle Live Video Test',
+      title: 'Twinkle Official - Twinkle Live Video Test: Live Streaming Features & Real-Time Content Demo (Live Stream)',
       description: 'A live streaming test video for the Twinkle platform.',
       thumbnailUrl: 'https://ui-avatars.com/api/?name=Twinkle+Live&background=ef4444&color=fff&size=128',
       videoUrl: 'https://www.youtube.com/embed/jfKfPfyJRdk',

@@ -3821,7 +3821,7 @@ export default function WatchPage() {
                 // Grid/Card View - Match Homepage styling with dynamic columns
                 return (
                   <div 
-                    className="grid gap-x-0 gap-y-4"
+                    className="grid gap-x-0 gap-y-0"
                     style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
                   >
                     {filteredVideos.map((relatedVideo) => {
@@ -3888,7 +3888,7 @@ export default function WatchPage() {
                               
                               {/* Column 2: Details Block (Flex-Grow) */}
                               <div className="flex-1 min-w-0 relative">
-                                <h3 className="font-medium text-sm text-text-primary line-clamp-2 mb-1 leading-5">
+                                <h3 className="font-medium text-sm text-text-primary line-clamp-3 mb-1 leading-5">
                                   {relatedVideo.title}
                                 </h3>
                                 
@@ -3980,7 +3980,7 @@ export default function WatchPage() {
               } else {
                 // List View (Vertical) - Larger thumbnails and More button
                 return (
-                  <div className="space-y-4">
+                  <div className="space-y-0">
                     {filteredVideos.map((relatedVideo) => {
                       const isMenuOpen = openMenuVideoId === relatedVideo.id;
                       
@@ -4027,7 +4027,7 @@ export default function WatchPage() {
                           {/* Video Info - Flex grow with More button */}
                           <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0 flex flex-col gap-2">
-                              <h4 className="text-base font-medium text-text-primary line-clamp-2 group-hover:text-white transition-colors leading-snug">
+                              <h4 className="text-base font-medium text-text-primary line-clamp-3 group-hover:text-white transition-colors leading-snug">
                                 {relatedVideo.title}
                               </h4>
                               <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
