@@ -796,6 +796,8 @@ export function VideoPlayer({
       let newY = dragOffset.current.y + deltaY;
 
       // Boundary constraints - keep player within viewport
+      if (typeof window === 'undefined') return;
+      
       const playerWidth = 384; // w-96 = 384px
       const playerHeight = 224; // h-56 = 224px
       const padding = 16; // 4 * 4px = 16px

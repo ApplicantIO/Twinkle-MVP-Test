@@ -22,6 +22,8 @@ export default function HomePage() {
 
   // Calculate optimal number of columns based on viewport width
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const calculateColumns = () => {
       const width = window.innerWidth;
       if (width < 640) return 1;

@@ -848,6 +848,8 @@ export default function WatchPage() {
 
   // Calculate optimal number of columns based on viewport width (for grid layout)
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const calculateColumns = () => {
       const width = window.innerWidth;
       if (width < 640) return 1;
