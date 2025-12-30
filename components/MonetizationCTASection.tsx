@@ -21,9 +21,10 @@ interface MonetizationCTASectionProps {
   onPurchase?: () => void;
   onSubscribe?: () => void;
   onPurchaseComplete?: () => void;
+  isPlaylist?: boolean; // Indicates if this is a playlist purchase
 }
 
-export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurchaseComplete }: MonetizationCTASectionProps) {
+export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurchaseComplete, isPlaylist = false }: MonetizationCTASectionProps) {
   const videoType = video.type || 'free';
   const isPaid = videoType === 'paid';
   const isSubscription = videoType === 'subscription';
@@ -785,6 +786,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
               <div className="text-3xl font-bold text-white">
                 {formattedPrice} {video.currency || 'UZS'}
                 {isSubscription && <span className="text-lg font-normal text-gray-400">/month</span>}
+                {!isSubscription && isPlaylist && <span className="text-lg font-normal text-gray-400 opacity-60"> / Playlist</span>}
               </div>
             </div>
 

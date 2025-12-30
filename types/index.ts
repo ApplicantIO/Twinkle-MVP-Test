@@ -71,3 +71,28 @@ export interface Transaction {
   billingAddress?: string;
   userName?: string;
 }
+
+// Playlist & Super-album system
+export interface PlaylistSection {
+  id: string;
+  title: string;
+  videoIds: string[];
+}
+
+export interface Playlist {
+  id: string;
+  title: string;
+  description?: string;
+  creatorName: string; // Creator's name (e.g., "Konsta")
+  creatorId?: string; // Creator's user ID for linking to channel
+  creatorAvatar?: string; // Creator's profile image URL
+  type: string; // e.g., 'Musical Playlist', 'Course'
+  price?: string; // Price as string (e.g., '50,000 UZS')
+  isSubscription?: boolean;
+  lastUpdated: string; // ISO date string
+  videoCount: number;
+  sections: PlaylistSection[];
+  allVideoIds: string[];
+  thumbnail?: string; // Creator-provided playlist thumbnail
+  firstVideoThumbnail?: string; // Thumbnail from first video (fallback)
+}

@@ -312,6 +312,17 @@ export default function VideoDescription({
                 ...more
               </button>
             )}
+            {isExpanded && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(false);
+                }}
+                className="font-bold text-text-primary hover:text-white transition-colors ml-1"
+              >
+                ...show less
+              </button>
+            )}
           </div>
         </div>
 
@@ -369,17 +380,6 @@ export default function VideoDescription({
           </div>
         )}
 
-        {/* Show Less Button - Always at bottom when expanded */}
-        {isExpanded && (
-          <div className="px-4 pb-4 pt-2">
-            <button
-              onClick={() => setIsExpanded(false)}
-              className="text-sm font-bold text-text-primary hover:text-white transition-colors"
-            >
-              Show less
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Merch Modal */}

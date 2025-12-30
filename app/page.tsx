@@ -3,16 +3,20 @@
 import { useEffect, useState } from 'react';
 import React from 'react';
 import Link from 'next/link';
-import { Video } from '@/types';
+import { Video, Playlist } from '@/types';
 import { Play, Lock, Crown, Volume2, VolumeX, MoreVertical } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModal } from '@/contexts/ModalContext';
+import PlaylistCard from '@/components/ui/PlaylistCard';
+import { getAllPlaylists } from '@/data/mockData';
 
 export default function HomePage() {
   const [videos, setVideos] = useState<Video[]>([]);
+  const [playlists] = useState<Playlist[]>(getAllPlaylists());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
+  const [hoveredPlaylist, setHoveredPlaylist] = useState<string | null>(null);
   const [columns, setColumns] = useState(1);
   const { user } = useAuth();
 
@@ -160,6 +164,27 @@ export default function HomePage() {
 
   return (
     <div className="pt-2 pb-4 md:pt-3 md:pb-6 lg:pt-4 lg:pb-8">
+      {/* Playlists Section */}
+      {playlists.length > 0 && (
+        <div className="mb-8 px-4 md:px-6 lg:px-8">
+          <h2 className="text-2xl font-bold mb-3 text-white">Playlists</h2>
+          <div 
+            className="grid gap-x-0 gap-y-4"
+            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+          >
+            {playlists.map((playlist) => (
+              <PlaylistCard
+                key={playlist.id}
+                playlist={playlist}
+                hoveredPlaylist={hoveredPlaylist}
+                setHoveredPlaylist={setHoveredPlaylist}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Videos Section */}
       <h1 className="text-2xl font-bold mb-3 text-white px-4 md:px-6 lg:px-8">
         {user ? 'Recommended for you' : 'Recommended'}
       </h1>

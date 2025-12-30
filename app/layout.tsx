@@ -4,6 +4,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
 import { MiniplayerProvider } from "@/contexts/MiniplayerContext";
 import { ModalProvider } from "@/contexts/ModalContext";
+import { PurchaseProvider } from "@/contexts/PurchaseContext";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
@@ -27,22 +28,24 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans">
         <AuthProvider>
-          <SidebarProvider>
-            <MiniplayerProvider>
-              <ModalProvider>
-          <Header />
-          <Sidebar />
-            <MainContent>
-        {children}
-            </MainContent>
-                <BottomNavbar />
-                <CentralizedVideoPlayer />
-                <ShareModal />
-                <ReportModal />
-                <PurchaseFlowModal />
-              </ModalProvider>
-            </MiniplayerProvider>
-          </SidebarProvider>
+          <PurchaseProvider>
+            <SidebarProvider>
+              <MiniplayerProvider>
+                <ModalProvider>
+            <Header />
+            <Sidebar />
+              <MainContent>
+          {children}
+              </MainContent>
+                  <BottomNavbar />
+                  <CentralizedVideoPlayer />
+                  <ShareModal />
+                  <ReportModal />
+                  <PurchaseFlowModal />
+                </ModalProvider>
+              </MiniplayerProvider>
+            </SidebarProvider>
+          </PurchaseProvider>
         </AuthProvider>
       </body>
     </html>

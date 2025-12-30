@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Video } from '@/types';
+import { Video, Playlist } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,8 +12,10 @@ import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { useModal } from '@/contexts/ModalContext';
-import { formatRelativeTime } from '@/lib/utils';
+import { formatRelativeTime, formatExactDate } from '@/lib/utils';
 import VideoDescription from '@/components/VideoDescription';
+import { getAllPlaylists } from '@/data/mockData';
+import { updateWatchHistory } from '@/lib/watchHistory';
 
 interface Comment {
   id: string;
@@ -42,9 +44,16 @@ export default function WatchPage() {
   const [relatedVideos, setRelatedVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'public' | 'donated'>('public');
-  const [recommendedTab, setRecommendedTab] = useState<'recommendations' | 'playlist' | 'creator' | 'topic'>('recommendations');
+  const [recommendedTab, setRecommendedTab] = useState<'recommendations' | 'playlist' | 'creator' | 'topic' | string>('recommendations');
   const [isCardViewActive, setIsCardViewActive] = useState(false);
+  const [currentPlaylist, setCurrentPlaylist] = useState<Playlist | null>(null);
+  const [playlistActiveTab, setPlaylistActiveTab] = useState<string>('all');
   const [columns, setColumns] = useState(1);
+  
+  // Context detection from URL
+  const searchParams = useSearchParams();
+  const listContext = searchParams.get('listContext') === 'true';
+  const urlPlaylistId = searchParams.get('playlistId');
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [openMenuVideoId, setOpenMenuVideoId] = useState<string | null>(null);
   const imageRefs = useRef<Record<string, HTMLImageElement | null>>({});
@@ -159,6 +168,15 @@ export default function WatchPage() {
     }
     return false;
   });
+
+  // Check if playlist is purchased
+  const hasPurchasedPlaylist = useCallback((playlistId: string): boolean => {
+    if (typeof window !== 'undefined') {
+      const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
+      return purchasedPlaylists.includes(playlistId);
+    }
+    return false;
+  }, []);
   const commentsSectionRef = useRef<HTMLDivElement>(null); // Ref for desktop comments section
   const mobileCommentsSectionRef = useRef<HTMLDivElement>(null); // Ref for mobile comments section
 
@@ -177,6 +195,12 @@ export default function WatchPage() {
   const hasFullAccess = useMemo(() => {
     if (!video) return true; // No video data, allow access
     
+    // Check if video belongs to a paid playlist
+    if (currentPlaylist && currentPlaylist.price) {
+      // Video belongs to a paid playlist - check playlist purchase status
+      return hasPurchasedPlaylist(currentPlaylist.id);
+    }
+    
     const videoType = video.type || 'free';
     
     // Free videos always have access
@@ -184,7 +208,7 @@ export default function WatchPage() {
       return true;
     }
     
-    // Paid content: check if user has purchased
+    // Paid content: check if user has purchased individual video
     if (videoType === 'paid') {
       return hasPurchasedVideo(video.id);
     }
@@ -196,7 +220,7 @@ export default function WatchPage() {
     
     // Default: allow access
     return true;
-  }, [video, hasPurchasedVideo, isChannelSubscriber]);
+  }, [video, hasPurchasedVideo, isChannelSubscriber, currentPlaylist, hasPurchasedPlaylist]);
 
   // Automatically collapse sidebar when entering watch page
   useEffect(() => {
@@ -216,6 +240,38 @@ export default function WatchPage() {
       }
     }
   }, [hasPurchasedVideoLocal, video]);
+
+  // Track watch history when video or progress changes
+  useEffect(() => {
+    if (!video || !hasFullAccess) return;
+    
+    // Update watch history periodically (every 5 seconds)
+    const interval = setInterval(() => {
+      const progress = videoPlayerProgressRef.current || videoProgress;
+      if (progress > 0 && video) {
+        updateWatchHistory(
+          video.id,
+          progress,
+          urlPlaylistId || undefined,
+          video.duration
+        );
+      }
+    }, 5000);
+    
+    // Also update on unmount
+    return () => {
+      const progress = videoPlayerProgressRef.current || videoProgress;
+      if (progress > 0 && video) {
+        updateWatchHistory(
+          video.id,
+          progress,
+          urlPlaylistId || undefined,
+          video.duration
+        );
+      }
+      clearInterval(interval);
+    };
+  }, [video?.id, videoProgress, hasFullAccess, urlPlaylistId, video?.duration]);
 
   // Sample comments for demonstration
   useEffect(() => {
@@ -682,28 +738,76 @@ export default function WatchPage() {
           const data = await response.json();
           if (data.video) {
           setVideo(data.video);
-          // Check purchase state from localStorage
-          const purchasedVideos = typeof window !== 'undefined' 
-            ? JSON.parse(localStorage.getItem('purchasedVideos') || '[]')
-            : [];
-          const hasPurchased = purchasedVideos.includes(data.video.id);
+          
+          // Check if video belongs to a playlist
+          const allPlaylists = getAllPlaylists();
+          
+          // Priority 1: Use playlistId from URL if provided
+          let playlistContainingVideo: Playlist | undefined;
+          if (urlPlaylistId) {
+            playlistContainingVideo = allPlaylists.find(p => p.id === urlPlaylistId);
+          }
+          
+          // Priority 2: Auto-detect if not in URL
+          if (!playlistContainingVideo) {
+            playlistContainingVideo = allPlaylists.find(p => 
+              p.allVideoIds.includes(data.video.id)
+            );
+          }
+          
+          if (playlistContainingVideo) {
+            setCurrentPlaylist(playlistContainingVideo);
+            
+            // Scenario A: urlPlaylistId exists - Show only playlist tabs, no standard recommendations
+            if (urlPlaylistId) {
+              setRecommendedTab('playlist');
+              setPlaylistActiveTab('all');
+            } else {
+              // Scenario B: Standalone mode - Keep standard tabs, add "From Playlist" tab
+              setRecommendedTab('recommendations');
+            }
+          }
           
           // Determine correct video URL based on access
           const videoType = data.video.type || 'free';
           let videoUrlToUse = data.video.videoUrl;
           
-          // For paid/subscription content, use teaser if no access, full video if access granted
-          if (videoType === 'paid' || videoType === 'subscription') {
-            if (hasPurchased || hasPurchasedVideoLocal || (videoType === 'subscription' && isChannelSubscriber(data.video.userId))) {
-              // User has access - use full video
-              videoUrlToUse = data.video.fullVideoUrl || data.video.videoUrl;
-              // Update local state if not already set
-              if (!hasPurchasedVideoLocal && hasPurchased) {
-                setHasPurchasedVideoLocal(true);
-              }
-            } else {
-              // No access - use teaser
+          // Check if video belongs to a paid playlist
+          let hasPlaylistAccess = true;
+          if (playlistContainingVideo && playlistContainingVideo.price) {
+            // Video belongs to paid playlist - check playlist purchase
+            const purchasedPlaylists = typeof window !== 'undefined' 
+              ? JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]')
+              : [];
+            hasPlaylistAccess = purchasedPlaylists.includes(playlistContainingVideo.id);
+            
+            if (!hasPlaylistAccess) {
+              // No playlist access - use teaser
               videoUrlToUse = data.video.teaserVideoUrl || data.video.videoUrl;
+            } else {
+              // Has playlist access - use full video
+              videoUrlToUse = data.video.fullVideoUrl || data.video.videoUrl;
+            }
+          } else {
+            // Video doesn't belong to paid playlist - use individual video purchase logic
+            const purchasedVideos = typeof window !== 'undefined' 
+              ? JSON.parse(localStorage.getItem('purchasedVideos') || '[]')
+              : [];
+            const hasPurchased = purchasedVideos.includes(data.video.id);
+            
+            // For paid/subscription content, use teaser if no access, full video if access granted
+            if (videoType === 'paid' || videoType === 'subscription') {
+              if (hasPurchased || hasPurchasedVideoLocal || (videoType === 'subscription' && isChannelSubscriber(data.video.userId))) {
+                // User has access - use full video
+                videoUrlToUse = data.video.fullVideoUrl || data.video.videoUrl;
+                // Update local state if not already set
+                if (!hasPurchasedVideoLocal && hasPurchased) {
+                  setHasPurchasedVideoLocal(true);
+                }
+              } else {
+                // No access - use teaser
+                videoUrlToUse = data.video.teaserVideoUrl || data.video.videoUrl;
+              }
             }
           }
           
@@ -3674,100 +3778,200 @@ export default function WatchPage() {
           {!hasFullAccess && (
             <div className="lg:hidden">
               <MonetizationCTASection 
-                video={video}
+                video={currentPlaylist && currentPlaylist.price ? {
+                  // If video belongs to paid playlist, show playlist info
+                  id: currentPlaylist.id,
+                  userId: currentPlaylist.creatorId || 'playlist-creator',
+                  title: currentPlaylist.title,
+                  description: currentPlaylist.description,
+                  videoUrl: '',
+                  views: 0,
+                  createdAt: new Date(currentPlaylist.lastUpdated),
+                  updatedAt: new Date(currentPlaylist.lastUpdated),
+                  type: currentPlaylist.isSubscription ? 'subscription' : 'paid',
+                  price: parseInt(currentPlaylist.price.replace(/[^\d]/g, '')) || 50000,
+                  currency: 'UZS',
+                  user: {
+                    id: currentPlaylist.creatorId || 'playlist-creator',
+                    name: currentPlaylist.creatorName,
+                    profileImageUrl: currentPlaylist.creatorAvatar,
+                  },
+                } : video!}
+                isPlaylist={currentPlaylist && currentPlaylist.price ? true : false}
                 onPurchase={() => {
                   // TODO: Implement purchase flow
-                  console.log('Purchase clicked for video:', video.id);
+                  if (currentPlaylist && currentPlaylist.price) {
+                    console.log('Purchase clicked for playlist:', currentPlaylist.id);
+                  } else {
+                    console.log('Purchase clicked for video:', video?.id);
+                  }
                 }}
                 onSubscribe={() => {
                   // TODO: Implement subscription flow
-                  console.log('Subscribe clicked for channel:', video.userId);
+                  console.log('Subscribe clicked for channel:', video?.userId);
                 }}
                 onPurchaseComplete={() => {
-                  // Mark video as purchased and persist to localStorage
-                  setHasPurchasedVideoLocal(true);
-                  
-                  // Persist purchase to localStorage
-                  if (typeof window !== 'undefined' && video) {
-                    const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
-                    if (!purchasedVideos.includes(video.id)) {
-                      purchasedVideos.push(video.id);
-                      localStorage.setItem('purchasedVideos', JSON.stringify(purchasedVideos));
-                    }
-                  }
-                  
-                  // Update video URL to full video if available
-                  if (video) {
-                    const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
-                    setCurrentWatchVideo({
-                      ...video,
-                      videoUrl: fullVideoUrl
-                    });
-                  }
-                  
-                  // Open comments section
-                  // On mobile, open the comments overlay
-                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                    setIsCommentsOpen(true);
-                  } else {
-                    // On desktop, scroll to comments section after a brief delay
-                    setTimeout(() => {
-                      if (commentsSectionRef.current) {
-                        commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  if (currentPlaylist && currentPlaylist.price) {
+                    // Purchase playlist - unlock all videos in playlist
+                    if (typeof window !== 'undefined') {
+                      const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
+                      if (!purchasedPlaylists.includes(currentPlaylist.id)) {
+                        purchasedPlaylists.push(currentPlaylist.id);
+                        localStorage.setItem('purchasedPlaylists', JSON.stringify(purchasedPlaylists));
+                        // Dispatch custom event for global sync
+                        window.dispatchEvent(new CustomEvent('playlistPurchased', { detail: { playlistId: currentPlaylist.id } }));
                       }
-                    }, 300);
+                    }
+                    // Reload page to update video access
+                    if (typeof window !== 'undefined') {
+                      window.location.reload();
+                    }
+                  } else {
+                    // Purchase individual video
+                    setHasPurchasedVideoLocal(true);
+                    
+                    // Persist purchase to localStorage
+                    if (typeof window !== 'undefined' && video) {
+                      const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
+                      if (!purchasedVideos.includes(video.id)) {
+                        purchasedVideos.push(video.id);
+                        localStorage.setItem('purchasedVideos', JSON.stringify(purchasedVideos));
+                        // Dispatch custom event for global sync
+                        window.dispatchEvent(new CustomEvent('videoPurchased', { detail: { videoId: video.id } }));
+                      }
+                    }
+                    
+                    // Update video URL to full video if available
+                    if (video) {
+                      const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
+                      setCurrentWatchVideo({
+                        ...video,
+                        videoUrl: fullVideoUrl
+                      });
+                    }
+                    
+                    // Open comments section
+                    // On mobile, open the comments overlay
+                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                      setIsCommentsOpen(true);
+                    } else {
+                      // On desktop, scroll to comments section after a brief delay
+                      setTimeout(() => {
+                        if (commentsSectionRef.current) {
+                          commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }, 300);
+                    }
                   }
                 }}
               />
-          </div>
+            </div>
           )}
 
           {/* Recommended Videos Section */}
           <div className="mt-6 w-full max-w-full">
+            {/* Playlist Link - Show if video belongs to playlist */}
+            {currentPlaylist && (
+              <div className="mb-4">
+                <Link
+                  href={`/playlist/${currentPlaylist.id}`}
+                  className="text-sm text-text-secondary hover:text-accent transition-colors inline-flex items-center gap-1"
+                >
+                  <span>From: {currentPlaylist.title}</span>
+                </Link>
+              </div>
+            )}
+            
             {/* Tab Navigation - Sticky */}
             <div className="sticky top-0 z-30 bg-[#0A0A0A] pt-2 pb-4 mb-4 -mt-2">
               <div className="flex items-center justify-between gap-4 border-b border-surface/50 w-full">
                 <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide">
-                  <button
-                    onClick={() => setRecommendedTab('recommendations')}
-                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                      recommendedTab === 'recommendations'
-                        ? 'border-white text-text-primary font-semibold'
-                        : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
-                    }`}
-                  >
-                    Recommended
-                  </button>
-                  <button
-                    onClick={() => setRecommendedTab('playlist')}
-                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                      recommendedTab === 'playlist'
-                        ? 'border-white text-text-primary font-semibold'
-                        : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
-                    }`}
-                  >
-                    From Playlist
-                  </button>
-                  <button
-                    onClick={() => setRecommendedTab('creator')}
-                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                      recommendedTab === 'creator'
-                        ? 'border-white text-text-primary font-semibold'
-                        : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
-                    }`}
-                  >
-                    {video.user?.name || 'Creator'}
-                  </button>
-                  <button
-                    onClick={() => setRecommendedTab('topic')}
-                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                      recommendedTab === 'topic'
-                        ? 'border-white text-text-primary font-semibold'
-                        : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
-                    }`}
-                  >
-                    Topic Related
-                  </button>
+                  {/* Scenario A: urlPlaylistId exists - Show ONLY playlist tabs (no standard recommendations) */}
+                  {urlPlaylistId && currentPlaylist ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setRecommendedTab('playlist');
+                          setPlaylistActiveTab('all');
+                        }}
+                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                          recommendedTab === 'playlist' && playlistActiveTab === 'all'
+                            ? 'border-white text-text-primary font-semibold'
+                            : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                        }`}
+                      >
+                        All
+                      </button>
+                      {currentPlaylist.sections.map((section) => (
+                        <button
+                          key={section.id}
+                          onClick={() => {
+                            setRecommendedTab('playlist');
+                            setPlaylistActiveTab(section.id);
+                          }}
+                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                            recommendedTab === 'playlist' && playlistActiveTab === section.id
+                              ? 'border-white text-text-primary font-semibold'
+                              : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                          }`}
+                        >
+                          {section.title}
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {/* Scenario B: Standalone mode - Standard tabs + optional "From Playlist" tab */}
+                      <button
+                        onClick={() => setRecommendedTab('recommendations')}
+                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                          recommendedTab === 'recommendations'
+                            ? 'border-white text-text-primary font-semibold'
+                            : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                        }`}
+                      >
+                        Recommended
+                      </button>
+                      
+                      {/* "From Playlist: [Name]" tab - Only show if video belongs to playlist but NOT in listContext mode */}
+                      {currentPlaylist && !listContext && (
+                        <button
+                          onClick={() => {
+                            setRecommendedTab('playlist');
+                            setPlaylistActiveTab('all');
+                          }}
+                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                            recommendedTab === 'playlist'
+                              ? 'border-white text-text-primary font-semibold'
+                              : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                          }`}
+                        >
+                          From Playlist: {currentPlaylist.title}
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={() => setRecommendedTab('creator')}
+                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                          recommendedTab === 'creator'
+                            ? 'border-white text-text-primary font-semibold'
+                            : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                        }`}
+                      >
+                        {video.user?.name || 'Creator'}
+                      </button>
+                      <button
+                        onClick={() => setRecommendedTab('topic')}
+                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                          recommendedTab === 'topic'
+                            ? 'border-white text-text-primary font-semibold'
+                            : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                        }`}
+                      >
+                        Topic Related
+                      </button>
+                    </>
+                  )}
                 </div>
                 
                 {/* View Layout Switcher */}
@@ -3791,14 +3995,49 @@ export default function WatchPage() {
               // Filter videos based on active tab
               let filteredVideos: Video[] = [];
               
-              if (recommendedTab === 'recommendations') {
+              if (currentPlaylist && recommendedTab === 'playlist') {
+                // Filter by playlist sections (maintaining creator-defined order)
+                const videoMap = new Map(relatedVideos.map(v => [v.id, v]));
+                
+                if (playlistActiveTab === 'all') {
+                  // Show all videos from playlist in creator-defined order
+                  filteredVideos = currentPlaylist.allVideoIds
+                    .map(id => videoMap.get(id))
+                    .filter((v): v is Video => v !== undefined && v.id !== video?.id);
+                } else {
+                  // Show videos from specific section in creator-defined order
+                  const section = currentPlaylist.sections.find(s => s.id === playlistActiveTab);
+                  if (section) {
+                    filteredVideos = section.videoIds
+                      .map(id => videoMap.get(id))
+                      .filter((v): v is Video => v !== undefined && v.id !== video?.id);
+                  }
+                }
+              } else if (recommendedTab === 'recommendations') {
                 // Show general recommendations (exclude current video)
-                filteredVideos = relatedVideos.filter(v => v.id !== video?.id).slice(0, 10);
-              } else if (recommendedTab === 'playlist') {
-                // Mock playlist videos (same category or similar)
-                filteredVideos = relatedVideos
-                  .filter(v => v.id !== video?.id && v.category === video?.category)
-                  .slice(0, 8);
+                // In listContext mode, this should never be reached, but add safety check
+                if (listContext && currentPlaylist) {
+                  // Fallback: show playlist videos if somehow in recommendations tab
+                  const videoMap = new Map(relatedVideos.map(v => [v.id, v]));
+                  filteredVideos = currentPlaylist.allVideoIds
+                    .map(id => videoMap.get(id))
+                    .filter((v): v is Video => v !== undefined && v.id !== video?.id);
+                } else {
+                  filteredVideos = relatedVideos.filter(v => v.id !== video?.id).slice(0, 10);
+                }
+              } else if (recommendedTab === 'playlist' && !listContext) {
+                // Scenario B: "From Playlist" tab - Show playlist videos
+                if (currentPlaylist) {
+                  const videoMap = new Map(relatedVideos.map(v => [v.id, v]));
+                  filteredVideos = currentPlaylist.allVideoIds
+                    .map(id => videoMap.get(id))
+                    .filter((v): v is Video => v !== undefined && v.id !== video?.id);
+                } else {
+                  // Fallback: show similar category videos
+                  filteredVideos = relatedVideos
+                    .filter(v => v.id !== video?.id && v.category === video?.category)
+                    .slice(0, 8);
+                }
               } else if (recommendedTab === 'creator') {
                 // Show creator's other videos
                 filteredVideos = relatedVideos
@@ -3831,7 +4070,7 @@ export default function WatchPage() {
                       return (
                         <Link
                           key={relatedVideo.id}
-                          href={`/watch/${relatedVideo.id}`}
+                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
                           className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
                           onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
                           onMouseLeave={() => setHoveredVideo(null)}
@@ -3904,7 +4143,12 @@ export default function WatchPage() {
                                     <>
                                       <span>{formatViews(relatedVideo.views)} views</span>
                                       <span>•</span>
-                                      <span>{formatTimeAgo(relatedVideo.createdAt)}</span>
+                                      <span 
+                                        className="underline decoration-dotted underline-offset-2 cursor-help"
+                                        title={formatExactDate(relatedVideo.createdAt)}
+                                      >
+                                        {formatTimeAgo(relatedVideo.createdAt)}
+                                      </span>
                                     </>
                                   )}
                                 </div>
@@ -3987,7 +4231,7 @@ export default function WatchPage() {
                       return (
                         <Link
                           key={relatedVideo.id}
-                          href={`/watch/${relatedVideo.id}`}
+                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
                           className={`flex gap-4 rounded-lg p-3 transition-colors duration-200 group relative ${
                             hoveredVideo === relatedVideo.id ? 'bg-white/10' : 'bg-transparent'
                           }`}
@@ -4041,10 +4285,22 @@ export default function WatchPage() {
                                     <span>•</span>
                                     <span>{formatViews(relatedVideo.views)} views</span>
                                     <span>•</span>
-                                    <span>{formatTimeAgo(relatedVideo.createdAt)}</span>
+                                    <span 
+                                      className="underline decoration-dotted underline-offset-2 cursor-help"
+                                      title={formatExactDate(relatedVideo.createdAt)}
+                                    >
+                                      {formatTimeAgo(relatedVideo.createdAt)}
+                                    </span>
                                   </>
                                 )}
                               </div>
+                              
+                              {/* Video Description - Only in List Layout */}
+                              {!isCardViewActive && relatedVideo.description && (
+                                <p className="text-zinc-400 text-xs line-clamp-2 mt-1">
+                                  {relatedVideo.description}
+                                </p>
+                              )}
                             </div>
                             
                             {/* More Button - Right side */}
@@ -4126,16 +4382,62 @@ export default function WatchPage() {
         /* Monetization CTA Section - Replace comments when access restricted */
         <div className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full min-h-0 purchase-window-container">
           <MonetizationCTASection 
-            video={video}
+            video={currentPlaylist && currentPlaylist.price ? {
+              // If video belongs to paid playlist, show playlist info
+              id: currentPlaylist.id,
+              userId: currentPlaylist.creatorId || 'playlist-creator',
+              title: currentPlaylist.title,
+              description: currentPlaylist.description,
+              videoUrl: '',
+              views: 0,
+              createdAt: new Date(currentPlaylist.lastUpdated),
+              updatedAt: new Date(currentPlaylist.lastUpdated),
+              type: currentPlaylist.isSubscription ? 'subscription' : 'paid',
+              price: parseInt(currentPlaylist.price.replace(/[^\d]/g, '')) || 50000,
+              currency: 'UZS',
+              user: {
+                id: currentPlaylist.creatorId || 'playlist-creator',
+                name: currentPlaylist.creatorName,
+                profileImageUrl: currentPlaylist.creatorAvatar,
+              },
+            } : video!}
+            isPlaylist={currentPlaylist && currentPlaylist.price ? true : false}
             onPurchase={() => {
               // TODO: Implement purchase flow
-              console.log('Purchase clicked for video:', video.id);
+              if (currentPlaylist && currentPlaylist.price) {
+                console.log('Purchase clicked for playlist:', currentPlaylist.id);
+              } else {
+                console.log('Purchase clicked for video:', video?.id);
+              }
             }}
             onSubscribe={() => {
               // TODO: Implement subscription flow
-              console.log('Subscribe clicked for channel:', video.userId);
+              console.log('Subscribe clicked for channel:', video?.userId);
             }}
             onPurchaseComplete={() => {
+              if (currentPlaylist && currentPlaylist.price) {
+                // Purchase playlist - unlock all videos in playlist
+                if (typeof window !== 'undefined') {
+                  const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
+                  if (!purchasedPlaylists.includes(currentPlaylist.id)) {
+                    purchasedPlaylists.push(currentPlaylist.id);
+                    localStorage.setItem('purchasedPlaylists', JSON.stringify(purchasedPlaylists));
+                    // Dispatch custom event for global sync
+                    window.dispatchEvent(new CustomEvent('playlistPurchased', { detail: { playlistId: currentPlaylist.id } }));
+                  }
+                }
+              } else {
+                // Purchase individual video
+                if (typeof window !== 'undefined' && video) {
+                  const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
+                  if (!purchasedVideos.includes(video.id)) {
+                    purchasedVideos.push(video.id);
+                    localStorage.setItem('purchasedVideos', JSON.stringify(purchasedVideos));
+                    // Dispatch custom event for global sync
+                    window.dispatchEvent(new CustomEvent('videoPurchased', { detail: { videoId: video.id } }));
+                  }
+                }
+              }
               // Refresh page or update state to show comments
               if (typeof window !== 'undefined') {
                 window.location.reload();

@@ -56,3 +56,13 @@ export function formatRelativeTime(date: Date | string): string {
   return `${diffInYears}y`;
 }
 
+// Format exact date for tooltips (e.g., "Oct 26, 2009")
+export function formatExactDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[d.getMonth()];
+  const day = d.getDate();
+  const year = d.getFullYear();
+  return `${month} ${day}, ${year}`;
+}
+
