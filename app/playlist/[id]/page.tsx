@@ -274,10 +274,10 @@ export default function PlaylistPage() {
               </span>
             </div>
 
-            {/* Action Buttons - Horizontal Fill: [Play/Resume] | [Share] | [Save] | [More] */}
-            <div className="flex flex-row items-center gap-2 mt-4">
-              {/* Play/Resume Button - flex-1, White background with black icon/text */}
-              {(!playlist.price || hasPurchasedPlaylist) && videos.length > 0 ? (
+            {/* Action Row - [Play/Resume] | [Share] | [Save] | [More] */}
+            {videos.length > 0 && (
+              <div className="flex flex-row items-center gap-2 mt-4">
+                {/* Play/Resume Button - flex-1, White background with black icon/text - Always visible */}
                 <button
                   className="flex-1 bg-white hover:bg-white/90 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
                   onClick={() => {
@@ -287,7 +287,7 @@ export default function PlaylistPage() {
                       const timestamp = lastWatchedEntry.progress;
                       router.push(`/watch/${videoId}?playlistId=${playlist.id}&listContext=true&t=${Math.floor(timestamp)}`);
                     } else {
-                      // Play: Navigate to first video
+                      // Play: Navigate to first video (watch page handles teaser/full content based on purchase)
                       router.push(`/watch/${videos[0].id}?playlistId=${playlist.id}&listContext=true`);
                     }
                   }}
@@ -295,61 +295,64 @@ export default function PlaylistPage() {
                   <Play className="h-4 w-4 text-black" />
                   <span className="text-sm text-black font-medium">{hasStarted ? 'Resume' : 'Play'}</span>
                 </button>
-              ) : playlist.price && !hasPurchasedPlaylist ? (
+
+                {/* Share Button - flex-1 */}
                 <button
-                  className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors text-sm"
-                  onClick={() => setShowPurchaseFlow(true)}
+                  onClick={() => openShareModal(playlist.id, playlist.title)}
+                  className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
                 >
-                  Buy for {playlist.price.replace(/\s+/g, '')}
+                  <Share2 className="h-4 w-4" />
+                  <span className="text-sm">Share</span>
                 </button>
-              ) : null}
 
-              {/* Share Button - flex-1 */}
-              <button
-                onClick={() => openShareModal(playlist.id, playlist.title)}
-                className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
-              >
-                <Share2 className="h-4 w-4" />
-                <span className="text-sm">Share</span>
-              </button>
-
-              {/* Save Button - flex-1 */}
-              <button
-                onClick={() => setIsSaved(!isSaved)}
-                className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
-              >
-                <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
-                <span className="text-sm">{isSaved ? 'Saved' : 'Save'}</span>
-              </button>
-
-              {/* More Button - Icon only */}
-              <div className="relative">
+                {/* Save Button - flex-1 */}
                 <button
-                  ref={moreButtonRef}
-                  onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                  className="bg-white/10 hover:bg-white/20 rounded-full p-2.5 transition-colors"
+                  onClick={() => setIsSaved(!isSaved)}
+                  className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
+                  <span className="text-sm">{isSaved ? 'Saved' : 'Save'}</span>
                 </button>
-                
-                {isMoreMenuOpen && (
-                  <div
-                    ref={moreMenuRef}
-                    className="absolute left-0 top-full mt-2 w-48 bg-surface border border-surface rounded-lg shadow-xl z-50 overflow-hidden"
+
+                {/* More Button - Icon only */}
+                <div className="relative">
+                  <button
+                    ref={moreButtonRef}
+                    onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                    className="bg-white/10 hover:bg-white/20 rounded-full p-2.5 transition-colors"
                   >
-                    <button
-                      onClick={() => {
-                        openReportModal(playlist.id, playlist.title);
-                        setIsMoreMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                  
+                  {isMoreMenuOpen && (
+                    <div
+                      ref={moreMenuRef}
+                      className="absolute left-0 top-full mt-2 w-48 bg-surface border border-surface rounded-lg shadow-xl z-50 overflow-hidden"
                     >
-                      Report
-                    </button>
-                  </div>
-                )}
+                      <button
+                        onClick={() => {
+                          openReportModal(playlist.id, playlist.title);
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                      >
+                        Report
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Buy Button - Separate Row (Only if paid and not purchased) */}
+            {playlist.price && !hasPurchasedPlaylist && (
+              <button
+                className="w-full bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors mt-4 text-sm"
+                onClick={() => setShowPurchaseFlow(true)}
+              >
+                Buy for {playlist.price.replace(/\s+/g, '')}
+              </button>
+            )}
 
             {/* Description with Truncation */}
             {playlist.description && (() => {
