@@ -15,7 +15,7 @@ import { useModal } from '@/contexts/ModalContext';
 import { formatRelativeTime, formatExactDate } from '@/lib/utils';
 import VideoDescription from '@/components/VideoDescription';
 import { getAllPlaylists } from '@/data/mockData';
-import { updateWatchHistory } from '@/lib/watchHistory';
+import { updateWatchHistory, savePlaylistProgress } from '@/lib/watchHistory';
 
 interface Comment {
   id: string;
@@ -241,6 +241,15 @@ export default function WatchPage() {
     }
   }, [hasPurchasedVideoLocal, video]);
 
+  // Save playlist progress when video starts playing in playlist context
+  useEffect(() => {
+    if (!video || !urlPlaylistId) return;
+    
+    // Save playlist progress when video is loaded/started
+    // This ensures we track the last accessed video in the playlist
+    savePlaylistProgress(urlPlaylistId, video.id, videoPlayerProgressRef.current || videoProgress || 0);
+  }, [video?.id, urlPlaylistId]);
+
   // Track watch history when video or progress changes
   useEffect(() => {
     if (!video || !hasFullAccess) return;
@@ -255,6 +264,10 @@ export default function WatchPage() {
           urlPlaylistId || undefined,
           video.duration
         );
+        // Also update playlist progress with current timestamp
+        if (urlPlaylistId) {
+          savePlaylistProgress(urlPlaylistId, video.id, progress);
+        }
       }
     }, 5000);
     
@@ -268,6 +281,10 @@ export default function WatchPage() {
           urlPlaylistId || undefined,
           video.duration
         );
+        // Save playlist progress on unmount as well
+        if (urlPlaylistId) {
+          savePlaylistProgress(urlPlaylistId, video.id, progress);
+        }
       }
       clearInterval(interval);
     };

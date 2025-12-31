@@ -12,7 +12,7 @@ import { usePurchase } from '@/contexts/PurchaseContext';
 import { formatRelativeTime, formatExactDate } from '@/lib/utils';
 import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { X } from 'lucide-react';
-import { getLastWatchedVideoInPlaylist, hasStartedPlaylist } from '@/lib/watchHistory';
+import { getPlaylistProgress } from '@/lib/watchHistory';
 
 export default function PlaylistPage() {
   const params = useParams();
@@ -37,9 +37,10 @@ export default function PlaylistPage() {
   // Watch history state (to trigger re-renders when watch history changes)
   const [watchHistoryKey, setWatchHistoryKey] = useState(0);
   
-  // Check if user has started watching this playlist (reactive to watch history changes)
-  const hasStarted = useMemo(() => hasStartedPlaylist(playlistId), [playlistId, watchHistoryKey]);
-  const lastWatchedEntry = useMemo(() => getLastWatchedVideoInPlaylist(playlistId), [playlistId, watchHistoryKey]);
+  // Get playlist progress (reactive to changes)
+  const playlistProgress = useMemo(() => getPlaylistProgress(playlistId), [playlistId, watchHistoryKey]);
+  const hasStarted = playlistProgress !== null;
+  const lastVideoId = playlistProgress?.lastVideoId;
   const menuRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -63,19 +64,25 @@ export default function PlaylistPage() {
       refreshPurchases();
     };
     
-    // Listen for watch history changes (via custom events)
+    // Listen for watch history and playlist progress changes (via custom events)
     const handleWatchHistoryUpdate = () => {
+      setWatchHistoryKey(prev => prev + 1);
+    };
+    
+    const handlePlaylistProgressUpdate = () => {
       setWatchHistoryKey(prev => prev + 1);
     };
     
     window.addEventListener('playlistPurchased', handlePurchaseEvent);
     window.addEventListener('storage', handlePurchaseEvent);
     window.addEventListener('watchHistoryUpdated', handleWatchHistoryUpdate);
+    window.addEventListener('playlistProgressUpdated', handlePlaylistProgressUpdate);
     
     return () => {
       window.removeEventListener('playlistPurchased', handlePurchaseEvent);
       window.removeEventListener('storage', handlePurchaseEvent);
       window.removeEventListener('watchHistoryUpdated', handleWatchHistoryUpdate);
+      window.removeEventListener('playlistProgressUpdated', handlePlaylistProgressUpdate);
     };
   }, [refreshPurchases]);
 
@@ -281,11 +288,13 @@ export default function PlaylistPage() {
                 <button
                   className="flex-1 bg-white hover:bg-white/90 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
                   onClick={() => {
-                    if (hasStarted && lastWatchedEntry) {
-                      // Resume: Navigate to last watched video with timestamp
-                      const videoId = lastWatchedEntry.videoId;
-                      const timestamp = lastWatchedEntry.progress;
-                      router.push(`/watch/${videoId}?playlistId=${playlist.id}&listContext=true&t=${Math.floor(timestamp)}`);
+                    if (hasStarted && lastVideoId) {
+                      // Resume: Navigate to last watched video with optional timestamp
+                      const timestamp = playlistProgress?.timestamp;
+                      const url = timestamp && timestamp > 0
+                        ? `/watch/${lastVideoId}?playlistId=${playlist.id}&listContext=true&t=${Math.floor(timestamp)}`
+                        : `/watch/${lastVideoId}?playlistId=${playlist.id}&listContext=true`;
+                      router.push(url);
                     } else {
                       // Play: Navigate to first video (watch page handles teaser/full content based on purchase)
                       router.push(`/watch/${videos[0].id}?playlistId=${playlist.id}&listContext=true`);
@@ -453,7 +462,9 @@ export default function PlaylistPage() {
                     </div>
 
                     {/* Thumbnail */}
-                    <div className="flex-shrink-0 relative w-40 md:w-64 lg:w-72 aspect-video rounded-lg overflow-hidden bg-surface">
+                    <div className={`flex-shrink-0 relative w-40 md:w-64 lg:w-72 aspect-video rounded-lg overflow-hidden bg-surface ${
+                      lastVideoId === video.id ? 'ring-2 ring-accent' : ''
+                    }`}>
                       {video.thumbnailUrl ? (
                         <img
                           src={video.thumbnailUrl}
@@ -463,6 +474,13 @@ export default function PlaylistPage() {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-surface">
                           <span className="text-text-secondary text-xs">No thumbnail</span>
+                        </div>
+                      )}
+                      {/* Last Played Indicator */}
+                      {lastVideoId === video.id && (
+                        <div className="absolute top-2 left-2 bg-accent/90 backdrop-blur-sm text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1">
+                          <Play className="h-3 w-3" />
+                          <span>Last played</span>
                         </div>
                       )}
                       {!video.isLive && video.duration && (

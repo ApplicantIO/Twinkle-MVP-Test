@@ -83,3 +83,56 @@ export function hasStartedPlaylist(playlistId: string): boolean {
   return history.some(entry => entry.playlistId === playlistId);
 }
 
+/**
+ * Playlist progress tracking interface
+ */
+export interface PlaylistProgress {
+  playlistId: string;
+  lastVideoId: string;
+  timestamp?: number; // Optional: current time in the video (seconds)
+  lastAccessedAt: number; // When the video was last accessed
+}
+
+/**
+ * Get the last watched video for a playlist (using dedicated key)
+ */
+export function getPlaylistProgress(playlistId: string): PlaylistProgress | null {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const key = `twinkle_playlist_progress_${playlistId}`;
+    const data = localStorage.getItem(key);
+    if (data) {
+      return JSON.parse(data) as PlaylistProgress;
+    }
+  } catch (error) {
+    console.error('Error reading playlist progress:', error);
+  }
+  
+  return null;
+}
+
+/**
+ * Save the last watched video for a playlist (using dedicated key)
+ */
+export function savePlaylistProgress(playlistId: string, lastVideoId: string, timestamp?: number): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const key = `twinkle_playlist_progress_${playlistId}`;
+    const progress: PlaylistProgress = {
+      playlistId,
+      lastVideoId,
+      timestamp,
+      lastAccessedAt: Date.now(),
+    };
+    
+    localStorage.setItem(key, JSON.stringify(progress));
+    
+    // Dispatch custom event for cross-component sync
+    window.dispatchEvent(new CustomEvent('playlistProgressUpdated', { detail: { playlistId, lastVideoId } }));
+  } catch (error) {
+    console.error('Error saving playlist progress:', error);
+  }
+}
+
