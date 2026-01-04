@@ -92,7 +92,7 @@ export function Header() {
         variant="ghost"
         size="icon"
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="hidden lg:block mr-3 text-text-secondary hover:text-text-primary hover:bg-surface"
+        className="hidden lg:flex mr-3 text-text-secondary hover:text-text-primary hover:bg-surface"
         aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         <Menu className="h-5 w-5" />
