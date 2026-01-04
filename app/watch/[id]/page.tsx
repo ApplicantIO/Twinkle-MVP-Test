@@ -7,7 +7,7 @@ import { Video, Playlist } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply, LayoutList, LayoutGrid, Minimize2, MessageSquare } from 'lucide-react';
+import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply, LayoutList, LayoutGrid, Minimize2, MessageSquare, Play } from 'lucide-react';
 import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
@@ -58,6 +58,9 @@ export default function WatchPage() {
   const [openMenuVideoId, setOpenMenuVideoId] = useState<string | null>(null);
   const imageRefs = useRef<Record<string, HTMLImageElement | null>>({});
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const playlistScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const activePlaylistVideoRef = useRef<HTMLDivElement | null>(null);
+  const lastPlaylistScrollTimeRef = useRef<number>(0);
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentReactions, setCommentReactions] = useState<Record<string, 'NONE' | 'LIKE' | 'DISLIKE'>>({});
@@ -222,10 +225,209 @@ export default function WatchPage() {
     return true;
   }, [video, hasPurchasedVideo, isChannelSubscriber, currentPlaylist, hasPurchasedPlaylist]);
 
+  // Check if we're in playlist session mode
+  const isPlaylistSession = useMemo(() => {
+    return urlPlaylistId && listContext && currentPlaylist;
+  }, [urlPlaylistId, listContext, currentPlaylist]);
+
+  // Handle video switch within playlist session (without page reload)
+  const handleVideoSwitch = useCallback(async (newVideoId: string) => {
+    if (!isPlaylistSession || !currentPlaylist) {
+      // Not in playlist session - use normal navigation
+      router.push(`/watch/${newVideoId}${urlPlaylistId ? `?playlistId=${urlPlaylistId}&listContext=true` : ''}`);
+      return;
+    }
+
+    // Prevent switching to the same video
+    if (video?.id === newVideoId) {
+      return;
+    }
+
+    try {
+      // Fetch new video data
+      const response = await fetch(`/api/videos/${newVideoId}`);
+      if (!response.ok) {
+        console.error('Failed to fetch video:', response.status);
+        return;
+      }
+
+      const data = await response.json();
+      if (!data.video) {
+        console.error('Video not found in response');
+        return;
+      }
+
+      const newVideo = data.video;
+
+      // Determine correct video URL based on access
+      const videoType = newVideo.type || 'free';
+      let videoUrlToUse = newVideo.videoUrl;
+
+      // Check if video belongs to a paid playlist
+      let hasPlaylistAccess = true;
+      if (currentPlaylist.price) {
+        const purchasedPlaylists = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]')
+          : [];
+        hasPlaylistAccess = purchasedPlaylists.includes(currentPlaylist.id);
+
+        if (!hasPlaylistAccess) {
+          videoUrlToUse = newVideo.teaserVideoUrl || newVideo.videoUrl;
+        } else {
+          videoUrlToUse = newVideo.fullVideoUrl || newVideo.videoUrl;
+        }
+      } else {
+        // Individual video purchase logic
+        const purchasedVideos = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('purchasedVideos') || '[]')
+          : [];
+        const hasPurchased = purchasedVideos.includes(newVideo.id);
+
+        if (videoType === 'paid' || videoType === 'subscription') {
+          if (hasPurchased || (videoType === 'subscription' && isChannelSubscriber(newVideo.userId))) {
+            videoUrlToUse = newVideo.fullVideoUrl || newVideo.videoUrl;
+          } else {
+            videoUrlToUse = newVideo.teaserVideoUrl || newVideo.videoUrl;
+          }
+        }
+      }
+
+      // Update video state (player will update via context)
+      setVideo({
+        ...newVideo,
+        videoUrl: videoUrlToUse
+      });
+
+      // Update miniplayer context (this updates the centralized player)
+      setCurrentWatchVideo({
+        ...newVideo,
+        videoUrl: videoUrlToUse
+      });
+
+      // Reset progress
+      setVideoProgress(0);
+      videoPlayerProgressRef.current = 0;
+
+      // Save playlist progress
+      if (urlPlaylistId) {
+        savePlaylistProgress(urlPlaylistId, newVideo.id, 0);
+      }
+
+      // Update URL without page reload using router.replace (preserves browser history)
+      const newUrl = `/watch/${newVideoId}?playlistId=${urlPlaylistId}&listContext=true`;
+      router.replace(newUrl, { scroll: false });
+
+      // Keep playlist tab active (state is preserved)
+      setRecommendedTab('playlist');
+    } catch (error) {
+      console.error('Error switching video:', error);
+    }
+  }, [isPlaylistSession, currentPlaylist, urlPlaylistId, router, setCurrentWatchVideo, isChannelSubscriber, video?.id, savePlaylistProgress]);
+
   // Automatically collapse sidebar when entering watch page
   useEffect(() => {
     setIsCollapsed(true);
   }, [setIsCollapsed]);
+
+  // Auto-scroll playlist container to show active video at the top (playlist session mode only)
+  useEffect(() => {
+    // Only scroll in playlist session mode when playlist tab is active
+    // CRITICAL: This logic ONLY applies to playlist sessions, not standalone videos
+    if (!isPlaylistSession || recommendedTab !== 'playlist' || !video?.id || typeof window === 'undefined') {
+      return;
+    }
+
+    // Ensure the playlist scroll container exists and is mounted
+    if (!playlistScrollContainerRef.current) {
+      return;
+    }
+
+    // Check if user recently scrolled manually (within last 500ms)
+    const timeSinceUserScroll = Date.now() - lastPlaylistScrollTimeRef.current;
+    if (timeSinceUserScroll < 500) {
+      return; // Skip auto-scroll if user recently scrolled
+    }
+
+    // Wait for DOM to be ready using requestAnimationFrame (double RAF for layout stability)
+    let animationFrameId: number | null = null;
+    
+    const firstFrame = requestAnimationFrame(() => {
+      animationFrameId = requestAnimationFrame(() => {
+        // Double-check container and active item refs exist
+        if (!activePlaylistVideoRef.current || !playlistScrollContainerRef.current) {
+          return;
+        }
+
+        const scrollContainer = playlistScrollContainerRef.current;
+        if (!scrollContainer) {
+          return;
+        }
+
+        // CRITICAL: Only scroll the playlist container, NEVER the page/window
+        // Get bounding rectangles relative to the scroll container
+        const activeItemRect = activePlaylistVideoRef.current.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+
+        // Check if item is already at or near the top of the container (within 5px tolerance)
+        const distanceFromTop = activeItemRect.top - containerRect.top;
+        if (Math.abs(distanceFromTop) < 5) {
+          return; // Already positioned correctly
+        }
+
+        // Calculate scroll offset needed to bring item to top of the container
+        const currentScrollTop = scrollContainer.scrollTop;
+        const scrollOffset = currentScrollTop + distanceFromTop;
+
+        // Handle edge cases: ensure we don't scroll beyond bounds
+        const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+        const clampedScrollTop = Math.max(0, Math.min(scrollOffset, maxScrollTop));
+
+        // Perform smooth scroll ONLY on the playlist container (not window/page)
+        scrollContainer.scrollTo({
+          top: clampedScrollTop,
+          behavior: 'smooth'
+        });
+      });
+    });
+
+    return () => {
+      if (firstFrame) {
+        cancelAnimationFrame(firstFrame);
+      }
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [video?.id, isPlaylistSession, recommendedTab]);
+
+  // Track user manual scrolling in playlist container to prevent auto-scroll interference
+  // ONLY active in playlist session mode
+  useEffect(() => {
+    if (!isPlaylistSession || recommendedTab !== 'playlist' || typeof window === 'undefined') {
+      return;
+    }
+
+    const handleUserScroll = () => {
+      lastPlaylistScrollTimeRef.current = Date.now();
+    };
+
+    // Use requestAnimationFrame to ensure DOM is ready
+    let scrollContainer: HTMLDivElement | null = null;
+    const frameId = requestAnimationFrame(() => {
+      scrollContainer = playlistScrollContainerRef.current;
+      
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', handleUserScroll, { passive: true });
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', handleUserScroll);
+      }
+    };
+  }, [isPlaylistSession, recommendedTab]);
 
   // Update video URL when purchase state changes
   useEffect(() => {
@@ -3884,7 +4086,7 @@ export default function WatchPage() {
                   }
                 }}
               />
-            </div>
+          </div>
           )}
 
           {/* Recommended Videos Section */}
@@ -3902,7 +4104,7 @@ export default function WatchPage() {
             )}
             
             {/* Tab Navigation - Sticky */}
-            <div className="sticky top-0 z-30 bg-[#0A0A0A] pt-2 pb-4 mb-4 -mt-2">
+            <div className="sticky top-0 z-30 bg-[#0A0A0A] pt-2 pb-1 -mt-2">
               <div className="flex items-center justify-between gap-4 border-b border-surface/50 w-full">
                 <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide">
                   {/* Scenario A: urlPlaylistId exists - Show ONLY playlist tabs (no standard recommendations) */}
@@ -3952,7 +4154,7 @@ export default function WatchPage() {
                         Recommended
                       </button>
                       
-                      {/* "From Playlist: [Name]" tab - Only show if video belongs to playlist but NOT in listContext mode */}
+                      {/* "From Playlist" tab - Only show if video belongs to playlist but NOT in listContext mode */}
                       {currentPlaylist && !listContext && (
                         <button
                           onClick={() => {
@@ -3964,8 +4166,9 @@ export default function WatchPage() {
                               ? 'border-white text-text-primary font-semibold'
                               : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
                           }`}
+                          title={currentPlaylist.title}
                         >
-                          From Playlist: {currentPlaylist.title}
+                          From Playlist
                         </button>
                       )}
                       
@@ -4018,18 +4221,23 @@ export default function WatchPage() {
                 // Filter by playlist sections (maintaining creator-defined order)
                 const videoMap = new Map(relatedVideos.map(v => [v.id, v]));
                 
+                // Include current video in playlist session mode (to show "Now Playing" indicator)
+                if (isPlaylistSession && video) {
+                  videoMap.set(video.id, video);
+                }
+                
                 if (playlistActiveTab === 'all') {
                   // Show all videos from playlist in creator-defined order
                   filteredVideos = currentPlaylist.allVideoIds
                     .map(id => videoMap.get(id))
-                    .filter((v): v is Video => v !== undefined && v.id !== video?.id);
+                    .filter((v): v is Video => v !== undefined);
                 } else {
                   // Show videos from specific section in creator-defined order
                   const section = currentPlaylist.sections.find(s => s.id === playlistActiveTab);
                   if (section) {
                     filteredVideos = section.videoIds
                       .map(id => videoMap.get(id))
-                      .filter((v): v is Video => v !== undefined && v.id !== video?.id);
+                      .filter((v): v is Video => v !== undefined);
                   }
                 }
               } else if (recommendedTab === 'recommendations') {
@@ -4079,25 +4287,29 @@ export default function WatchPage() {
                 // Grid/Card View - Match Homepage styling with dynamic columns
                 return (
                   <div 
-                    className="grid gap-x-0 gap-y-0"
+                    ref={isPlaylistSession && recommendedTab === 'playlist' ? playlistScrollContainerRef : null}
+                    className={isPlaylistSession && recommendedTab === 'playlist'
+                      ? "grid gap-x-0 gap-y-0 overflow-y-auto"
+                      : "grid gap-x-0 gap-y-0"
+                    }
                     style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
                   >
                     {filteredVideos.map((relatedVideo) => {
                       const isHovered = hoveredVideo === relatedVideo.id;
                       const isMenuOpen = openMenuVideoId === relatedVideo.id;
+                      const isCurrentlyPlaying = video?.id === relatedVideo.id;
+                      const isPlaylistSessionVideo = isPlaylistSession && recommendedTab === 'playlist';
                       
-                      return (
-                        <Link
-                          key={relatedVideo.id}
-                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
-                          className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
-                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
-                          onMouseLeave={() => setHoveredVideo(null)}
-                        >
+                      const videoItemContent = (
+                        <>
                           {/* Card Container - flat design with uniform neutral hover effect */}
                           <div 
-                            className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-[90]' : ''} ${
-                              isHovered ? 'bg-white/10' : 'bg-transparent'
+                            className={`rounded-xl transition-all duration-200 p-3 relative ${isMenuOpen ? 'z-[90]' : ''} ${
+                              isCurrentlyPlaying 
+                                ? 'bg-white/10' 
+                                : isHovered 
+                                  ? 'bg-white/10' 
+                                  : 'bg-transparent'
                             }`}
                           >
                             {/* Thumbnail Container */}
@@ -4163,7 +4375,7 @@ export default function WatchPage() {
                                       <span>{formatViews(relatedVideo.views)} views</span>
                                       <span>•</span>
                                       <span 
-                                        className="underline decoration-dotted underline-offset-2 cursor-help"
+                                        className="cursor-help"
                                         title={formatExactDate(relatedVideo.createdAt)}
                                       >
                                         {formatTimeAgo(relatedVideo.createdAt)}
@@ -4235,6 +4447,29 @@ export default function WatchPage() {
                               </div>
                             </div>
                           </div>
+                        </>
+                      );
+                      
+                      return isPlaylistSessionVideo ? (
+                        <div
+                          key={relatedVideo.id}
+                          ref={isCurrentlyPlaying ? activePlaylistVideoRef : null}
+                          onClick={() => handleVideoSwitch(relatedVideo.id)}
+                          className={`group cursor-pointer flex flex-col relative w-full ${isMenuOpen ? 'z-[90]' : ''}`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {videoItemContent}
+                        </div>
+                      ) : (
+                        <Link
+                          key={relatedVideo.id}
+                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
+                          className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {videoItemContent}
                         </Link>
                       );
                     })}
@@ -4243,20 +4478,20 @@ export default function WatchPage() {
               } else {
                 // List View (Vertical) - Larger thumbnails and More button
                 return (
-                  <div className="space-y-0">
+                  <div 
+                    ref={isPlaylistSession && recommendedTab === 'playlist' ? playlistScrollContainerRef : null}
+                    className={isPlaylistSession && recommendedTab === 'playlist' 
+                      ? "space-y-0 overflow-y-auto"
+                      : "space-y-0"
+                    }
+                  >
                     {filteredVideos.map((relatedVideo) => {
                       const isMenuOpen = openMenuVideoId === relatedVideo.id;
+                      const isCurrentlyPlaying = video?.id === relatedVideo.id;
+                      const isPlaylistSessionVideo = isPlaylistSession && recommendedTab === 'playlist';
                       
-                      return (
-                        <Link
-                          key={relatedVideo.id}
-                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
-                          className={`flex gap-4 rounded-lg p-3 transition-colors duration-200 group relative ${
-                            hoveredVideo === relatedVideo.id ? 'bg-white/10' : 'bg-transparent'
-                          }`}
-                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
-                          onMouseLeave={() => setHoveredVideo(null)}
-                        >
+                      const videoItemContent = (
+                        <>
                           {/* Thumbnail - Larger on desktop */}
                           <div className="flex-shrink-0 relative w-40 md:w-64 lg:w-72 aspect-video rounded-lg overflow-hidden bg-surface">
                             {relatedVideo.thumbnailUrl ? (
@@ -4320,7 +4555,7 @@ export default function WatchPage() {
                                   {relatedVideo.description}
                                 </p>
                               )}
-                            </div>
+            </div>
                             
                             {/* More Button - Right side */}
                             <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
@@ -4379,10 +4614,41 @@ export default function WatchPage() {
                                   >
                                     Report
                                   </button>
-                                </div>
+          </div>
                               )}
                             </div>
                           </div>
+                        </>
+                      );
+                      
+                      return isPlaylistSessionVideo ? (
+                        <div
+                          key={relatedVideo.id}
+                          ref={isCurrentlyPlaying ? activePlaylistVideoRef : null}
+                          onClick={() => handleVideoSwitch(relatedVideo.id)}
+                          className={`flex gap-4 rounded-lg p-3 transition-all duration-200 group relative w-full cursor-pointer ${
+                            isCurrentlyPlaying 
+                              ? 'bg-white/10' 
+                              : hoveredVideo === relatedVideo.id 
+                                ? 'bg-white/10' 
+                                : 'bg-transparent'
+                          }`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {videoItemContent}
+                        </div>
+                      ) : (
+                        <Link
+                          key={relatedVideo.id}
+                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
+                          className={`flex gap-4 rounded-lg p-3 transition-colors duration-200 group relative ${
+                            hoveredVideo === relatedVideo.id ? 'bg-white/10' : 'bg-transparent'
+                          }`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {videoItemContent}
                         </Link>
                       );
                     })}
