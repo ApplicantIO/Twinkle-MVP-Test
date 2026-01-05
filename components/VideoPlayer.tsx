@@ -912,63 +912,12 @@ export function VideoPlayer({
         onClick={handleVideoClick}
       />
       
-      {/* Access Restriction CTA Overlay - Only show if no teaser available (fallback for old videos) */}
+      {/* Access Restriction Text Overlay - Only show if no teaser available (fallback for old videos) */}
       {!hasFullAccess && video && !video.teaserVideoUrl && (
-        <div className="absolute inset-0 flex items-center justify-center z-[100] bg-black/80">
-          <div className="bg-surface border border-surface rounded-lg p-8 max-w-md mx-4 text-center">
-            {/* Icon */}
-            <div className="flex justify-center mb-4">
-              {video.type === 'paid' ? (
-                <Lock className="h-16 w-16 text-text-secondary" />
-              ) : video.type === 'subscription' ? (
-                <Crown className="h-16 w-16 text-text-secondary" />
-              ) : (
-                <Lock className="h-16 w-16 text-text-secondary" />
-              )}
-            </div>
-            
-            {/* Message */}
-            <h3 className="text-xl font-semibold text-text-primary mb-2">
-              {video.type === 'paid' 
-                ? 'This content requires a one-time purchase'
-                : video.type === 'subscription'
-                ? 'This content requires a channel subscription'
-                : 'Access Restricted'}
-            </h3>
-            
-            <p className="text-text-secondary mb-6">
-              {video.type === 'paid'
-                ? `Purchase this video to watch it in full.`
-                : video.type === 'subscription'
-                ? `Subscribe to ${video.user?.name || 'this channel'} to access exclusive content.`
-                : 'You need to purchase or subscribe to access this content.'}
-            </p>
-            
-            {/* CTA Button */}
-              <Button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                // TODO: Implement purchase/subscription flow
-                console.log('CTA clicked:', video.type === 'paid' ? 'Purchase' : 'Subscribe');
-              }}
-              className="w-full bg-accent hover:bg-accent/90 text-white rounded-full py-6 text-lg font-semibold"
-            >
-              {video.type === 'paid' ? (
-                <>
-                  <DollarSign className="h-5 w-5 mr-2 inline" />
-                  Buy Now for {video.price?.toLocaleString(undefined, { style: 'currency', currency: video.currency || 'USD' }) || '$4.99'}
-                </>
-              ) : video.type === 'subscription' ? (
-                <>
-                  <Crown className="h-5 w-5 mr-2 inline" />
-                  Subscribe to Channel
-                </>
-              ) : (
-                'Get Access'
-              )}
-              </Button>
-            </div>
+        <div className="absolute inset-0 flex items-center justify-center z-[100]">
+          <p className="text-white text-lg font-medium text-center max-w-md px-4" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+            Ushbu kontentni ko'rish uchun buni sotib olishingiz yoki obuna bo'lishingiz (subscribe) kerak
+          </p>
         </div>
       )}
       

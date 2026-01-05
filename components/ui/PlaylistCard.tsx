@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Playlist } from '@/types';
 import { Lock, Crown } from 'lucide-react';
 import { useState } from 'react';
+import { usePurchase } from '@/contexts/PurchaseContext';
 
 interface PlaylistCardProps {
   playlist: Playlist;
@@ -14,9 +15,13 @@ interface PlaylistCardProps {
 export default function PlaylistCard({ playlist, hoveredPlaylist, setHoveredPlaylist }: PlaylistCardProps) {
   const isHovered = hoveredPlaylist === playlist.id;
   const [imageLoaded, setImageLoaded] = useState(false);
+  const { checkPlaylistPurchased } = usePurchase();
 
-  // Check if user has access (placeholder - should check actual purchase/subscription)
-  const hasAccess = false;
+  // Check if user has access to this playlist
+  // If purchased/subscribed, we won't show any badge
+  const isPurchased = playlist.price ? checkPlaylistPurchased(playlist.id) : false;
+  const isSubscribed = false; // TODO: Enhance with subscription context when available
+  const hasAccess = (playlist.price && isPurchased) || (playlist.isSubscription && isSubscribed);
 
   // Get thumbnail: playlist.thumbnail || firstVideo.thumbnail
   const thumbnailUrl = playlist.thumbnail || playlist.firstVideoThumbnail;
@@ -57,17 +62,13 @@ export default function PlaylistCard({ playlist, hoveredPlaylist, setHoveredPlay
             )}
           </div>
 
-          {/* Price/Subscription Label - Top Right Corner (Twinkle Pill Style) */}
-          {(playlist.price || playlist.isSubscription) && (
+          {/* Price/Subscription Label - Top Right Corner (Only show if user doesn't have access) */}
+          {!hasAccess && (playlist.price || playlist.isSubscription) && (
             <div className="absolute top-2 right-2 z-30">
               {playlist.isSubscription ? (
-                <div className={`${
-                  hasAccess 
-                    ? 'bg-green-600/90' 
-                    : 'bg-black/60 backdrop-blur-md'
-                } text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold`}>
+                <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
                   <Crown className="h-3 w-3" />
-                  <span>{hasAccess ? 'Purchased' : 'Subscription'}</span>
+                  <span>Subscription</span>
                 </div>
               ) : playlist.price ? (
                 <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">

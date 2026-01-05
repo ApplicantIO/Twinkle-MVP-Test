@@ -7,11 +7,12 @@ import { Video, Playlist } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply, LayoutList, LayoutGrid, Minimize2, MessageSquare } from 'lucide-react';
+import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply, LayoutList, LayoutGrid, Minimize2, MessageSquare, Play, Trash2 } from 'lucide-react';
 import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { useModal } from '@/contexts/ModalContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatRelativeTime, formatExactDate } from '@/lib/utils';
 import VideoDescription from '@/components/VideoDescription';
 import { getAllPlaylists } from '@/data/mockData';
@@ -31,6 +32,7 @@ interface Comment {
   donationAmount?: number;
   isHighlyRated: boolean;
   replies?: Comment[];
+  deleted?: boolean; // For soft delete (donations)
 }
 
 export default function WatchPage() {
@@ -38,6 +40,7 @@ export default function WatchPage() {
   const router = useRouter();
   const { setIsCollapsed } = useSidebar();
   const { setCurrentWatchVideo, setIsMiniplayerActive, isMiniplayerActive } = useMiniplayer();
+  const { user } = useAuth();
   const [video, setVideo] = useState<Video | null>(null);
   const [videoProgress, setVideoProgress] = useState(0);
   const videoPlayerProgressRef = useRef<number>(0);
@@ -58,9 +61,15 @@ export default function WatchPage() {
   const [openMenuVideoId, setOpenMenuVideoId] = useState<string | null>(null);
   const imageRefs = useRef<Record<string, HTMLImageElement | null>>({});
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const playlistScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const activePlaylistVideoRef = useRef<HTMLDivElement | null>(null);
+  const lastPlaylistScrollTimeRef = useRef<number>(0);
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentReactions, setCommentReactions] = useState<Record<string, 'NONE' | 'LIKE' | 'DISLIKE'>>({});
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ isOpen: boolean; commentId: string; isDonation: boolean }>({ isOpen: false, commentId: '', isDonation: false });
+  const [deletedCommentIds, setDeletedCommentIds] = useState<Set<string>>(new Set());
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [commentText, setCommentText] = useState('');
   const [donationAmount, setDonationAmount] = useState('');
@@ -222,10 +231,209 @@ export default function WatchPage() {
     return true;
   }, [video, hasPurchasedVideo, isChannelSubscriber, currentPlaylist, hasPurchasedPlaylist]);
 
+  // Check if we're in playlist session mode
+  const isPlaylistSession = useMemo(() => {
+    return urlPlaylistId && listContext && currentPlaylist;
+  }, [urlPlaylistId, listContext, currentPlaylist]);
+
+  // Handle video switch within playlist session (without page reload)
+  const handleVideoSwitch = useCallback(async (newVideoId: string) => {
+    if (!isPlaylistSession || !currentPlaylist) {
+      // Not in playlist session - use normal navigation
+      router.push(`/watch/${newVideoId}${urlPlaylistId ? `?playlistId=${urlPlaylistId}&listContext=true` : ''}`);
+      return;
+    }
+
+    // Prevent switching to the same video
+    if (video?.id === newVideoId) {
+      return;
+    }
+
+    try {
+      // Fetch new video data
+      const response = await fetch(`/api/videos/${newVideoId}`);
+      if (!response.ok) {
+        console.error('Failed to fetch video:', response.status);
+        return;
+      }
+
+      const data = await response.json();
+      if (!data.video) {
+        console.error('Video not found in response');
+        return;
+      }
+
+      const newVideo = data.video;
+
+      // Determine correct video URL based on access
+      const videoType = newVideo.type || 'free';
+      let videoUrlToUse = newVideo.videoUrl;
+
+      // Check if video belongs to a paid playlist
+      let hasPlaylistAccess = true;
+      if (currentPlaylist.price) {
+        const purchasedPlaylists = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]')
+          : [];
+        hasPlaylistAccess = purchasedPlaylists.includes(currentPlaylist.id);
+
+        if (!hasPlaylistAccess) {
+          videoUrlToUse = newVideo.teaserVideoUrl || newVideo.videoUrl;
+        } else {
+          videoUrlToUse = newVideo.fullVideoUrl || newVideo.videoUrl;
+        }
+      } else {
+        // Individual video purchase logic
+        const purchasedVideos = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('purchasedVideos') || '[]')
+          : [];
+        const hasPurchased = purchasedVideos.includes(newVideo.id);
+
+        if (videoType === 'paid' || videoType === 'subscription') {
+          if (hasPurchased || (videoType === 'subscription' && isChannelSubscriber(newVideo.userId))) {
+            videoUrlToUse = newVideo.fullVideoUrl || newVideo.videoUrl;
+          } else {
+            videoUrlToUse = newVideo.teaserVideoUrl || newVideo.videoUrl;
+          }
+        }
+      }
+
+      // Update video state (player will update via context)
+      setVideo({
+        ...newVideo,
+        videoUrl: videoUrlToUse
+      });
+
+      // Update miniplayer context (this updates the centralized player)
+      setCurrentWatchVideo({
+        ...newVideo,
+        videoUrl: videoUrlToUse
+      });
+
+      // Reset progress
+      setVideoProgress(0);
+      videoPlayerProgressRef.current = 0;
+
+      // Save playlist progress
+      if (urlPlaylistId) {
+        savePlaylistProgress(urlPlaylistId, newVideo.id, 0);
+      }
+
+      // Update URL without page reload using router.replace (preserves browser history)
+      const newUrl = `/watch/${newVideoId}?playlistId=${urlPlaylistId}&listContext=true`;
+      router.replace(newUrl, { scroll: false });
+
+      // Keep playlist tab active (state is preserved)
+      setRecommendedTab('playlist');
+    } catch (error) {
+      console.error('Error switching video:', error);
+    }
+  }, [isPlaylistSession, currentPlaylist, urlPlaylistId, router, setCurrentWatchVideo, isChannelSubscriber, video?.id, savePlaylistProgress]);
+
   // Automatically collapse sidebar when entering watch page
   useEffect(() => {
     setIsCollapsed(true);
   }, [setIsCollapsed]);
+
+  // Auto-scroll playlist container to show active video at the top (playlist session mode only)
+  useEffect(() => {
+    // Only scroll in playlist session mode when playlist tab is active
+    // CRITICAL: This logic ONLY applies to playlist sessions, not standalone videos
+    if (!isPlaylistSession || recommendedTab !== 'playlist' || !video?.id || typeof window === 'undefined') {
+      return;
+    }
+
+    // Ensure the playlist scroll container exists and is mounted
+    if (!playlistScrollContainerRef.current) {
+      return;
+    }
+
+    // Check if user recently scrolled manually (within last 500ms)
+    const timeSinceUserScroll = Date.now() - lastPlaylistScrollTimeRef.current;
+    if (timeSinceUserScroll < 500) {
+      return; // Skip auto-scroll if user recently scrolled
+    }
+
+    // Wait for DOM to be ready using requestAnimationFrame (double RAF for layout stability)
+    let animationFrameId: number | null = null;
+    
+    const firstFrame = requestAnimationFrame(() => {
+      animationFrameId = requestAnimationFrame(() => {
+        // Double-check container and active item refs exist
+        if (!activePlaylistVideoRef.current || !playlistScrollContainerRef.current) {
+          return;
+        }
+
+        const scrollContainer = playlistScrollContainerRef.current;
+        if (!scrollContainer) {
+          return;
+        }
+
+        // CRITICAL: Only scroll the playlist container, NEVER the page/window
+        // Get bounding rectangles relative to the scroll container
+        const activeItemRect = activePlaylistVideoRef.current.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+
+        // Check if item is already at or near the top of the container (within 5px tolerance)
+        const distanceFromTop = activeItemRect.top - containerRect.top;
+        if (Math.abs(distanceFromTop) < 5) {
+          return; // Already positioned correctly
+        }
+
+        // Calculate scroll offset needed to bring item to top of the container
+        const currentScrollTop = scrollContainer.scrollTop;
+        const scrollOffset = currentScrollTop + distanceFromTop;
+
+        // Handle edge cases: ensure we don't scroll beyond bounds
+        const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+        const clampedScrollTop = Math.max(0, Math.min(scrollOffset, maxScrollTop));
+
+        // Perform smooth scroll ONLY on the playlist container (not window/page)
+        scrollContainer.scrollTo({
+          top: clampedScrollTop,
+          behavior: 'smooth'
+        });
+      });
+    });
+
+    return () => {
+      if (firstFrame) {
+        cancelAnimationFrame(firstFrame);
+      }
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [video?.id, isPlaylistSession, recommendedTab]);
+
+  // Track user manual scrolling in playlist container to prevent auto-scroll interference
+  // ONLY active in playlist session mode
+  useEffect(() => {
+    if (!isPlaylistSession || recommendedTab !== 'playlist' || typeof window === 'undefined') {
+      return;
+    }
+
+    const handleUserScroll = () => {
+      lastPlaylistScrollTimeRef.current = Date.now();
+    };
+
+    // Use requestAnimationFrame to ensure DOM is ready
+    let scrollContainer: HTMLDivElement | null = null;
+    const frameId = requestAnimationFrame(() => {
+      scrollContainer = playlistScrollContainerRef.current;
+      
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', handleUserScroll, { passive: true });
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', handleUserScroll);
+      }
+    };
+  }, [isPlaylistSession, recommendedTab]);
 
   // Update video URL when purchase state changes
   useEffect(() => {
@@ -1117,6 +1325,118 @@ export default function WatchPage() {
         }, 0);
       }
     }
+  };
+
+  // Handle delete request
+  const handleDeleteRequest = (commentId: string, isDonation: boolean) => {
+    const comment = findCommentById(comments, commentId);
+    if (!comment) {
+      console.error('Comment not found for deletion');
+      return;
+    }
+
+    // Get current user ID (authenticated or guest)
+    const currentUserId = user?.id || (typeof window !== 'undefined' ? localStorage.getItem('twinkle_guest_id') : null);
+    
+    if (!currentUserId || currentUserId !== comment.userId) {
+      console.error('Unauthorized: User cannot delete this comment', { 
+        currentUserId, 
+        commentUserId: comment.userId,
+        userAuthenticated: !!user?.id 
+      });
+      return;
+    }
+
+    // If it's a donation, show confirmation modal
+    if (isDonation) {
+      setDeleteConfirmModal({ isOpen: true, commentId, isDonation: true });
+      setReportingCommentId(null); // Close the menu
+    } else {
+      // Standard comment - delete immediately
+      handleDeleteComment(commentId, false);
+    }
+  };
+
+  // Handle actual deletion
+  const handleDeleteComment = async (commentId: string, isDonation: boolean) => {
+    const comment = findCommentById(comments, commentId);
+    if (!comment) {
+      console.error('Comment not found for deletion');
+      return;
+    }
+
+    // Get current user ID (authenticated or guest)
+    const currentUserId = user?.id || (typeof window !== 'undefined' ? localStorage.getItem('twinkle_guest_id') : null);
+
+    if (!currentUserId || currentUserId !== comment.userId) {
+      console.error('Unauthorized: User cannot delete this comment', { 
+        currentUserId, 
+        commentUserId: comment.userId,
+        userAuthenticated: !!user?.id 
+      });
+      return;
+    }
+
+    setDeletingCommentId(commentId);
+
+    // Optimistic update: Mark as deleted with fade-out
+    setDeletedCommentIds(prev => new Set(prev).add(commentId));
+
+    // After fade animation completes, remove from UI
+    setTimeout(() => {
+      if (isDonation) {
+        // Soft delete for donations: mark as deleted but keep in database
+        setComments(prev => updateCommentInTree(prev, commentId, { deleted: true }));
+        // TODO: API call to soft-delete donation (status: deleted_by_user)
+        // await fetch(`/api/comments/${commentId}`, {
+        //   method: 'PATCH',
+        //   headers: { 'Content-Type': 'application/json' },
+        //   body: JSON.stringify({ status: 'deleted_by_user' })
+        // });
+      } else {
+        // Hard delete for standard comments
+        setComments(prev => removeCommentFromTree(prev, commentId));
+        // TODO: API call to delete comment
+        // await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+      }
+      setDeletedCommentIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(commentId);
+        return newSet;
+      });
+      setDeletingCommentId(null);
+    }, 300); // Match CSS transition duration
+  };
+
+  // Update comment in tree (for soft delete)
+  const updateCommentInTree = (comments: Comment[], commentId: string, updates: Partial<Comment>): Comment[] => {
+    return comments.map(comment => {
+      if (comment.id === commentId) {
+        return { ...comment, ...updates };
+      }
+      if (comment.replies && comment.replies.length > 0) {
+        return {
+          ...comment,
+          replies: updateCommentInTree(comment.replies, commentId, updates)
+        };
+      }
+      return comment;
+    });
+  };
+
+  // Remove comment from tree (for hard delete)
+  const removeCommentFromTree = (comments: Comment[], commentId: string): Comment[] => {
+    return comments
+      .filter(comment => comment.id !== commentId)
+      .map(comment => {
+        if (comment.replies && comment.replies.length > 0) {
+          return {
+            ...comment,
+            replies: removeCommentFromTree(comment.replies, commentId)
+          };
+        }
+        return comment;
+      });
   };
 
   // Handle scroll to parent comment with highlight effect
@@ -2562,11 +2882,29 @@ export default function WatchPage() {
       }
     }
     
+    // Generate a unique user ID for guest users or use authenticated user ID
+    // For guest users, use a session-persistent ID stored in localStorage
+    let currentUserId = user?.id;
+    if (!currentUserId) {
+      if (typeof window !== 'undefined') {
+        let guestId = localStorage.getItem('twinkle_guest_id');
+        if (!guestId) {
+          guestId = `guest-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          localStorage.setItem('twinkle_guest_id', guestId);
+        }
+        currentUserId = guestId;
+      } else {
+        // Fallback for SSR - should not happen in practice
+        currentUserId = `guest-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      }
+    }
+    const isAnonymous = (donationAmount && selectedPaymentMethod && isAnonymousDonation) || !user?.id;
+    
     const newComment: Comment = {
       id: Date.now().toString(),
-      userId: 'current-user',
-      userName: (donationAmount && selectedPaymentMethod && isAnonymousDonation) ? 'Anonymous' : 'You',
-      username: (donationAmount && selectedPaymentMethod && isAnonymousDonation) ? '@anonymous' : '@you',
+      userId: currentUserId, // Use authenticated user ID or generate guest ID
+      userName: isAnonymous ? 'Anonymous' : (user.name || user.email?.split('@')[0] || 'You'),
+      username: isAnonymous ? '@anonymous' : `@${user.email?.split('@')[0] || 'you'}`,
       text: commentText,
       timestamp: new Date(),
       likes: 0,
@@ -3043,6 +3381,12 @@ export default function WatchPage() {
   const renderCommentItem = (comment: Comment, isReply: boolean = false) => {
     const isLiveMode = video?.isLive === true;
     const isHighlighted = highlightedCommentId === comment.id;
+    const isDeleted = deletedCommentIds.has(comment.id) || comment.deleted;
+    
+    // Don't render deleted comments (after fade-out animation)
+    if (comment.deleted && !deletedCommentIds.has(comment.id)) {
+      return null;
+    }
     
     return (
       <div 
@@ -3052,7 +3396,7 @@ export default function WatchPage() {
             commentRefs.current[comment.id] = el;
           }
         }}
-        className={isReply && !isLiveMode ? 'ml-10' : ''}
+        className={`${isReply && !isLiveMode ? 'ml-10' : ''} ${isDeleted ? 'opacity-0 h-0 overflow-hidden transition-all duration-300' : ''}`}
       >
         <div className={`px-3 py-1.5 rounded-lg transition-colors duration-1000 ${
           isHighlighted ? 'bg-white/10' : 'bg-transparent'
@@ -3143,9 +3487,10 @@ export default function WatchPage() {
                 >
                   <MoreVertical className="h-4 w-4" />
                 </button>
-                {/* Report Menu */}
+                {/* Comment Menu */}
                 {reportingCommentId === comment.id && reportCommentState === 'NONE' && (
                   <div className="comment-report-menu absolute right-0 top-8 w-32 bg-surface border border-surface rounded-lg shadow-lg z-20 overflow-hidden">
+                    {/* Report Option - Available for all comments */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -3158,6 +3503,23 @@ export default function WatchPage() {
                       <Flag className="h-4 w-4" />
                       Report
                     </button>
+                    {/* Delete Option - Show if user owns the comment (authenticated or guest) */}
+                    {(() => {
+                      const currentUserId = user?.id || (typeof window !== 'undefined' ? localStorage.getItem('twinkle_guest_id') : null);
+                      return currentUserId && currentUserId === comment.userId;
+                    })() && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleDeleteRequest(comment.id, comment.isDonated);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-error hover:bg-background flex items-center gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -3884,7 +4246,7 @@ export default function WatchPage() {
                   }
                 }}
               />
-            </div>
+          </div>
           )}
 
           {/* Recommended Videos Section */}
@@ -3902,7 +4264,7 @@ export default function WatchPage() {
             )}
             
             {/* Tab Navigation - Sticky */}
-            <div className="sticky top-0 z-30 bg-[#0A0A0A] pt-2 pb-4 mb-4 -mt-2">
+            <div className="sticky top-0 z-30 bg-[#0A0A0A] pt-2 pb-1 -mt-2">
               <div className="flex items-center justify-between gap-4 border-b border-surface/50 w-full">
                 <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide">
                   {/* Scenario A: urlPlaylistId exists - Show ONLY playlist tabs (no standard recommendations) */}
@@ -3952,7 +4314,7 @@ export default function WatchPage() {
                         Recommended
                       </button>
                       
-                      {/* "From Playlist: [Name]" tab - Only show if video belongs to playlist but NOT in listContext mode */}
+                      {/* "From Playlist" tab - Only show if video belongs to playlist but NOT in listContext mode */}
                       {currentPlaylist && !listContext && (
                         <button
                           onClick={() => {
@@ -3964,8 +4326,9 @@ export default function WatchPage() {
                               ? 'border-white text-text-primary font-semibold'
                               : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
                           }`}
+                          title={currentPlaylist.title}
                         >
-                          From Playlist: {currentPlaylist.title}
+                          From Playlist
                         </button>
                       )}
                       
@@ -4018,18 +4381,23 @@ export default function WatchPage() {
                 // Filter by playlist sections (maintaining creator-defined order)
                 const videoMap = new Map(relatedVideos.map(v => [v.id, v]));
                 
+                // Include current video in playlist session mode (to show "Now Playing" indicator)
+                if (isPlaylistSession && video) {
+                  videoMap.set(video.id, video);
+                }
+                
                 if (playlistActiveTab === 'all') {
                   // Show all videos from playlist in creator-defined order
                   filteredVideos = currentPlaylist.allVideoIds
                     .map(id => videoMap.get(id))
-                    .filter((v): v is Video => v !== undefined && v.id !== video?.id);
+                    .filter((v): v is Video => v !== undefined);
                 } else {
                   // Show videos from specific section in creator-defined order
                   const section = currentPlaylist.sections.find(s => s.id === playlistActiveTab);
                   if (section) {
                     filteredVideos = section.videoIds
                       .map(id => videoMap.get(id))
-                      .filter((v): v is Video => v !== undefined && v.id !== video?.id);
+                      .filter((v): v is Video => v !== undefined);
                   }
                 }
               } else if (recommendedTab === 'recommendations') {
@@ -4079,25 +4447,29 @@ export default function WatchPage() {
                 // Grid/Card View - Match Homepage styling with dynamic columns
                 return (
                   <div 
-                    className="grid gap-x-0 gap-y-0"
+                    ref={isPlaylistSession && recommendedTab === 'playlist' ? playlistScrollContainerRef : null}
+                    className={isPlaylistSession && recommendedTab === 'playlist'
+                      ? "grid gap-x-0 gap-y-0 overflow-y-auto"
+                      : "grid gap-x-0 gap-y-0"
+                    }
                     style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
                   >
                     {filteredVideos.map((relatedVideo) => {
                       const isHovered = hoveredVideo === relatedVideo.id;
                       const isMenuOpen = openMenuVideoId === relatedVideo.id;
+                      const isCurrentlyPlaying = video?.id === relatedVideo.id;
+                      const isPlaylistSessionVideo = isPlaylistSession && recommendedTab === 'playlist';
                       
-                      return (
-                        <Link
-                          key={relatedVideo.id}
-                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
-                          className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
-                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
-                          onMouseLeave={() => setHoveredVideo(null)}
-                        >
+                      const videoItemContent = (
+                        <>
                           {/* Card Container - flat design with uniform neutral hover effect */}
                           <div 
-                            className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-[90]' : ''} ${
-                              isHovered ? 'bg-white/10' : 'bg-transparent'
+                            className={`rounded-xl transition-all duration-200 p-3 relative ${isMenuOpen ? 'z-[90]' : ''} ${
+                              isCurrentlyPlaying 
+                                ? 'bg-white/10' 
+                                : isHovered 
+                                  ? 'bg-white/10' 
+                                  : 'bg-transparent'
                             }`}
                           >
                             {/* Thumbnail Container */}
@@ -4163,7 +4535,7 @@ export default function WatchPage() {
                                       <span>{formatViews(relatedVideo.views)} views</span>
                                       <span>•</span>
                                       <span 
-                                        className="underline decoration-dotted underline-offset-2 cursor-help"
+                                        className="cursor-help"
                                         title={formatExactDate(relatedVideo.createdAt)}
                                       >
                                         {formatTimeAgo(relatedVideo.createdAt)}
@@ -4235,6 +4607,29 @@ export default function WatchPage() {
                               </div>
                             </div>
                           </div>
+                        </>
+                      );
+                      
+                      return isPlaylistSessionVideo ? (
+                        <div
+                          key={relatedVideo.id}
+                          ref={isCurrentlyPlaying ? activePlaylistVideoRef : null}
+                          onClick={() => handleVideoSwitch(relatedVideo.id)}
+                          className={`group cursor-pointer flex flex-col relative w-full ${isMenuOpen ? 'z-[90]' : ''}`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {videoItemContent}
+                        </div>
+                      ) : (
+                        <Link
+                          key={relatedVideo.id}
+                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
+                          className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {videoItemContent}
                         </Link>
                       );
                     })}
@@ -4243,20 +4638,20 @@ export default function WatchPage() {
               } else {
                 // List View (Vertical) - Larger thumbnails and More button
                 return (
-                  <div className="space-y-0">
+                  <div 
+                    ref={isPlaylistSession && recommendedTab === 'playlist' ? playlistScrollContainerRef : null}
+                    className={isPlaylistSession && recommendedTab === 'playlist' 
+                      ? "space-y-0 overflow-y-auto"
+                      : "space-y-0"
+                    }
+                  >
                     {filteredVideos.map((relatedVideo) => {
                       const isMenuOpen = openMenuVideoId === relatedVideo.id;
+                      const isCurrentlyPlaying = video?.id === relatedVideo.id;
+                      const isPlaylistSessionVideo = isPlaylistSession && recommendedTab === 'playlist';
                       
-                      return (
-                        <Link
-                          key={relatedVideo.id}
-                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
-                          className={`flex gap-4 rounded-lg p-3 transition-colors duration-200 group relative ${
-                            hoveredVideo === relatedVideo.id ? 'bg-white/10' : 'bg-transparent'
-                          }`}
-                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
-                          onMouseLeave={() => setHoveredVideo(null)}
-                        >
+                      const videoItemContent = (
+                        <>
                           {/* Thumbnail - Larger on desktop */}
                           <div className="flex-shrink-0 relative w-40 md:w-64 lg:w-72 aspect-video rounded-lg overflow-hidden bg-surface">
                             {relatedVideo.thumbnailUrl ? (
@@ -4320,7 +4715,7 @@ export default function WatchPage() {
                                   {relatedVideo.description}
                                 </p>
                               )}
-                            </div>
+            </div>
                             
                             {/* More Button - Right side */}
                             <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
@@ -4379,10 +4774,41 @@ export default function WatchPage() {
                                   >
                                     Report
                                   </button>
-                                </div>
+          </div>
                               )}
                             </div>
                           </div>
+                        </>
+                      );
+                      
+                      return isPlaylistSessionVideo ? (
+                        <div
+                          key={relatedVideo.id}
+                          ref={isCurrentlyPlaying ? activePlaylistVideoRef : null}
+                          onClick={() => handleVideoSwitch(relatedVideo.id)}
+                          className={`flex gap-4 rounded-lg p-3 transition-all duration-200 group relative w-full cursor-pointer ${
+                            isCurrentlyPlaying 
+                              ? 'bg-white/10' 
+                              : hoveredVideo === relatedVideo.id 
+                                ? 'bg-white/10' 
+                                : 'bg-transparent'
+                          }`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {videoItemContent}
+                        </div>
+                      ) : (
+                        <Link
+                          key={relatedVideo.id}
+                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
+                          className={`flex gap-4 rounded-lg p-3 transition-colors duration-200 group relative ${
+                            hoveredVideo === relatedVideo.id ? 'bg-white/10' : 'bg-transparent'
+                          }`}
+                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
+                          onMouseLeave={() => setHoveredVideo(null)}
+                        >
+                          {videoItemContent}
                         </Link>
                       );
                     })}
@@ -4466,6 +4892,37 @@ export default function WatchPage() {
         </div>
       )}
       
+      {/* Delete Confirmation Modal for Donations */}
+      {deleteConfirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface border border-surface rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-lg font-semibold text-text-primary mb-4">
+              Delete Donation Message
+            </h2>
+            <p className="text-sm text-text-secondary mb-6">
+              Note: Deleting this message will remove it from the public feed, but your donation will not be refunded. Do you wish to proceed?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirmModal({ isOpen: false, commentId: '', isDonation: false })}
+                className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteComment(deleteConfirmModal.commentId, true);
+                  setDeleteConfirmModal({ isOpen: false, commentId: '', isDonation: false });
+                }}
+                className="px-4 py-2 text-sm font-medium bg-error text-white rounded-lg hover:bg-error/90 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Comments Section - Only show if user has access */}
       {hasFullAccess && (
         <div ref={commentsSectionRef} className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
@@ -4559,12 +5016,14 @@ export default function WatchPage() {
             <div className="flex-1 overflow-y-auto space-y-1 px-3 py-1 sidebar-scrollbar-hide">
             {reportCommentState === 'NONE' ? (
               /* Standard Comments/Donations View */
-              filteredComments.length === 0 ? (
+              filteredComments.filter(c => !c.deleted || deletedCommentIds.has(c.id)).length === 0 ? (
               <div className="text-center text-text-secondary text-sm py-8">
                 No {activeTab === 'donated' ? 'donated ' : ''}comments yet.
               </div>
             ) : (
-              filteredComments.map((comment) => renderComment(comment))
+              filteredComments
+                .filter(c => !c.deleted || deletedCommentIds.has(c.id))
+                .map((comment) => renderComment(comment))
             )
             ) : (
               /* Comment Report Flow */

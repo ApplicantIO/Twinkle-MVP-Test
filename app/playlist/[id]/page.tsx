@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useLayoutEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Playlist, Video } from '@/types';
@@ -44,6 +44,8 @@ export default function PlaylistPage() {
   const menuRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const descriptionRef = useRef<HTMLDivElement>(null);
+  const [showDescriptionFade, setShowDescriptionFade] = useState(false);
 
   // Load playlist data
   useEffect(() => {
@@ -143,6 +145,25 @@ export default function PlaylistPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Check if description text overflows container (for fade-out effect)
+  useLayoutEffect(() => {
+    const checkOverflow = () => {
+      if (descriptionRef.current && !isDescriptionExpanded) {
+        const element = descriptionRef.current.querySelector('p');
+        if (element) {
+          const hasOverflow = element.scrollHeight > element.clientHeight;
+          setShowDescriptionFade(hasOverflow);
+        }
+      } else {
+        setShowDescriptionFade(false);
+      }
+    };
+    
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+    return () => window.removeEventListener('resize', checkOverflow);
+  }, [playlist?.description, isDescriptionExpanded]);
+
   // Get filtered videos based on active tab (maintaining creator-defined order)
   const getFilteredVideos = (): Video[] => {
     if (activeTab === 'all') {
@@ -220,12 +241,12 @@ export default function PlaylistPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex flex-col lg:flex-row gap-8 p-6 max-w-[1920px] mx-auto">
-        {/* Left Sidebar - Full Height (Comment Bar Style) */}
-        <div className="w-full lg:w-[400px] flex-shrink-0">
-          <div className="sticky top-16 h-[calc(100vh-64px)] flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto scrollbar-hide bg-zinc-900/50 rounded-2xl p-6 space-y-6">
+    <>
+    <div className="w-full h-[calc(100vh-4rem)] flex gap-6 p-6 overflow-hidden max-w-[1920px] mx-auto bg-background">
+        {/* Left Sidebar - Fixed, Non-Scrollable (Playlist Metadata) */}
+        <div className="w-full lg:w-[400px] flex-shrink-0 flex flex-col h-full min-h-0">
+          <div className="bg-zinc-900/50 rounded-2xl p-6 space-y-6 h-full flex flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-6">
             {/* Thumbnail - Enhanced with border */}
             <div className="relative w-full aspect-video bg-surface rounded-lg overflow-hidden border border-white/5">
               {thumbnailUrl ? (
@@ -283,7 +304,7 @@ export default function PlaylistPage() {
 
             {/* Action Row - [Play/Resume] | [Share] | [Save] | [More] */}
             {videos.length > 0 && (
-              <div className="flex flex-row items-center gap-2 mt-4">
+            <div className="flex flex-row items-center gap-2 mt-4">
                 {/* Play/Resume Button - flex-1, White background with black icon/text - Always visible */}
                 <button
                   className="flex-1 bg-white hover:bg-white/90 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
@@ -305,52 +326,52 @@ export default function PlaylistPage() {
                   <span className="text-sm text-black font-medium">{hasStarted ? 'Resume' : 'Play'}</span>
                 </button>
 
-                {/* Share Button - flex-1 */}
-                <button
-                  onClick={() => openShareModal(playlist.id, playlist.title)}
-                  className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Share2 className="h-4 w-4" />
-                  <span className="text-sm">Share</span>
-                </button>
+              {/* Share Button - flex-1 */}
+              <button
+                onClick={() => openShareModal(playlist.id, playlist.title)}
+                className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
+              >
+                <Share2 className="h-4 w-4" />
+                <span className="text-sm">Share</span>
+              </button>
 
-                {/* Save Button - flex-1 */}
-                <button
-                  onClick={() => setIsSaved(!isSaved)}
-                  className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
-                  <span className="text-sm">{isSaved ? 'Saved' : 'Save'}</span>
-                </button>
+              {/* Save Button - flex-1 */}
+              <button
+                onClick={() => setIsSaved(!isSaved)}
+                className="flex-1 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 flex items-center justify-center gap-2 transition-colors"
+              >
+                <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
+                <span className="text-sm">{isSaved ? 'Saved' : 'Save'}</span>
+              </button>
 
-                {/* More Button - Icon only */}
-                <div className="relative">
-                  <button
-                    ref={moreButtonRef}
-                    onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                    className="bg-white/10 hover:bg-white/20 rounded-full p-2.5 transition-colors"
+              {/* More Button - Icon only */}
+              <div className="relative">
+                <button
+                  ref={moreButtonRef}
+                  onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                  className="bg-white/10 hover:bg-white/20 rounded-full p-2.5 transition-colors"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+                
+                {isMoreMenuOpen && (
+                  <div
+                    ref={moreMenuRef}
+                    className="absolute left-0 top-full mt-2 w-48 bg-surface border border-surface rounded-lg shadow-xl z-50 overflow-hidden"
                   >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  
-                  {isMoreMenuOpen && (
-                    <div
-                      ref={moreMenuRef}
-                      className="absolute left-0 top-full mt-2 w-48 bg-surface border border-surface rounded-lg shadow-xl z-50 overflow-hidden"
+                    <button
+                      onClick={() => {
+                        openReportModal(playlist.id, playlist.title);
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
                     >
-                      <button
-                        onClick={() => {
-                          openReportModal(playlist.id, playlist.title);
-                          setIsMoreMenuOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
-                      >
-                        Report
-                      </button>
-                    </div>
-                  )}
-                </div>
+                      Report
+                    </button>
+                  </div>
+                )}
               </div>
+            </div>
             )}
 
             {/* Buy Button - Separate Row (Only if paid and not purchased) */}
@@ -372,17 +393,18 @@ export default function PlaylistPage() {
                 : playlist.description.split(/\s+/).slice(0, 100).join(' ') + '...';
               
               return (
-              <div className="pt-4 border-t border-surface/30">
+              <div className="pt-4 border-t border-surface/30 relative">
+                <div ref={descriptionRef} className="relative">
                 <p className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">
-                    {displayText}
-                    {shouldShowToggle && !isDescriptionExpanded && (
-                      <button
-                        onClick={() => setIsDescriptionExpanded(true)}
-                        className="text-accent hover:text-accent/80 font-medium ml-1"
-                      >
-                        ...more
-                      </button>
-                    )}
+                      {displayText}
+                      {shouldShowToggle && !isDescriptionExpanded && (
+                        <button
+                          onClick={() => setIsDescriptionExpanded(true)}
+                          className="text-accent hover:text-accent/80 font-medium ml-1"
+                        >
+                          ...more
+                        </button>
+                      )}
                   </p>
                   {shouldShowToggle && isDescriptionExpanded && (
                     <button
@@ -392,6 +414,16 @@ export default function PlaylistPage() {
                       Show less
                     </button>
                   )}
+                  {/* Fade-out overlay - Only show when text overflows */}
+                  {showDescriptionFade && !isDescriptionExpanded && (
+                    <div 
+                      className="absolute bottom-0 left-0 right-0 h-10 pointer-events-none"
+                      style={{
+                        background: 'linear-gradient(to bottom, transparent, rgba(22, 22, 22, 1))'
+                      }}
+                    />
+                  )}
+                </div>
               </div>
               );
             })()}
@@ -399,10 +431,12 @@ export default function PlaylistPage() {
           </div>
         </div>
 
-        {/* Right Content Area - 70% */}
-        <div className="flex-1 min-w-0">
-          {/* TabBar - Fixed List Layout (No Toggle) */}
-          <div className="sticky top-0 z-30 bg-background pt-2 pb-4 mb-4 -mt-2">
+        {/* Right Content Area - Scrollable (Tabs + Video List) */}
+        <div className="flex-1 min-w-0 flex flex-col h-full min-h-0 overflow-hidden">
+          {/* Scrollable Container */}
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+            {/* TabBar - Sticky within scrollable container */}
+            <div className="sticky top-0 z-30 bg-background pt-2 pb-1">
             <div className="flex items-center gap-4 border-b border-surface/50">
               {/* Tabs - Twinkle Standard Tab Component */}
               <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide">
@@ -433,7 +467,7 @@ export default function PlaylistPage() {
             </div>
           </div>
 
-          {/* Video List - Fixed Layout */}
+            {/* Video List - Fixed Layout */}
           {filteredVideos.length === 0 ? (
             <div className="text-center py-12 text-text-secondary">
               <p>No videos in this section.</p>
@@ -448,7 +482,7 @@ export default function PlaylistPage() {
                   <Link
                     key={video.id}
                     href={`/watch/${video.id}?playlistId=${playlist.id}&listContext=true`}
-                    className={`flex gap-4 rounded-lg p-3 transition-colors duration-200 group relative ${
+                    className={`flex gap-4 rounded-lg p-3 transition-all duration-200 group relative ${
                       hoveredVideo === video.id ? 'bg-white/10' : 'bg-transparent'
                     }`}
                     onMouseEnter={() => setHoveredVideo(video.id)}
@@ -462,9 +496,7 @@ export default function PlaylistPage() {
                     </div>
 
                     {/* Thumbnail */}
-                    <div className={`flex-shrink-0 relative w-40 md:w-64 lg:w-72 aspect-video rounded-lg overflow-hidden bg-surface ${
-                      lastVideoId === video.id ? 'ring-2 ring-accent' : ''
-                    }`}>
+                    <div className="flex-shrink-0 relative w-40 md:w-64 lg:w-72 aspect-video rounded-lg overflow-hidden bg-surface">
                       {video.thumbnailUrl ? (
                         <img
                           src={video.thumbnailUrl}
@@ -476,10 +508,10 @@ export default function PlaylistPage() {
                           <span className="text-text-secondary text-xs">No thumbnail</span>
                         </div>
                       )}
-                      {/* Last Played Indicator */}
+                      {/* Last Played Indicator - Purple Badge */}
                       {lastVideoId === video.id && (
-                        <div className="absolute top-2 left-2 bg-accent/90 backdrop-blur-sm text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1">
-                          <Play className="h-3 w-3" />
+                        <div className="absolute top-2 left-2 bg-accent/90 backdrop-blur-sm text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1 z-20">
+                          <Play className="h-3 w-3 fill-current" />
                           <span>Last played</span>
                         </div>
                       )}
@@ -595,6 +627,7 @@ export default function PlaylistPage() {
               })}
             </div>
           )}
+          </div>
         </div>
       </div>
 
@@ -627,30 +660,30 @@ export default function PlaylistPage() {
 
             {/* Purchase Flow Content */}
             <div className="flex-1 overflow-y-auto scrollbar-hide">
-                <MonetizationCTASection
-                  video={{
-                    id: playlist.id,
-                    userId: playlist.creatorId || 'playlist-creator',
-                    title: playlist.title,
-                    description: playlist.description,
-                    videoUrl: '',
-                    views: 0,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                    type: playlist.isSubscription ? 'subscription' : 'paid',
-                    price: parseInt(playlist.price.replace(/[^\d]/g, '')) || 50000,
-                    currency: 'UZS',
-                    user: {
-                      id: playlist.creatorId || 'playlist-creator',
-                      name: playlist.creatorName,
-                      profileImageUrl: playlist.creatorAvatar,
-                    },
-                  }}
+              <MonetizationCTASection
+                video={{
+                  id: playlist.id,
+                  userId: playlist.creatorId || 'playlist-creator',
+                  title: playlist.title,
+                  description: playlist.description,
+                  videoUrl: '',
+                  views: 0,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                  type: playlist.isSubscription ? 'subscription' : 'paid',
+                  price: parseInt(playlist.price.replace(/[^\d]/g, '')) || 50000,
+                  currency: 'UZS',
+                  user: {
+                    id: playlist.creatorId || 'playlist-creator',
+                    name: playlist.creatorName,
+                    profileImageUrl: playlist.creatorAvatar,
+                  },
+                }}
                   isPlaylist={true}
-                  onPurchase={() => {
+                onPurchase={() => {
                     // Purchase started
-                  }}
-                  onPurchaseComplete={() => {
+                }}
+                onPurchaseComplete={() => {
                     // Purchase completed - dispatch event for global sync
                     if (typeof window !== 'undefined') {
                       const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
@@ -661,15 +694,15 @@ export default function PlaylistPage() {
                         window.dispatchEvent(new CustomEvent('playlistPurchased', { detail: { playlistId: playlist.id } }));
                       }
                     }
-                    setShowPurchaseFlow(false);
+                  setShowPurchaseFlow(false);
                     refreshPurchases();
-                  }}
-                />
+                }}
+              />
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

@@ -7,6 +7,7 @@ import { Video, Playlist } from '@/types';
 import { Play, Lock, Crown, Volume2, VolumeX, MoreVertical } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useModal } from '@/contexts/ModalContext';
+import { usePurchase } from '@/contexts/PurchaseContext';
 import PlaylistCard from '@/components/ui/PlaylistCard';
 import { getAllPlaylists } from '@/data/mockData';
 
@@ -168,7 +169,7 @@ export default function HomePage() {
     <div className="pt-2 pb-4 md:pt-3 md:pb-6 lg:pt-4 lg:pb-8">
       {/* Playlists Section */}
       {playlists.length > 0 && (
-        <div className="mb-8 px-4 md:px-6 lg:px-8">
+        <div className="mb-8 px-4 lg:px-5">
           <h2 className="text-2xl font-bold mb-3 text-white">Playlists</h2>
           <div 
             className="grid gap-x-0 gap-y-4"
@@ -187,13 +188,14 @@ export default function HomePage() {
       )}
       
       {/* Videos Section */}
-      <h1 className="text-2xl font-bold mb-3 text-white px-4 md:px-6 lg:px-8">
-        {user ? 'Recommended for you' : 'Recommended'}
-      </h1>
-      <div 
-        className="grid gap-x-0 gap-y-4"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-      >
+      <div className="px-4 lg:px-5">
+        <h1 className="text-2xl font-bold mb-3 text-white">
+          {user ? 'Recommended for you' : 'Recommended'}
+        </h1>
+        <div 
+          className="grid gap-x-0 gap-y-4"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
         {videos.map((video) => (
             <VideoCard
               key={video.id}
@@ -205,6 +207,7 @@ export default function HomePage() {
               formatDuration={formatDuration}
             />
         ))}
+        </div>
       </div>
 
       {videos.length === 0 && (
@@ -249,15 +252,18 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
   const isHovered = hoveredVideo === video.id;
   const { user } = useAuth();
   const { openShareModal, openReportModal } = useModal();
+  const { checkVideoPurchased } = usePurchase();
   const [isMuted, setIsMuted] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
-  // Check if user has access to subscription/purchased content
-  // TODO: Replace with actual subscription/purchase check from API
-  const hasAccess = false; // Placeholder - should check user's subscriptions/purchases
+  // Check if user has access to this content
+  // If purchased/subscribed, we won't show any badge
+  const isPurchased = video.type === 'paid' ? checkVideoPurchased(video.id) : false;
+  const isSubscribed = false; // TODO: Enhance with subscription context when available
+  const hasAccess = (video.type === 'paid' && isPurchased) || (video.type === 'subscription' && isSubscribed);
 
   // Try to get a preview image for YouTube videos
   const getPreviewImage = () => {
@@ -355,21 +361,19 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
         {/* Overlays Container - Top Right Corner */}
         <div className="absolute top-2 right-2 flex flex-col items-end gap-2 z-30">
           {/* Labels Container - Horizontal layout when multiple labels exist */}
-          {(video.isLive || video.type === 'subscription' || (video.type === 'paid' && video.price !== undefined)) && (
+          {/* Only show badges if content is locked/unpaid OR if it's live */}
+          {(video.isLive || (!hasAccess && (video.type === 'subscription' || (video.type === 'paid' && video.price !== undefined)))) && (
             <div className="flex items-center gap-2">
-              {/* Price/Subscription Label - Left side when LIVE exists */}
-              {video.type === 'subscription' && (
-                <div className={`${
-                  hasAccess 
-                    ? 'bg-green-600/90' // Purchased/Owned - Green success color
-                    : 'bg-black/80' // Subscription required - Dark/black background (same as price label)
-                } backdrop-blur-sm text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold`}>
+              {/* Subscription Label - Only show if user doesn't have access */}
+              {video.type === 'subscription' && !hasAccess && (
+                <div className="bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
                   <Crown className="h-3 w-3" />
-                  <span>{hasAccess ? 'Purchased' : 'Subscription'}</span>
+                  <span>Subscription</span>
                 </div>
               )}
               
-              {video.type === 'paid' && video.price !== undefined && (
+              {/* Paid Video Label - Only show if user doesn't have access */}
+              {video.type === 'paid' && video.price !== undefined && !hasAccess && (
                 <div className="bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
                   <Lock className="h-3 w-3" />
                   <span>
@@ -439,7 +443,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
           {/* Column 2: Details Block (Flex-Grow) */}
               <div className="flex-1 min-w-0">
             {/* Title - Always white, no color change on hover */}
-            <h3 className="font-medium text-sm text-text-primary line-clamp-3 mb-1 leading-5">
+            <h3 className="font-medium text-sm text-text-primary line-clamp-2 mb-1 leading-5">
                   {video.title}
                 </h3>
             

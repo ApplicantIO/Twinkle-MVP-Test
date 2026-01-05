@@ -82,7 +82,7 @@ export function PurchaseFlowModal() {
           <div className="space-y-3">
             <div className="flex items-start gap-3">
               <div className="flex-1">
-                <p className="text-sm font-medium text-text-primary line-clamp-2">
+                <p className="text-sm font-medium text-text-primary whitespace-normal break-words h-auto">
                   {currentVideoTitle}
                 </p>
                 <p className="text-xs text-text-secondary mt-1">
