@@ -395,7 +395,7 @@ export default function PlaylistPage() {
               return (
               <div className="pt-4 border-t border-surface/30 relative">
                 <div ref={descriptionRef} className="relative">
-                <p className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">
+                  <p className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">
                       {displayText}
                       {shouldShowToggle && !isDescriptionExpanded && (
                         <button
@@ -468,7 +468,7 @@ export default function PlaylistPage() {
           </div>
 
             {/* Video List - Fixed Layout */}
-          {filteredVideos.length === 0 ? (
+            {filteredVideos.length === 0 ? (
             <div className="text-center py-12 text-text-secondary">
               <p>No videos in this section.</p>
             </div>

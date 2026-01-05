@@ -2903,8 +2903,8 @@ export default function WatchPage() {
     const newComment: Comment = {
       id: Date.now().toString(),
       userId: currentUserId, // Use authenticated user ID or generate guest ID
-      userName: isAnonymous ? 'Anonymous' : (user.name || user.email?.split('@')[0] || 'You'),
-      username: isAnonymous ? '@anonymous' : `@${user.email?.split('@')[0] || 'you'}`,
+      userName: isAnonymous || !user ? 'Anonymous' : (user.name || user.email?.split('@')[0] || 'You'),
+      username: isAnonymous || !user ? '@anonymous' : `@${user.email?.split('@')[0] || 'you'}`,
       text: commentText,
       timestamp: new Date(),
       likes: 0,
