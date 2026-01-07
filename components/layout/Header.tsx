@@ -113,6 +113,10 @@ export function Header() {
     value: string;
   };
 
+  const MAX_HISTORY_ITEMS = 10;
+  const MAX_SUGGESTION_ITEMS = 10;
+  const MAX_EMPTY_TOTAL_ITEMS = 12;
+
   const EXPLORE_ITEMS: Array<{ label: string; query: string }> = [
     { label: 'Top Music', query: 'Music' },
     { label: 'Podcasts', query: 'Podcasts' },
@@ -217,43 +221,52 @@ export function Header() {
       return;
     }
 
-    const scoredVideos = allVideos
-      .map((v) => ({
-        v,
-        score:
-          fuzzyScore(v.title || '', q) +
-          fuzzyScore(v.user?.name || '', q) +
-          fuzzyScore(v.category || '', q),
-      }))
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6)
-      .map(({ v }) => ({
-        key: `video-${v.id}`,
-        type: 'video' as const,
-        primary: v.title || 'Untitled',
-        suffix: 'Video',
-        value: v.title || '',
-      }));
+    // Build a combined candidate list so we can cap TOTAL suggestions to MAX_SUGGESTION_ITEMS
+    const candidates: Array<{
+      item: SearchDropdownItem;
+      score: number;
+      popularity: number;
+    }> = [];
 
-    const scoredPlaylists = allPlaylists
-      .map((p: any) => ({
-        p,
-        score:
-          fuzzyScore(p.title || '', q) +
-          fuzzyScore(p.creatorName || '', q) +
-          fuzzyScore(p.type || '', q),
-      }))
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6)
-      .map(({ p }: any) => ({
-        key: `playlist-${p.id}`,
-        type: 'playlist' as const,
-        primary: p.title || 'Untitled',
-        suffix: 'Playlist',
-        value: p.title || '',
-      }));
+    // Videos
+    allVideos.forEach((v) => {
+      const score =
+        fuzzyScore(v.title || '', q) +
+        fuzzyScore(v.user?.name || '', q) +
+        fuzzyScore(v.category || '', q);
+      if (score <= 0) return;
+      candidates.push({
+        item: {
+          key: `video-${v.id}`,
+          type: 'video',
+          primary: v.title || 'Untitled',
+          suffix: 'Video',
+          value: v.title || '',
+        },
+        score,
+        popularity: (v as any).views || 0,
+      });
+    });
+
+    // Playlists
+    (allPlaylists as any[]).forEach((p) => {
+      const score =
+        fuzzyScore(p.title || '', q) +
+        fuzzyScore(p.creatorName || '', q) +
+        fuzzyScore(p.type || '', q);
+      if (score <= 0) return;
+      candidates.push({
+        item: {
+          key: `playlist-${p.id}`,
+          type: 'playlist',
+          primary: p.title || 'Untitled',
+          suffix: 'Playlist',
+          value: p.title || '',
+        },
+        score,
+        popularity: p.videoCount || 0,
+      });
+    });
 
     // Channels derived from video users
     const channelMap = new Map<string, { id: string; name: string }>();
@@ -262,48 +275,66 @@ export function Header() {
       const id = (v.user as any).id || v.userId || v.user?.name;
       if (!channelMap.has(id)) channelMap.set(id, { id, name: v.user.name });
     });
-
-    const scoredChannels = Array.from(channelMap.values())
-      .map((c) => ({ c, score: fuzzyScore(c.name, q) }))
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 4)
-      .map(({ c }) => ({
-        key: `channel-${c.id}`,
-        type: 'channel' as const,
-        primary: c.name,
-        suffix: 'Channel',
-        value: c.name,
-      }));
-
-    // Categories from videos
-    const categories = Array.from(
-      new Set(allVideos.map((v) => v.category).filter(Boolean) as string[])
-    );
-    const scoredCategories = categories
-      .map((cat) => ({ cat, score: fuzzyScore(cat, q) }))
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 4)
-      .map(({ cat }) => ({
-        key: `category-${cat}`,
-        type: 'category' as const,
-        primary: cat,
-        suffix: 'Category',
-        value: cat,
-      }));
-
-    setLiveResults({
-      videos: scoredVideos,
-      playlists: scoredPlaylists,
-      channels: scoredChannels,
-      categories: scoredCategories,
+    Array.from(channelMap.values()).forEach((c) => {
+      const score = fuzzyScore(c.name, q);
+      if (score <= 0) return;
+      candidates.push({
+        item: {
+          key: `channel-${c.id}`,
+          type: 'channel',
+          primary: c.name,
+          suffix: 'Channel',
+          value: c.name,
+        },
+        score,
+        popularity: 0,
+      });
     });
+
+    // Categories from videos (popularity = frequency)
+    const catCounts = new Map<string, number>();
+    allVideos.forEach((v) => {
+      if (!v.category) return;
+      catCounts.set(v.category, (catCounts.get(v.category) || 0) + 1);
+    });
+    Array.from(catCounts.entries()).forEach(([cat, count]) => {
+      const score = fuzzyScore(cat, q);
+      if (score <= 0) return;
+      candidates.push({
+        item: {
+          key: `category-${cat}`,
+          type: 'category',
+          primary: cat,
+          suffix: 'Category',
+          value: cat,
+        },
+        score,
+        popularity: count,
+      });
+    });
+
+    const top = candidates
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.popularity !== a.popularity) return b.popularity - a.popularity;
+        return a.item.primary.localeCompare(b.item.primary);
+      })
+      .slice(0, MAX_SUGGESTION_ITEMS)
+      .map((x) => x.item);
+
+    const grouped = {
+      videos: top.filter((x) => x.type === 'video'),
+      playlists: top.filter((x) => x.type === 'playlist'),
+      channels: top.filter((x) => x.type === 'channel'),
+      categories: top.filter((x) => x.type === 'category'),
+    };
+
+    setLiveResults(grouped);
   }, [debouncedQuery, allVideos, allPlaylists]);
 
   const recentItems: SearchDropdownItem[] = useMemo(
     () =>
-      searchHistory.map((h, i) => ({
+      searchHistory.slice(0, MAX_HISTORY_ITEMS).map((h, i) => ({
         key: `recent-${h}-${i}`,
         type: 'recent' as const,
         primary: h,
@@ -324,13 +355,21 @@ export function Header() {
   );
 
   const visibleItems: SearchDropdownItem[] = useMemo(() => {
-    if (debouncedQuery.length === 0) return [...recentItems, ...exploreItems];
+    if (debouncedQuery.length === 0) {
+      // Keep empty-state compact (Recent + Explore) <= MAX_EMPTY_TOTAL_ITEMS
+      const recentShown = recentItems.slice(0, MAX_HISTORY_ITEMS);
+      const remaining = Math.max(0, MAX_EMPTY_TOTAL_ITEMS - recentShown.length);
+      const exploreShown = exploreItems.slice(0, remaining);
+      return [...recentShown, ...exploreShown];
+    }
+
+    // Typing state: already capped to MAX_SUGGESTION_ITEMS in liveResults builder
     return [
       ...liveResults.videos,
       ...liveResults.playlists,
       ...liveResults.channels,
       ...liveResults.categories,
-    ];
+    ].slice(0, MAX_SUGGESTION_ITEMS);
   }, [debouncedQuery, exploreItems, recentItems, liveResults]);
 
   const handleLogout = (e?: React.MouseEvent) => {
@@ -458,23 +497,29 @@ export function Header() {
           {showSearchDropdown && (
             <div className="absolute left-0 top-full mt-2 w-full z-[60]">
               <div className="bg-surface border border-gray-700 rounded-lg overflow-hidden">
-                <div id="search-suggestions" role="listbox" className="max-h-80 overflow-auto">
+                <div id="search-suggestions" role="listbox" className="h-auto max-h-[80vh] overflow-auto">
                   {debouncedQuery.length === 0 ? (
                     (() => {
+                      const recentShown = recentItems.slice(0, MAX_HISTORY_ITEMS);
+                      const exploreShown = exploreItems.slice(
+                        0,
+                        Math.max(0, MAX_EMPTY_TOTAL_ITEMS - recentShown.length)
+                      );
+
                       const recentBase = 0;
-                      const exploreBase = recentItems.length;
+                      const exploreBase = recentShown.length;
 
                       return (
                         <>
-                          <div className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
+                          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest text-text-secondary/80">
                             RECENT
                           </div>
 
-                          {recentItems.length === 0 ? (
+                          {recentShown.length === 0 ? (
                             <div className="px-4 py-2 text-sm text-text-secondary">No recent searches</div>
                           ) : (
                             <div className="pb-2">
-                              {recentItems.map((item, idx) => {
+                              {recentShown.map((item, idx) => {
                                 const flatIndex = recentBase + idx;
                                 return (
                                   <div
@@ -482,7 +527,7 @@ export function Header() {
                                     role="option"
                                     aria-selected={activeIndex === flatIndex}
                                     className={cn(
-                                      "flex items-center justify-between px-3 py-2 cursor-pointer",
+                                      "flex items-center justify-between px-3 py-2.5 cursor-pointer",
                                       activeIndex === flatIndex ? "bg-white/10" : "hover:bg-white/5"
                                     )}
                                     onMouseEnter={() => setActiveIndex(flatIndex)}
@@ -513,11 +558,11 @@ export function Header() {
                             </div>
                           )}
 
-                          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
+                          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest text-text-secondary/80">
                             EXPLORE
                           </div>
                           <div className="pb-2">
-                            {exploreItems.map((item, idx) => {
+                            {exploreShown.map((item, idx) => {
                               const flatIndex = exploreBase + idx;
                               return (
                                 <div
@@ -525,7 +570,7 @@ export function Header() {
                                   role="option"
                                   aria-selected={activeIndex === flatIndex}
                                   className={cn(
-                                    "flex items-center gap-3 px-3 py-2 cursor-pointer",
+                                    "flex items-center gap-3 px-3 py-2.5 cursor-pointer",
                                     activeIndex === flatIndex ? "bg-white/10" : "hover:bg-white/5"
                                   )}
                                   onMouseEnter={() => setActiveIndex(flatIndex)}
@@ -566,7 +611,7 @@ export function Header() {
                           role="option"
                           aria-selected={activeIndex === flatIndex}
                           className={cn(
-                            "flex items-center justify-between px-3 py-2 cursor-pointer",
+                            "flex items-center justify-between px-3 py-2.5 cursor-pointer",
                             activeIndex === flatIndex ? "bg-white/10" : "hover:bg-white/5"
                           )}
                           onMouseEnter={() => setActiveIndex(flatIndex)}
