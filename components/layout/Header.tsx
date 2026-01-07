@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Upload, User, LogOut, Settings, Globe, Palette, Monitor, Sun, Moon, MessageSquare, HelpCircle, ArrowLeft, Menu, CreditCard, ArrowRight, Wallet } from 'lucide-react';
+import { Search, Upload, User, LogOut, Settings, Globe, Palette, Monitor, Sun, Moon, MessageSquare, HelpCircle, ArrowLeft, Menu, CreditCard, ArrowRight, Wallet, Clock, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Video, Playlist } from '@/types';
+import { getAllPlaylists } from '@/data/mockData';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -37,6 +39,13 @@ export function Header() {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // Search UI states
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const SEARCH_HISTORY_KEY = 'twinkle_search_history';
+  
   // Use actual user role if available, otherwise default to viewer
   const userRole = (user?.role as 'viewer' | 'creator' | 'admin') || 'viewer';
   
@@ -47,12 +56,282 @@ export function Header() {
     email: 'john.doe@example.com',
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+    addToHistory(query);
+    router.push(`/search?q=${encodeURIComponent(query)}`);
+    setIsSearchExpanded(false);
+    setShowSearchDropdown(false);
+    setActiveIndex(-1);
+  };
+
+  // History helpers
+  const loadHistory = (): string[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
+      const parsed = raw ? (JSON.parse(raw) as string[]) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
     }
   };
+
+  const saveHistory = (items: string[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(items.slice(0, 10)));
+    } catch {
+      // ignore
+    }
+  };
+
+  const addToHistory = (q: string) => {
+    const existing = loadHistory().filter(item => item.toLowerCase() !== q.toLowerCase());
+    const updated = [q, ...existing];
+    saveHistory(updated);
+    setSearchHistory(updated);
+  };
+
+  const deleteHistoryItem = (q: string) => {
+    const updated = searchHistory.filter(item => item !== q);
+    saveHistory(updated);
+    setSearchHistory(updated);
+  };
+
+  useEffect(() => {
+    setSearchHistory(loadHistory());
+  }, []);
+
+  type SearchDropdownItem = {
+    key: string;
+    type: 'recent' | 'explore' | 'video' | 'playlist' | 'channel' | 'category';
+    primary: string;
+    suffix?: string;
+    value: string;
+  };
+
+  const EXPLORE_ITEMS: Array<{ label: string; query: string }> = [
+    { label: 'Top Music', query: 'Music' },
+    { label: 'Podcasts', query: 'Podcasts' },
+    { label: 'Live Streams', query: 'Live' },
+    { label: 'Tech', query: 'Tech' },
+  ];
+
+  const [allVideos, setAllVideos] = useState<Video[]>([]);
+  const [allPlaylists, setAllPlaylists] = useState<Playlist[]>([]);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [liveResults, setLiveResults] = useState<{
+    videos: SearchDropdownItem[];
+    playlists: SearchDropdownItem[];
+    channels: SearchDropdownItem[];
+    categories: SearchDropdownItem[];
+  }>({ videos: [], playlists: [], channels: [], categories: [] });
+
+  useEffect(() => {
+    // Load playlists from local mock data
+    try {
+      setAllPlaylists(getAllPlaylists() as any);
+    } catch {
+      setAllPlaylists([]);
+    }
+
+    // Load videos from API
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/videos');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setAllVideos((data?.videos || []) as Video[]);
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Debounce typing for performance
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const fuzzyScore = (text: string, q: string): number => {
+    const hay = text.toLowerCase();
+    const needle = q.toLowerCase();
+    if (!needle) return 0;
+    const idx = hay.indexOf(needle);
+    if (idx >= 0) {
+      // Prefer earlier matches and longer needle
+      return 1000 - idx + needle.length * 10;
+    }
+
+    // Simple subsequence match
+    let h = 0;
+    let matched = 0;
+    for (let n = 0; n < needle.length; n++) {
+      const c = needle[n];
+      while (h < hay.length && hay[h] !== c) h++;
+      if (h === hay.length) return 0;
+      matched++;
+      h++;
+    }
+    return 400 + matched * 5;
+  };
+
+  const renderHighlighted = (text: string, q: string) => {
+    if (!q) return text;
+    const hay = text.toLowerCase();
+    const needle = q.toLowerCase();
+    const idx = hay.indexOf(needle);
+    if (idx < 0) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <span className="font-semibold">{text.slice(idx, idx + q.length)}</span>
+        {text.slice(idx + q.length)}
+      </>
+    );
+  };
+
+  const selectDropdownItem = (item: SearchDropdownItem) => {
+    setSearchQuery(item.value);
+    addToHistory(item.value);
+    router.push(`/search?q=${encodeURIComponent(item.value)}`);
+    setShowSearchDropdown(false);
+    setIsSearchExpanded(false);
+    setActiveIndex(-1);
+  };
+
+  // Build live results from real content
+  useEffect(() => {
+    const q = debouncedQuery;
+    if (!q) {
+      setLiveResults({ videos: [], playlists: [], channels: [], categories: [] });
+      return;
+    }
+
+    const scoredVideos = allVideos
+      .map((v) => ({
+        v,
+        score:
+          fuzzyScore(v.title || '', q) +
+          fuzzyScore(v.user?.name || '', q) +
+          fuzzyScore(v.category || '', q),
+      }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6)
+      .map(({ v }) => ({
+        key: `video-${v.id}`,
+        type: 'video' as const,
+        primary: v.title || 'Untitled',
+        suffix: 'Video',
+        value: v.title || '',
+      }));
+
+    const scoredPlaylists = allPlaylists
+      .map((p: any) => ({
+        p,
+        score:
+          fuzzyScore(p.title || '', q) +
+          fuzzyScore(p.creatorName || '', q) +
+          fuzzyScore(p.type || '', q),
+      }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6)
+      .map(({ p }: any) => ({
+        key: `playlist-${p.id}`,
+        type: 'playlist' as const,
+        primary: p.title || 'Untitled',
+        suffix: 'Playlist',
+        value: p.title || '',
+      }));
+
+    // Channels derived from video users
+    const channelMap = new Map<string, { id: string; name: string }>();
+    allVideos.forEach((v) => {
+      if (!v.user?.name) return;
+      const id = (v.user as any).id || v.userId || v.user?.name;
+      if (!channelMap.has(id)) channelMap.set(id, { id, name: v.user.name });
+    });
+
+    const scoredChannels = Array.from(channelMap.values())
+      .map((c) => ({ c, score: fuzzyScore(c.name, q) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .map(({ c }) => ({
+        key: `channel-${c.id}`,
+        type: 'channel' as const,
+        primary: c.name,
+        suffix: 'Channel',
+        value: c.name,
+      }));
+
+    // Categories from videos
+    const categories = Array.from(
+      new Set(allVideos.map((v) => v.category).filter(Boolean) as string[])
+    );
+    const scoredCategories = categories
+      .map((cat) => ({ cat, score: fuzzyScore(cat, q) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .map(({ cat }) => ({
+        key: `category-${cat}`,
+        type: 'category' as const,
+        primary: cat,
+        suffix: 'Category',
+        value: cat,
+      }));
+
+    setLiveResults({
+      videos: scoredVideos,
+      playlists: scoredPlaylists,
+      channels: scoredChannels,
+      categories: scoredCategories,
+    });
+  }, [debouncedQuery, allVideos, allPlaylists]);
+
+  const recentItems: SearchDropdownItem[] = useMemo(
+    () =>
+      searchHistory.map((h, i) => ({
+        key: `recent-${h}-${i}`,
+        type: 'recent' as const,
+        primary: h,
+        value: h,
+      })),
+    [searchHistory]
+  );
+
+  const exploreItems: SearchDropdownItem[] = useMemo(
+    () =>
+      EXPLORE_ITEMS.map((x) => ({
+        key: `explore-${x.query}`,
+        type: 'explore' as const,
+        primary: x.label,
+        value: x.query,
+      })),
+    []
+  );
+
+  const visibleItems: SearchDropdownItem[] = useMemo(() => {
+    if (debouncedQuery.length === 0) return [...recentItems, ...exploreItems];
+    return [
+      ...liveResults.videos,
+      ...liveResults.playlists,
+      ...liveResults.channels,
+      ...liveResults.categories,
+    ];
+  }, [debouncedQuery, exploreItems, recentItems, liveResults]);
 
   const handleLogout = (e?: React.MouseEvent) => {
     if (e) {
@@ -103,23 +382,69 @@ export function Header() {
         <span className="text-xl lg:text-2xl font-bold text-accent">Twinkle</span>
       </Link>
 
-      {/* Centered search bar - Responsive */}
-      {/* Desktop/Large: 25% width search bar */}
-      <form 
+      {/* Centered search bar with fixed px width and expansion on focus */}
+      <form
         onSubmit={(e) => {
           handleSearch(e);
-          setIsSearchExpanded(false);
-        }} 
-        className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:w-[25%]"
-        style={{ minWidth: '200px' }}
+        }}
+        className="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-300"
+        style={{
+          width: isSearchExpanded ? '600px' : '420px',
+          minWidth: '200px',
+        }}
       >
         <div className="relative">
           <Input
+            ref={searchInputRef}
             type="text"
             placeholder="Search videos..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setShowSearchDropdown(true);
+              setActiveIndex(-1);
+            }}
+            onFocus={() => {
+              setIsSearchExpanded(true);
+              setShowSearchDropdown(true);
+              setSearchHistory(loadHistory());
+              setActiveIndex(-1);
+            }}
+            onBlur={() => {
+              setTimeout(() => {
+                setShowSearchDropdown(false);
+                setIsSearchExpanded(false);
+                setActiveIndex(-1);
+              }, 150);
+            }}
+            onKeyDown={(e) => {
+              if (!showSearchDropdown) return;
+              const count = visibleItems.length;
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (count === 0) return;
+                setActiveIndex((prev) => (prev + 1) % count);
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (count === 0) return;
+                setActiveIndex((prev) => (prev - 1 + count) % count);
+              } else if (e.key === 'Enter') {
+                if (activeIndex >= 0 && activeIndex < count) {
+                  e.preventDefault();
+                  selectDropdownItem(visibleItems[activeIndex]);
+                }
+              } else if (e.key === 'Escape') {
+                setShowSearchDropdown(false);
+                setIsSearchExpanded(false);
+                setActiveIndex(-1);
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
             className="pl-4 pr-12 bg-surface border border-gray-700 text-text-primary placeholder:text-text-secondary rounded-full h-10 focus:border-gray-600 w-full"
+            aria-autocomplete="list"
+            aria-expanded={showSearchDropdown}
+            aria-controls="search-suggestions"
+            role="combobox"
           />
           <button
             type="submit"
@@ -128,6 +453,201 @@ export function Header() {
           >
             <Search className="h-4 w-4" />
           </button>
+
+          {/* Dropdown: RECENT + EXPLORE (empty) or RESULTS (typing) */}
+          {showSearchDropdown && (
+            <div className="absolute left-0 top-full mt-2 w-full z-[60]">
+              <div className="bg-surface border border-gray-700 rounded-lg overflow-hidden">
+                <div id="search-suggestions" role="listbox" className="max-h-80 overflow-auto">
+                  {debouncedQuery.length === 0 ? (
+                    (() => {
+                      const recentBase = 0;
+                      const exploreBase = recentItems.length;
+
+                      return (
+                        <>
+                          <div className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
+                            RECENT
+                          </div>
+
+                          {recentItems.length === 0 ? (
+                            <div className="px-4 py-2 text-sm text-text-secondary">No recent searches</div>
+                          ) : (
+                            <div className="pb-2">
+                              {recentItems.map((item, idx) => {
+                                const flatIndex = recentBase + idx;
+                                return (
+                                  <div
+                                    key={item.key}
+                                    role="option"
+                                    aria-selected={activeIndex === flatIndex}
+                                    className={cn(
+                                      "flex items-center justify-between px-3 py-2 cursor-pointer",
+                                      activeIndex === flatIndex ? "bg-white/10" : "hover:bg-white/5"
+                                    )}
+                                    onMouseEnter={() => setActiveIndex(flatIndex)}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => selectDropdownItem(item)}
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <Clock className="h-4 w-4 text-text-secondary flex-shrink-0" />
+                                      <span className="text-sm text-text-primary truncate">{item.primary}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="text-text-secondary hover:text-text-primary p-1"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteHistoryItem(item.value);
+                                        setActiveIndex(-1);
+                                      }}
+                                      aria-label={`Remove ${item.primary} from history`}
+                                      title="Remove"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
+                            EXPLORE
+                          </div>
+                          <div className="pb-2">
+                            {exploreItems.map((item, idx) => {
+                              const flatIndex = exploreBase + idx;
+                              return (
+                                <div
+                                  key={item.key}
+                                  role="option"
+                                  aria-selected={activeIndex === flatIndex}
+                                  className={cn(
+                                    "flex items-center gap-3 px-3 py-2 cursor-pointer",
+                                    activeIndex === flatIndex ? "bg-white/10" : "hover:bg-white/5"
+                                  )}
+                                  onMouseEnter={() => setActiveIndex(flatIndex)}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => selectDropdownItem(item)}
+                                >
+                                  <Globe className="h-4 w-4 text-text-secondary flex-shrink-0" />
+                                  <span className="text-sm text-text-primary truncate">{item.primary}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      );
+                    })()
+                  ) : (
+                    (() => {
+                      const videoBase = 0;
+                      const playlistBase = liveResults.videos.length;
+                      const channelBase = playlistBase + liveResults.playlists.length;
+                      const categoryBase = channelBase + liveResults.channels.length;
+                      const any =
+                        liveResults.videos.length +
+                          liveResults.playlists.length +
+                          liveResults.channels.length +
+                          liveResults.categories.length >
+                        0;
+
+                      if (!any) {
+                        return (
+                          <div className="px-4 py-3 text-sm text-text-secondary">No matches</div>
+                        );
+                      }
+
+                      const renderResultRow = (item: any, flatIndex: number) => (
+                        <div
+                          key={item.key}
+                          role="option"
+                          aria-selected={activeIndex === flatIndex}
+                          className={cn(
+                            "flex items-center justify-between px-3 py-2 cursor-pointer",
+                            activeIndex === flatIndex ? "bg-white/10" : "hover:bg-white/5"
+                          )}
+                          onMouseEnter={() => setActiveIndex(flatIndex)}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectDropdownItem(item)}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Search className="h-4 w-4 text-text-secondary flex-shrink-0" />
+                            <span className="text-sm text-text-primary truncate">
+                              {renderHighlighted(item.primary, debouncedQuery)}
+                            </span>
+                          </div>
+                          {item.suffix ? (
+                            <span className="text-xs text-text-secondary flex-shrink-0 ml-3">
+                              {item.suffix}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+
+                      return (
+                        <>
+                          {liveResults.videos.length > 0 && (
+                            <>
+                              <div className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
+                                VIDEOS
+                              </div>
+                              <div className="pb-2">
+                                {liveResults.videos.map((item, idx) =>
+                                  renderResultRow(item, videoBase + idx)
+                                )}
+                              </div>
+                            </>
+                          )}
+
+                          {liveResults.playlists.length > 0 && (
+                            <>
+                              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
+                                PLAYLISTS
+                              </div>
+                              <div className="pb-2">
+                                {liveResults.playlists.map((item, idx) =>
+                                  renderResultRow(item, playlistBase + idx)
+                                )}
+                              </div>
+                            </>
+                          )}
+
+                          {liveResults.channels.length > 0 && (
+                            <>
+                              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
+                                CHANNELS
+                              </div>
+                              <div className="pb-2">
+                                {liveResults.channels.map((item, idx) =>
+                                  renderResultRow(item, channelBase + idx)
+                                )}
+                              </div>
+                            </>
+                          )}
+
+                          {liveResults.categories.length > 0 && (
+                            <>
+                              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
+                                CATEGORIES
+                              </div>
+                              <div className="pb-2">
+                                {liveResults.categories.map((item, idx) =>
+                                  renderResultRow(item, categoryBase + idx)
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </form>
 
