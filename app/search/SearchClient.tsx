@@ -168,26 +168,26 @@ export default function SearchClient() {
     <div className="w-full px-4 md:px-6 lg:px-8 py-6">
       <div className="max-w-[1280px] mx-auto">
         <h1 className="text-2xl font-bold mb-6 text-white">
-          Search results for &quot;{query}&quot;
-        </h1>
-        
+        Search results for &quot;{query}&quot;
+      </h1>
+      
         {allResultsCount === 0 ? (
-          <div className="text-center py-12 text-text-secondary">
+        <div className="text-center py-12 text-text-secondary">
             <p>No results found for &quot;{query}&quot;</p>
-          </div>
-        ) : (
+        </div>
+      ) : (
           <div className="space-y-3">
           {/* Channels Results - Horizontal List Layout */}
           {channels.length > 0 && channels.map((channel) => (
             <Link
               key={channel.id}
               href={`/creator/${channel.id}`}
-              className="group flex flex-col md:flex-row items-center gap-4 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
+              className="group flex flex-col md:flex-row items-center gap-6 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
               onMouseEnter={() => setHoveredChannel(channel.id)}
               onMouseLeave={() => setHoveredChannel(null)}
             >
-              {/* Left Side - Circular Avatar (Professional Size) */}
-              <div className="relative w-[136px] h-[136px] flex-shrink-0 flex items-center justify-center">
+              {/* Left Side - Circular Avatar (40% Width Container) */}
+              <div className="relative w-full md:w-[40%] flex-shrink-0 flex items-center justify-center">
                 <div className="w-[136px] h-[136px] rounded-full overflow-hidden bg-surface border-4 border-background">
                   {channel.avatar ? (
                     <img
@@ -206,28 +206,15 @@ export default function SearchClient() {
               </div>
 
               {/* Right Side - Metadata */}
-              <div className="flex-1 min-w-0 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pl-4">
+              <div className="flex-1 min-w-0 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pl-6">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <h3 className="text-xl font-bold text-white line-clamp-1">
-                        {channel.name}
-                      </h3>
-                      {channel.isVerified && (
-                        <Check className="h-5 w-5 text-accent flex-shrink-0" />
-                      )}
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // Handle more menu logic
-                      }}
-                      className="text-text-secondary hover:text-white transition-colors flex-shrink-0 p-1 rounded-full hover:bg-white/10"
-                      aria-label="More options"
-                    >
-                      <MoreVertical className="h-5 w-5" />
-                    </button>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-xl font-bold text-white line-clamp-1">
+                      {channel.name}
+                    </h3>
+                    {channel.isVerified && (
+                      <Check className="h-5 w-5 text-accent flex-shrink-0" />
+                    )}
                   </div>
                   <p className="text-sm text-text-secondary mb-2">
                     @{channel.name.toLowerCase().replace(/\s+/g, '')} • {formatSubscribers(channel.subscriberCount)}
@@ -258,7 +245,7 @@ export default function SearchClient() {
               <Link
                 key={playlist.id}
                 href={`/playlist/${playlist.id}`}
-                className="group flex flex-col md:flex-row items-start gap-5 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
+                className="group flex flex-col md:flex-row items-start gap-6 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
                 onMouseEnter={() => setHoveredPlaylist(playlist.id)}
                 onMouseLeave={() => setHoveredPlaylist(null)}
               >
@@ -285,14 +272,6 @@ export default function SearchClient() {
                     )}
                   </div>
 
-                  {/* Playlist Overlay - Right Side */}
-                  <div className="absolute top-2 right-2 z-30">
-                    <div className="bg-black/80 backdrop-blur-md text-white px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-semibold">
-                      <ListMusic className="h-4 w-4" />
-                      <span>{playlist.videoCount} videos</span>
-                    </div>
-                  </div>
-
                   {/* Playlist Type Badge - Bottom Right Corner */}
                   <div className="absolute bottom-2 right-2 z-30">
                     <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded text-xs font-semibold">
@@ -300,9 +279,9 @@ export default function SearchClient() {
                     </div>
                   </div>
 
-                  {/* Price/Subscription Label - Top Left Corner */}
+                  {/* Price/Subscription Label - Top Right Corner */}
                   {playlist.price || playlist.isSubscription ? (
-                    <div className="absolute top-2 left-2 z-30">
+                    <div className="absolute top-2 right-2 z-30">
                       {playlist.isSubscription ? (
                         <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
                           <Crown className="h-3 w-3" />
@@ -319,7 +298,7 @@ export default function SearchClient() {
                 </div>
 
                 {/* Right Side - Metadata */}
-                <div className="flex-1 min-w-0 pl-4 flex flex-col gap-2 items-start">
+                <div className="flex-1 min-w-0 pl-6 flex flex-col gap-2 items-start">
                   {/* Title Row - Title + More Button */}
                   <div className="flex justify-between items-start w-full gap-4">
                     <h3 className="text-xl font-semibold text-white line-clamp-2 leading-snug group-hover:text-white/90 flex-1 min-w-0">
@@ -349,8 +328,8 @@ export default function SearchClient() {
                     ) : (
                       <div className="h-6 w-6 rounded-full bg-surface flex items-center justify-center flex-shrink-0">
                         <Play className="h-3 w-3 text-text-secondary" />
-                      </div>
-                    )}
+            </div>
+          )}
                     <span className="text-sm text-white/70">
                       {playlist.creatorName}
                     </span>
@@ -373,29 +352,29 @@ export default function SearchClient() {
           })}
 
           {/* Videos Results - Horizontal List Layout */}
-          {videos.map((video) => (
-            <Link
-              key={video.id}
-              href={`/watch/${video.id}`}
-              className="group flex flex-col md:flex-row items-start gap-5 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
+                {videos.map((video) => (
+                  <Link
+                    key={video.id}
+                    href={`/watch/${video.id}`}
+              className="group flex flex-col md:flex-row items-start gap-6 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
               onMouseEnter={() => setHoveredVideo(video.id)}
               onMouseLeave={() => setHoveredVideo(null)}
-            >
+                  >
               {/* Left Side - Thumbnail (40% Width) */}
               <div className="relative w-full md:w-[40%] flex-shrink-0 aspect-video bg-surface rounded-xl overflow-hidden">
-                {video.thumbnailUrl ? (
-                  <img
-                    src={video.thumbnailUrl}
-                    alt={video.title}
+                      {video.thumbnailUrl ? (
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
                     className={`w-full h-full object-cover transition-transform duration-300 ${
                       hoveredVideo === video.id ? 'scale-[1.02]' : 'scale-100'
                     }`}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Play className="h-12 w-12 text-text-secondary" />
-                  </div>
-                )}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Play className="h-12 w-12 text-text-secondary" />
+                        </div>
+                      )}
                 
                 {/* Duration Badge - Bottom Right Corner */}
                 {!video.isLive && video.duration && (
@@ -414,7 +393,7 @@ export default function SearchClient() {
               </div>
 
               {/* Right Side - Metadata */}
-              <div className="flex-1 min-w-0 pl-4 flex flex-col gap-2 items-start">
+              <div className="flex-1 min-w-0 pl-6 flex flex-col gap-2 items-start">
                 {/* Title Row - Title + More Button */}
                 <div className="flex justify-between items-start w-full gap-4">
                   <h3 className="text-xl font-semibold text-white line-clamp-2 leading-snug group-hover:text-white/90 flex-1 min-w-0">
@@ -462,7 +441,7 @@ export default function SearchClient() {
                     </div>
                   )}
                   <span className="text-sm text-white/70">
-                    {video.user?.name || 'Unknown Creator'}
+                      {video.user?.name || 'Unknown Creator'}
                   </span>
                   {video.user && 'role' in video.user && video.user.role === 'creator' && (
                     <Check className="h-4 w-4 text-accent flex-shrink-0" />
@@ -476,11 +455,11 @@ export default function SearchClient() {
                   </p>
                 )}
               </div>
-            </Link>
-          ))}
-          </div>
+                  </Link>
+                ))}
+              </div>
         )}
-      </div>
+            </div>
     </div>
   );
 }
