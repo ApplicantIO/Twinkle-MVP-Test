@@ -948,7 +948,7 @@ export function VideoPlayer({
                                 src={effectiveVideoUrl || undefined}
                                 muted
                                 preload="auto"
-                                className="w-full h-full object-cover"
+            className="w-full h-full object-cover"
                                 style={{ pointerEvents: 'none' }}
                               />
                 </div>
@@ -1055,7 +1055,7 @@ export function VideoPlayer({
                   <div className="bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
                     <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                     <span>LIVE</span>
-                    </div>
+        </div>
                 ) : isWatchingTeaser ? (
                   <div className="flex items-center gap-2">
                     <div className="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold">
