@@ -165,53 +165,53 @@ export default function HomePage() {
   // - Then recommended videos
   // We'll show them all in one grid, but can add visual separation if needed
 
+  // Merge videos and playlists into a single mixed content array
+  type MixedContentItem = { type: 'video'; data: Video } | { type: 'playlist'; data: Playlist };
+  const mixedContent: MixedContentItem[] = [
+    ...videos.map((v) => ({ type: 'video' as const, data: v })),
+    ...playlists.map((p) => ({ type: 'playlist' as const, data: p })),
+  ];
+
   return (
     <div className="pt-2 pb-4 md:pt-3 md:pb-6 lg:pt-4 lg:pb-8">
-      {/* Playlists Section */}
-      {playlists.length > 0 && (
-        <div className="mb-8 px-4 lg:px-5">
-          <h2 className="text-2xl font-bold mb-3 text-white">Playlists</h2>
+      {/* Mixed Content: Videos and Playlists in one grid */}
+      {mixedContent.length > 0 ? (
+        <div className="px-4 lg:px-5">
+          <h1 className="text-2xl font-bold mb-3 text-white">
+            {user ? 'Recommended for you' : 'Recommended'}
+          </h1>
           <div 
             className="grid gap-x-0 gap-y-4"
             style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
           >
-            {playlists.map((playlist) => (
-              <PlaylistCard
-                key={playlist.id}
-                playlist={playlist}
-                hoveredPlaylist={hoveredPlaylist}
-                setHoveredPlaylist={setHoveredPlaylist}
-              />
-            ))}
+            {mixedContent.map((item) => {
+              if (item.type === 'video') {
+                return (
+                  <VideoCard
+                    key={item.data.id}
+                    video={item.data}
+                    hoveredVideo={hoveredVideo}
+                    setHoveredVideo={setHoveredVideo}
+                    formatTimeAgo={formatTimeAgo}
+                    formatViews={formatViews}
+                    formatDuration={formatDuration}
+                  />
+                );
+              } else {
+                return (
+                  <PlaylistCard
+                    key={item.data.id}
+                    playlist={item.data}
+                    hoveredPlaylist={hoveredPlaylist}
+                    setHoveredPlaylist={setHoveredPlaylist}
+                  />
+                );
+              }
+            })}
           </div>
         </div>
-      )}
-      
-      {/* Videos Section */}
-      <div className="px-4 lg:px-5">
-        <h1 className="text-2xl font-bold mb-3 text-white">
-          {user ? 'Recommended for you' : 'Recommended'}
-        </h1>
-        <div 
-          className="grid gap-x-0 gap-y-4"
-          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-        >
-        {videos.map((video) => (
-            <VideoCard
-              key={video.id}
-              video={video}
-              hoveredVideo={hoveredVideo}
-              setHoveredVideo={setHoveredVideo}
-              formatTimeAgo={formatTimeAgo}
-              formatViews={formatViews}
-              formatDuration={formatDuration}
-            />
-        ))}
-        </div>
-      </div>
-
-      {videos.length === 0 && (
-        <div className="text-center py-12">
+      ) : (
+        <div className="text-center py-12 px-4 lg:px-5">
           <p className="text-text-secondary mb-4">No videos available yet.</p>
           <div className="space-y-2">
             <p className="text-sm text-text-secondary">

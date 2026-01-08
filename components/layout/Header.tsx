@@ -127,6 +127,7 @@ export function Header() {
   const [allVideos, setAllVideos] = useState<Video[]>([]);
   const [allPlaylists, setAllPlaylists] = useState<Playlist[]>([]);
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [showAllCreators, setShowAllCreators] = useState(false);
   const [liveResults, setLiveResults] = useState<{
     videos: SearchDropdownItem[];
     playlists: SearchDropdownItem[];
@@ -166,14 +167,67 @@ export function Header() {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
+  // Enhanced ranking: Intent-based scoring with weights
+  const isBroadKeyword = (q: string): boolean => {
+    const broad = ['music', 'coding', 'vlog', 'video', 'playlist', 'tutorial', 'tech', 'entertainment'];
+    return broad.some(b => q.toLowerCase().includes(b));
+  };
+
+  const isSpecificMatch = (hay: string, needle: string): boolean => {
+    const h = hay.toLowerCase().trim();
+    const n = needle.toLowerCase().trim();
+    // Exact match or starts with query
+    return h === n || h.startsWith(n) || n.startsWith(h);
+  };
+
+  const calculateRankScore = (
+    type: 'video' | 'playlist' | 'channel' | 'category',
+    titleMatch: number,
+    nameMatch: number,
+    categoryMatch: number,
+    popularity: number,
+    isExactMatch: boolean,
+    query: string
+  ): number => {
+    const isBroad = isBroadKeyword(query);
+    
+    // Exact match bonus (highest priority)
+    if (isExactMatch) {
+      return 100000 + titleMatch + nameMatch * 0.5;
+    }
+
+    // Intent-based weights
+    if (isBroad) {
+      // Broad keywords: prioritize high-view videos and trending playlists over channels
+      if (type === 'video' || type === 'playlist') {
+        return titleMatch * 2 + categoryMatch * 1.5 + popularity * 0.01;
+      }
+      if (type === 'channel') {
+        // Heavily deprioritize channels for broad keywords - only show if exact match
+        return isExactMatch ? nameMatch * 0.5 + popularity * 0.005 : nameMatch * 0.01;
+      }
+      return categoryMatch * 1.2 + popularity * 0.01;
+    } else {
+      // Specific searches: prioritize exact matches
+      return titleMatch * 3 + nameMatch * 2.5 + categoryMatch * 1 + popularity * 0.005;
+    }
+  };
+
   const fuzzyScore = (text: string, q: string): number => {
     const hay = text.toLowerCase();
     const needle = q.toLowerCase();
     if (!needle) return 0;
+    
+    // Exact match
+    if (hay === needle) return 10000;
+    
+    // Starts with query
+    if (hay.startsWith(needle)) return 9000;
+    
     const idx = hay.indexOf(needle);
     if (idx >= 0) {
       // Prefer earlier matches and longer needle
-      return 1000 - idx + needle.length * 10;
+      return 5000 - idx * 10 + needle.length * 5;
     }
 
     // Simple subsequence match
@@ -186,7 +240,7 @@ export function Header() {
       matched++;
       h++;
     }
-    return 400 + matched * 5;
+    return 1000 + matched * 10;
   };
 
   const renderHighlighted = (text: string, q: string) => {
@@ -213,29 +267,64 @@ export function Header() {
     setActiveIndex(-1);
   };
 
-  // Build live results from real content
+  // Build live results from real content with smart ranking
   useEffect(() => {
     const q = debouncedQuery;
     if (!q) {
       setLiveResults({ videos: [], playlists: [], channels: [], categories: [] });
+      setShowAllCreators(false);
       return;
     }
 
-    // Build a combined candidate list so we can cap TOTAL suggestions to MAX_SUGGESTION_ITEMS
-    const candidates: Array<{
+    // Reset showAllCreators when query changes
+    setShowAllCreators(false);
+
+    // Build candidates with enhanced ranking
+    const videoCandidates: Array<{
       item: SearchDropdownItem;
-      score: number;
+      rankScore: number;
+      popularity: number;
+    }> = [];
+
+    const playlistCandidates: Array<{
+      item: SearchDropdownItem;
+      rankScore: number;
+      popularity: number;
+    }> = [];
+
+    const channelCandidates: Array<{
+      item: SearchDropdownItem;
+      rankScore: number;
+      popularity: number;
+      isVerified?: boolean;
+    }> = [];
+
+    const categoryCandidates: Array<{
+      item: SearchDropdownItem;
+      rankScore: number;
       popularity: number;
     }> = [];
 
     // Videos
     allVideos.forEach((v) => {
-      const score =
-        fuzzyScore(v.title || '', q) +
-        fuzzyScore(v.user?.name || '', q) +
-        fuzzyScore(v.category || '', q);
-      if (score <= 0) return;
-      candidates.push({
+      const titleMatch = fuzzyScore(v.title || '', q);
+      const nameMatch = fuzzyScore(v.user?.name || '', q);
+      const categoryMatch = fuzzyScore(v.category || '', q);
+      if (titleMatch === 0 && nameMatch === 0 && categoryMatch === 0) return;
+
+      const isExactTitle = isSpecificMatch(v.title || '', q);
+      const popularity = (v as any).views || 0;
+      const rankScore = calculateRankScore(
+        'video',
+        titleMatch,
+        nameMatch,
+        categoryMatch,
+        popularity,
+        isExactTitle,
+        q
+      );
+
+      videoCandidates.push({
         item: {
           key: `video-${v.id}`,
           type: 'video',
@@ -243,19 +332,31 @@ export function Header() {
           suffix: 'Video',
           value: v.title || '',
         },
-        score,
-        popularity: (v as any).views || 0,
+        rankScore,
+        popularity,
       });
     });
 
     // Playlists
     (allPlaylists as any[]).forEach((p) => {
-      const score =
-        fuzzyScore(p.title || '', q) +
-        fuzzyScore(p.creatorName || '', q) +
-        fuzzyScore(p.type || '', q);
-      if (score <= 0) return;
-      candidates.push({
+      const titleMatch = fuzzyScore(p.title || '', q);
+      const nameMatch = fuzzyScore(p.creatorName || '', q);
+      const categoryMatch = fuzzyScore(p.type || '', q);
+      if (titleMatch === 0 && nameMatch === 0 && categoryMatch === 0) return;
+
+      const isExactTitle = isSpecificMatch(p.title || '', q);
+      const popularity = p.videoCount || 0;
+      const rankScore = calculateRankScore(
+        'playlist',
+        titleMatch,
+        nameMatch,
+        categoryMatch,
+        popularity,
+        isExactTitle,
+        q
+      );
+
+      playlistCandidates.push({
         item: {
           key: `playlist-${p.id}`,
           type: 'playlist',
@@ -263,22 +364,42 @@ export function Header() {
           suffix: 'Playlist',
           value: p.title || '',
         },
-        score,
-        popularity: p.videoCount || 0,
+        rankScore,
+        popularity,
       });
     });
 
-    // Channels derived from video users
-    const channelMap = new Map<string, { id: string; name: string }>();
+    // Channels with subscriber count and verification
+    const channelMap = new Map<string, { id: string; name: string; subs: number; verified: boolean }>();
     allVideos.forEach((v) => {
       if (!v.user?.name) return;
       const id = (v.user as any).id || v.userId || v.user?.name;
-      if (!channelMap.has(id)) channelMap.set(id, { id, name: v.user.name });
+      if (!channelMap.has(id)) {
+        channelMap.set(id, {
+          id,
+          name: v.user.name,
+          subs: Math.floor(Math.random() * 1000000) + 1000, // Mock subscriber count
+          verified: Math.random() > 0.7, // Mock verification (30% verified)
+        });
+      }
     });
+
     Array.from(channelMap.values()).forEach((c) => {
-      const score = fuzzyScore(c.name, q);
-      if (score <= 0) return;
-      candidates.push({
+      const nameMatch = fuzzyScore(c.name, q);
+      if (nameMatch === 0) return;
+
+      const isExactName = isSpecificMatch(c.name, q);
+      const rankScore = calculateRankScore(
+        'channel',
+        0,
+        nameMatch,
+        0,
+        c.subs,
+        isExactName,
+        q
+      );
+
+      channelCandidates.push({
         item: {
           key: `channel-${c.id}`,
           type: 'channel',
@@ -286,21 +407,34 @@ export function Header() {
           suffix: 'Channel',
           value: c.name,
         },
-        score,
-        popularity: 0,
+        rankScore,
+        popularity: c.subs,
+        isVerified: c.verified,
       });
     });
 
-    // Categories from videos (popularity = frequency)
+    // Categories from videos
     const catCounts = new Map<string, number>();
     allVideos.forEach((v) => {
       if (!v.category) return;
       catCounts.set(v.category, (catCounts.get(v.category) || 0) + 1);
     });
     Array.from(catCounts.entries()).forEach(([cat, count]) => {
-      const score = fuzzyScore(cat, q);
-      if (score <= 0) return;
-      candidates.push({
+      const categoryMatch = fuzzyScore(cat, q);
+      if (categoryMatch === 0) return;
+
+      const isExactCategory = isSpecificMatch(cat, q);
+      const rankScore = calculateRankScore(
+        'category',
+        0,
+        0,
+        categoryMatch,
+        count,
+        isExactCategory,
+        q
+      );
+
+      categoryCandidates.push({
         item: {
           key: `category-${cat}`,
           type: 'category',
@@ -308,28 +442,42 @@ export function Header() {
           suffix: 'Category',
           value: cat,
         },
-        score,
+        rankScore,
         popularity: count,
       });
     });
 
-    const top = candidates
-      .sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
+    // Sort each category by rankScore (highest first)
+    const sortByRank = <T extends { rankScore: number; popularity: number }>(
+      arr: T[]
+    ): T[] => {
+      return arr.sort((a, b) => {
+        if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
         if (b.popularity !== a.popularity) return b.popularity - a.popularity;
-        return a.item.primary.localeCompare(b.item.primary);
-      })
-      .slice(0, MAX_SUGGESTION_ITEMS)
-      .map((x) => x.item);
-
-    const grouped = {
-      videos: top.filter((x) => x.type === 'video'),
-      playlists: top.filter((x) => x.type === 'playlist'),
-      channels: top.filter((x) => x.type === 'channel'),
-      categories: top.filter((x) => x.type === 'category'),
+        return 0;
+      });
     };
 
-    setLiveResults(grouped);
+    const sortedVideos = sortByRank(videoCandidates).slice(0, MAX_SUGGESTION_ITEMS).map((x) => x.item);
+    const sortedPlaylists = sortByRank(playlistCandidates).slice(0, MAX_SUGGESTION_ITEMS).map((x) => x.item);
+    const sortedCategories = sortByRank(categoryCandidates).slice(0, 10).map((x) => x.item);
+
+    // Sort channels by rankScore, then subscriber count, then verification
+    const sortedChannels = channelCandidates
+      .sort((a, b) => {
+        if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
+        if (b.popularity !== a.popularity) return b.popularity - a.popularity;
+        if (a.isVerified !== b.isVerified) return b.isVerified ? 1 : -1;
+        return 0;
+      })
+      .map((x) => x.item);
+
+    setLiveResults({
+      videos: sortedVideos,
+      playlists: sortedPlaylists,
+      channels: sortedChannels,
+      categories: sortedCategories,
+    });
   }, [debouncedQuery, allVideos, allPlaylists]);
 
   const recentItems: SearchDropdownItem[] = useMemo(
@@ -363,13 +511,18 @@ export function Header() {
       return [...recentShown, ...exploreShown];
     }
 
-    // Typing state: already capped to MAX_SUGGESTION_ITEMS in liveResults builder
-    return [
+    // Typing state: simple flat list (no "See More" in dropdown)
+    const MAX_DEFAULT_CREATORS = 2;
+    const channelsToShow = liveResults.channels.slice(0, MAX_DEFAULT_CREATORS);
+    
+    const allVisible = [
+      ...channelsToShow,
       ...liveResults.videos,
       ...liveResults.playlists,
-      ...liveResults.channels,
       ...liveResults.categories,
-    ].slice(0, MAX_SUGGESTION_ITEMS);
+    ];
+    
+    return allVisible.slice(0, MAX_SUGGESTION_ITEMS);
   }, [debouncedQuery, exploreItems, recentItems, liveResults]);
 
   const handleLogout = (e?: React.MouseEvent) => {
@@ -458,19 +611,33 @@ export function Header() {
             }}
             onKeyDown={(e) => {
               if (!showSearchDropdown) return;
-              const count = visibleItems.length;
+              
+              // Simple flat list count
+              const MAX_DEFAULT_CREATORS = 2;
+              const channelsToShow = liveResults.channels.slice(0, MAX_DEFAULT_CREATORS);
+              
+              const actualItemCount =
+                channelsToShow.length +
+                liveResults.videos.length +
+                liveResults.playlists.length +
+                liveResults.categories.length;
+              
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                if (count === 0) return;
-                setActiveIndex((prev) => (prev + 1) % count);
+                if (actualItemCount === 0) return;
+                setActiveIndex((prev) => (prev + 1) % actualItemCount);
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (count === 0) return;
-                setActiveIndex((prev) => (prev - 1 + count) % count);
+                if (actualItemCount === 0) return;
+                setActiveIndex((prev) => (prev - 1 + actualItemCount) % actualItemCount);
               } else if (e.key === 'Enter') {
-                if (activeIndex >= 0 && activeIndex < count) {
+                if (activeIndex >= 0 && activeIndex < actualItemCount) {
                   e.preventDefault();
-                  selectDropdownItem(visibleItems[activeIndex]);
+                  
+                  // Simple flat list navigation
+                  if (activeIndex >= 0 && activeIndex < visibleItems.length) {
+                    selectDropdownItem(visibleItems[activeIndex]);
+                  }
                 }
               } else if (e.key === 'Escape') {
                 setShowSearchDropdown(false);
@@ -511,10 +678,6 @@ export function Header() {
 
                       return (
                         <>
-                          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest text-text-secondary/80">
-                            RECENT
-                          </div>
-
                           {recentShown.length === 0 ? (
                             <div className="px-4 py-2 text-sm text-text-secondary">No recent searches</div>
                           ) : (
@@ -558,9 +721,7 @@ export function Header() {
                             </div>
                           )}
 
-                          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest text-text-secondary/80">
-                            EXPLORE
-                          </div>
+
                           <div className="pb-2">
                             {exploreShown.map((item, idx) => {
                               const flatIndex = exploreBase + idx;
@@ -577,7 +738,7 @@ export function Header() {
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => selectDropdownItem(item)}
                                 >
-                                  <Globe className="h-4 w-4 text-text-secondary flex-shrink-0" />
+                                  <Search className="h-4 w-4 text-text-secondary flex-shrink-0" />
                                   <span className="text-sm text-text-primary truncate">{item.primary}</span>
                                 </div>
                               );
@@ -588,14 +749,16 @@ export function Header() {
                     })()
                   ) : (
                     (() => {
-                      const videoBase = 0;
-                      const playlistBase = liveResults.videos.length;
-                      const channelBase = playlistBase + liveResults.playlists.length;
-                      const categoryBase = channelBase + liveResults.channels.length;
+                      const MAX_DEFAULT_CREATORS = 2;
+                      
+                      // Always show max 2 creators by default in dropdown (simplified - no "See More" in dropdown)
+                      const allChannels = liveResults.channels;
+                      const channelsToShow = allChannels.slice(0, MAX_DEFAULT_CREATORS);
+                      
                       const any =
                         liveResults.videos.length +
                           liveResults.playlists.length +
-                          liveResults.channels.length +
+                          channelsToShow.length +
                           liveResults.categories.length >
                         0;
 
@@ -624,66 +787,21 @@ export function Header() {
                               {renderHighlighted(item.primary, debouncedQuery)}
                             </span>
                           </div>
-                          {item.suffix ? (
-                            <span className="text-xs text-text-secondary flex-shrink-0 ml-3">
-                              {item.suffix}
-                            </span>
-                          ) : null}
                         </div>
                       );
 
+                      // Flatten all results into a simple list (no section headers or separators)
+                      const allResults: SearchDropdownItem[] = [
+                        ...channelsToShow,
+                        ...liveResults.videos,
+                        ...liveResults.playlists,
+                        ...liveResults.categories,
+                      ];
+
                       return (
                         <>
-                          {liveResults.videos.length > 0 && (
-                            <>
-                              <div className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
-                                VIDEOS
-                              </div>
-                              <div className="pb-2">
-                                {liveResults.videos.map((item, idx) =>
-                                  renderResultRow(item, videoBase + idx)
-                                )}
-                              </div>
-                            </>
-                          )}
-
-                          {liveResults.playlists.length > 0 && (
-                            <>
-                              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
-                                PLAYLISTS
-                              </div>
-                              <div className="pb-2">
-                                {liveResults.playlists.map((item, idx) =>
-                                  renderResultRow(item, playlistBase + idx)
-                                )}
-                              </div>
-                            </>
-                          )}
-
-                          {liveResults.channels.length > 0 && (
-                            <>
-                              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
-                                CHANNELS
-                              </div>
-                              <div className="pb-2">
-                                {liveResults.channels.map((item, idx) =>
-                                  renderResultRow(item, channelBase + idx)
-                                )}
-                              </div>
-                            </>
-                          )}
-
-                          {liveResults.categories.length > 0 && (
-                            <>
-                              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-widest text-text-secondary/80">
-                                CATEGORIES
-                              </div>
-                              <div className="pb-2">
-                                {liveResults.categories.map((item, idx) =>
-                                  renderResultRow(item, categoryBase + idx)
-                                )}
-                              </div>
-                            </>
+                          {allResults.map((item, idx) =>
+                            renderResultRow(item, idx)
                           )}
                         </>
                       );

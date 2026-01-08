@@ -26,6 +26,7 @@ export default function SearchClient() {
   const [hoveredPlaylist, setHoveredPlaylist] = useState<string | null>(null);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
+  const [showAllCreators, setShowAllCreators] = useState(false);
 
   // Format time ago helper
   const formatTimeAgo = (date: Date) => {
@@ -76,6 +77,69 @@ export default function SearchClient() {
     return `${count} subscribers`;
   };
 
+  // Enhanced ranking: Intent-based scoring with weights (same as Header.tsx)
+  const isBroadKeyword = (q: string): boolean => {
+    const broad = ['music', 'coding', 'vlog', 'video', 'playlist', 'tutorial', 'tech', 'entertainment'];
+    return broad.some(b => q.toLowerCase().includes(b));
+  };
+
+  const isSpecificMatch = (hay: string, needle: string): boolean => {
+    const h = hay.toLowerCase().trim();
+    const n = needle.toLowerCase().trim();
+    return h === n || h.startsWith(n) || n.startsWith(h);
+  };
+
+  const fuzzyScore = (text: string, q: string): number => {
+    const hay = text.toLowerCase();
+    const needle = q.toLowerCase();
+    if (!needle) return 0;
+    
+    if (hay === needle) return 10000;
+    if (hay.startsWith(needle)) return 9000;
+    
+    const idx = hay.indexOf(needle);
+    if (idx >= 0) return 5000 - idx * 10 + needle.length * 5;
+
+    let h = 0;
+    let matched = 0;
+    for (let n = 0; n < needle.length; n++) {
+      const c = needle[n];
+      while (h < hay.length && hay[h] !== c) h++;
+      if (h === hay.length) return 0;
+      matched++;
+      h++;
+    }
+    return 1000 + matched * 10;
+  };
+
+  const calculateRankScore = (
+    type: 'video' | 'playlist' | 'channel',
+    titleMatch: number,
+    nameMatch: number,
+    categoryMatch: number,
+    popularity: number,
+    isExactMatch: boolean,
+    query: string
+  ): number => {
+    const isBroad = isBroadKeyword(query);
+    
+    if (isExactMatch) {
+      return 100000 + titleMatch + nameMatch * 0.5;
+    }
+
+    if (isBroad) {
+      if (type === 'video' || type === 'playlist') {
+        return titleMatch * 2 + categoryMatch * 1.5 + popularity * 0.01;
+      }
+      if (type === 'channel') {
+        return isExactMatch ? nameMatch * 0.5 + popularity * 0.005 : nameMatch * 0.01;
+      }
+      return categoryMatch * 1.2 + popularity * 0.01;
+    } else {
+      return titleMatch * 3 + nameMatch * 2.5 + categoryMatch * 1 + popularity * 0.005;
+    }
+  };
+
   // Simple local search - filter videos, playlists, and channels
   useEffect(() => {
     async function performSearch() {
@@ -88,11 +152,15 @@ export default function SearchClient() {
         setVideos([]);
         setPlaylists([]);
         setChannels([]);
+        setShowAllCreators(false);
         setLoading(false);
         return;
       }
 
       try {
+        const q = query.trim();
+        setShowAllCreators(false);
+
         // Fetch all videos from API
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
         const headers: HeadersInit = {};
@@ -105,45 +173,116 @@ export default function SearchClient() {
           const data = await response.json();
           const allVideos = data.videos || [];
           
-          // Simple local filtering by title or category
-          const searchLower = query.toLowerCase();
-          const filteredVideos = allVideos.filter((video: Video) => 
-            video.title?.toLowerCase().includes(searchLower) ||
-            video.category?.toLowerCase().includes(searchLower) ||
-            video.description?.toLowerCase().includes(searchLower) ||
-            video.user?.name?.toLowerCase().includes(searchLower)
-          );
-          
-          setVideos(filteredVideos);
+          // Rank and filter videos using smart ranking
+          const videoCandidates = allVideos
+            .map((v: Video) => {
+              const titleMatch = fuzzyScore(v.title || '', q);
+              const nameMatch = fuzzyScore(v.user?.name || '', q);
+              const categoryMatch = fuzzyScore(v.category || '', q);
+              if (titleMatch === 0 && nameMatch === 0 && categoryMatch === 0) return null;
 
-          // Extract unique channels/creators from videos
-          const channelMap = new Map<string, ChannelResult>();
-          filteredVideos.forEach((video: Video) => {
+              const isExactTitle = isSpecificMatch(v.title || '', q);
+              const popularity = (v as any).views || 0;
+              const rankScore = calculateRankScore(
+                'video',
+                titleMatch,
+                nameMatch,
+                categoryMatch,
+                popularity,
+                isExactTitle,
+                q
+              );
+
+              return { video: v, rankScore, popularity };
+            })
+            .filter((x: { video: Video; rankScore: number; popularity: number } | null): x is { video: Video; rankScore: number; popularity: number } => x !== null)
+            .sort((a: { video: Video; rankScore: number; popularity: number }, b: { video: Video; rankScore: number; popularity: number }) => {
+              if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
+              return b.popularity - a.popularity;
+            })
+            .map((x: { video: Video; rankScore: number; popularity: number }) => x.video);
+          
+          setVideos(videoCandidates);
+
+          // Extract and rank channels/creators
+          const channelMap = new Map<string, { channel: ChannelResult; rankScore: number; popularity: number }>();
+          allVideos.forEach((video: Video) => {
             if (video.user) {
               const userId = video.user.id || video.userId || 'unknown';
               if (!channelMap.has(userId)) {
+                const nameMatch = fuzzyScore(video.user.name || '', q);
+                if (nameMatch === 0) return;
+
+                const isExactName = isSpecificMatch(video.user.name || '', q);
+                const subs = Math.floor(Math.random() * 1000000) + 1000;
+                const rankScore = calculateRankScore(
+                  'channel',
+                  0,
+                  nameMatch,
+                  0,
+                  subs,
+                  isExactName,
+                  q
+                );
+
                 channelMap.set(userId, {
-                  id: userId,
-                  name: video.user.name || 'Unknown Creator',
-                  avatar: video.user.profileImageUrl,
-                  subscriberCount: Math.floor(Math.random() * 1000000) + 1000, // Mock subscriber count
-                  isVerified: Math.random() > 0.5, // Random verification status
+                  channel: {
+                    id: userId,
+                    name: video.user.name || 'Unknown Creator',
+                    avatar: video.user.profileImageUrl,
+                    subscriberCount: subs,
+                    isVerified: Math.random() > 0.7,
+                  },
+                  rankScore,
+                  popularity: subs,
                 });
               }
             }
           });
-          setChannels(Array.from(channelMap.values()));
+          
+          const sortedChannels = Array.from(channelMap.values())
+            .sort((a: { channel: ChannelResult; rankScore: number; popularity: number }, b: { channel: ChannelResult; rankScore: number; popularity: number }) => {
+              if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
+              if (b.popularity !== a.popularity) return b.popularity - a.popularity;
+              if (a.channel.isVerified !== b.channel.isVerified) return b.channel.isVerified ? 1 : -1;
+              return 0;
+            })
+            .map((x: { channel: ChannelResult; rankScore: number; popularity: number }) => x.channel);
+          
+          setChannels(sortedChannels);
         }
         
-        // Search playlists (simple title/description match)
+        // Search and rank playlists
         const allPlaylists = getAllPlaylists();
-        const searchLower = query.toLowerCase();
-        const filteredPlaylists = allPlaylists.filter(p => 
-          p.title.toLowerCase().includes(searchLower) ||
-          p.description?.toLowerCase().includes(searchLower) ||
-          p.creatorName.toLowerCase().includes(searchLower)
-        );
-        setPlaylists(filteredPlaylists);
+        const playlistCandidates = allPlaylists
+          .map((p: any) => {
+            const titleMatch = fuzzyScore(p.title || '', q);
+            const nameMatch = fuzzyScore(p.creatorName || '', q);
+            const categoryMatch = fuzzyScore(p.type || '', q);
+            if (titleMatch === 0 && nameMatch === 0 && categoryMatch === 0) return null;
+
+            const isExactTitle = isSpecificMatch(p.title || '', q);
+            const popularity = p.videoCount || 0;
+            const rankScore = calculateRankScore(
+              'playlist',
+              titleMatch,
+              nameMatch,
+              categoryMatch,
+              popularity,
+              isExactTitle,
+              q
+            );
+
+            return { playlist: p, rankScore, popularity };
+          })
+          .filter((x: { playlist: any; rankScore: number; popularity: number } | null): x is { playlist: any; rankScore: number; popularity: number } => x !== null)
+          .sort((a: { playlist: any; rankScore: number; popularity: number }, b: { playlist: any; rankScore: number; popularity: number }) => {
+            if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
+            return b.popularity - a.popularity;
+          })
+          .map((x: { playlist: any; rankScore: number; popularity: number }) => x.playlist);
+        
+        setPlaylists(playlistCandidates);
       } catch (error) {
         console.error('Error searching videos:', error);
       } finally {
@@ -178,7 +317,9 @@ export default function SearchClient() {
       ) : (
           <div className="space-y-3">
           {/* Channels Results - Horizontal List Layout */}
-          {channels.length > 0 && channels.map((channel) => (
+          {channels.length > 0 && (
+            <>
+              {(showAllCreators ? channels : channels.slice(0, 2)).map((channel) => (
             <Link
               key={channel.id}
               href={`/creator/${channel.id}`}
@@ -237,18 +378,154 @@ export default function SearchClient() {
               </div>
             </Link>
           ))}
+              {!showAllCreators && channels.length > 2 && (
+                <button
+                  onClick={() => setShowAllCreators(true)}
+                  className="w-full text-center py-2 text-text-secondary hover:bg-white/5 rounded-lg transition-colors text-sm"
+                >
+                  View all {channels.length} creators
+                </button>
+              )}
+              {showAllCreators && channels.length > 2 && (
+                <button
+                  onClick={() => setShowAllCreators(false)}
+                  className="w-full text-center py-2 text-text-secondary hover:bg-white/5 rounded-lg transition-colors text-sm"
+                >
+                  View less
+                </button>
+              )}
+              <div className="w-full border-t border-white/10 my-4" />
+            </>
+          )}
 
-          {/* Playlists Results - Horizontal List Layout */}
-          {playlists.map((playlist) => {
-            const thumbnailUrl = playlist.thumbnail || playlist.firstVideoThumbnail;
-            return (
-              <Link
-                key={playlist.id}
-                href={`/playlist/${playlist.id}`}
-                className="group flex flex-col md:flex-row items-start gap-6 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
-                onMouseEnter={() => setHoveredPlaylist(playlist.id)}
-                onMouseLeave={() => setHoveredPlaylist(null)}
-              >
+          {/* Mixed Content: Videos and Playlists merged */}
+          {(() => {
+            // Merge videos and playlists into a single array (already sorted by relevance)
+            type MixedContentItem = { type: 'video'; data: Video } | { type: 'playlist'; data: any };
+            
+            const mixedContent: MixedContentItem[] = [
+              ...videos.map((v) => ({ type: 'video' as const, data: v })),
+              ...playlists.map((p) => ({ type: 'playlist' as const, data: p })),
+            ];
+            
+            return mixedContent.map((item) => {
+              if (item.type === 'video') {
+                const video = item.data;
+                return (
+                  <Link
+                    key={video.id}
+                    href={`/watch/${video.id}`}
+                    className="group flex flex-col md:flex-row items-start gap-6 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
+                    onMouseEnter={() => setHoveredVideo(video.id)}
+                    onMouseLeave={() => setHoveredVideo(null)}
+                  >
+                    {/* Left Side - Thumbnail (40% Width) */}
+                    <div className="relative w-full md:w-[40%] flex-shrink-0 aspect-video bg-surface rounded-xl overflow-hidden">
+                      {video.thumbnailUrl ? (
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className={`w-full h-full object-cover transition-transform duration-300 ${
+                            hoveredVideo === video.id ? 'scale-[1.02]' : 'scale-100'
+                          }`}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Play className="h-12 w-12 text-text-secondary" />
+                        </div>
+                      )}
+                      
+                      {/* Duration Badge - Bottom Right Corner */}
+                      {!video.isLive && video.duration && (
+                        <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold">
+                          {formatDuration(video.duration)}
+                        </div>
+                      )}
+                      
+                      {/* LIVE Badge - Top Right Corner */}
+                      {video.isLive && (
+                        <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                          <span>LIVE</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right Side - Metadata */}
+                    <div className="flex-1 min-w-0 pl-6 flex flex-col gap-2 items-start">
+                      {/* Title Row - Title + More Button */}
+                      <div className="flex justify-between items-start w-full gap-4">
+                        <h3 className="text-xl font-semibold text-white line-clamp-2 leading-snug group-hover:text-white/90 flex-1 min-w-0">
+                          {video.title}
+                        </h3>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          className="text-text-secondary hover:text-white transition-colors flex-shrink-0 p-1 rounded-full hover:bg-white/10"
+                          aria-label="More options"
+                        >
+                          <MoreVertical className="h-5 w-5" />
+                        </button>
+                      </div>
+
+                      {/* Stats Row - Views • Time ago */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-sm text-white/70">
+                        {video.isLive ? (
+                          <span className="text-white font-semibold">
+                            {video.liveViewers ? `${formatViews(video.liveViewers)} watching` : 'Live'}
+                          </span>
+                        ) : (
+                          <>
+                            <span>{formatViews(video.views)} views</span>
+                            <span>•</span>
+                            <span>{formatTimeAgo(video.createdAt)}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Creator Row - Small avatar (h-6 w-6) + Channel Name */}
+                      <div className="flex items-center gap-2">
+                        {video.user?.profileImageUrl ? (
+                          <img
+                            src={video.user.profileImageUrl}
+                            alt={video.user.name || 'Creator'}
+                            className="h-6 w-6 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="h-6 w-6 rounded-full bg-surface flex items-center justify-center flex-shrink-0">
+                            <Play className="h-3 w-3 text-text-secondary" />
+                          </div>
+                        )}
+                        <span className="text-sm text-white/70">
+                          {video.user?.name || 'Unknown Creator'}
+                        </span>
+                        {video.user && 'role' in video.user && video.user.role === 'creator' && (
+                          <Check className="h-4 w-4 text-accent flex-shrink-0" />
+                        )}
+                      </div>
+
+                      {/* Description Snippet - One line preview */}
+                      {video.description && (
+                        <p className="text-sm text-white/60 line-clamp-1">
+                          {video.description}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              } else {
+                const playlist = item.data;
+                const thumbnailUrl = playlist.thumbnail || playlist.firstVideoThumbnail;
+                return (
+                  <Link
+                    key={playlist.id}
+                    href={`/playlist/${playlist.id}`}
+                    className="group flex flex-col md:flex-row items-start gap-6 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
+                    onMouseEnter={() => setHoveredPlaylist(playlist.id)}
+                    onMouseLeave={() => setHoveredPlaylist(null)}
+                  >
                 {/* Left Side - Thumbnail with Stacked Card Effect (40% Width) */}
                 <div className="relative w-full md:w-[40%] flex-shrink-0 aspect-video">
                   {/* Stack Background Layers - Twinkle Design System */}
@@ -348,118 +625,13 @@ export default function SearchClient() {
                   </button>
                 </div>
               </Link>
-            );
-          })}
-
-          {/* Videos Results - Horizontal List Layout */}
-                {videos.map((video) => (
-                  <Link
-                    key={video.id}
-                    href={`/watch/${video.id}`}
-              className="group flex flex-col md:flex-row items-start gap-6 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
-              onMouseEnter={() => setHoveredVideo(video.id)}
-              onMouseLeave={() => setHoveredVideo(null)}
-                  >
-              {/* Left Side - Thumbnail (40% Width) */}
-              <div className="relative w-full md:w-[40%] flex-shrink-0 aspect-video bg-surface rounded-xl overflow-hidden">
-                      {video.thumbnailUrl ? (
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title}
-                    className={`w-full h-full object-cover transition-transform duration-300 ${
-                      hoveredVideo === video.id ? 'scale-[1.02]' : 'scale-100'
-                    }`}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Play className="h-12 w-12 text-text-secondary" />
-                        </div>
-                      )}
-                
-                {/* Duration Badge - Bottom Right Corner */}
-                {!video.isLive && video.duration && (
-                  <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold">
-                    {formatDuration(video.duration)}
-                  </div>
-                )}
-                
-                {/* LIVE Badge - Top Right Corner */}
-                {video.isLive && (
-                  <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
-                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                    <span>LIVE</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Side - Metadata */}
-              <div className="flex-1 min-w-0 pl-6 flex flex-col gap-2 items-start">
-                {/* Title Row - Title + More Button */}
-                <div className="flex justify-between items-start w-full gap-4">
-                  <h3 className="text-xl font-semibold text-white line-clamp-2 leading-snug group-hover:text-white/90 flex-1 min-w-0">
-                    {video.title}
-                  </h3>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      // Handle more menu logic
-                    }}
-                    className="text-text-secondary hover:text-white transition-colors flex-shrink-0 p-1 rounded-full hover:bg-white/10"
-                    aria-label="More options"
-                  >
-                    <MoreVertical className="h-5 w-5" />
-                  </button>
-                </div>
-
-                {/* Stats Row - Views • Time ago */}
-                <div className="flex flex-wrap items-center gap-1.5 text-sm text-white/70">
-                  {video.isLive ? (
-                    <span className="text-white font-semibold">
-                      {video.liveViewers ? `${formatViews(video.liveViewers)} watching` : 'Live'}
-                    </span>
-                  ) : (
-                    <>
-                      <span>{formatViews(video.views)} views</span>
-                      <span>•</span>
-                      <span>{formatTimeAgo(video.createdAt)}</span>
-                    </>
-                  )}
-                </div>
-
-                {/* Creator Row - Small avatar (h-6 w-6) + Channel Name */}
-                <div className="flex items-center gap-2">
-                  {video.user?.profileImageUrl ? (
-                    <img
-                      src={video.user.profileImageUrl}
-                      alt={video.user.name || 'Creator'}
-                      className="h-6 w-6 rounded-full object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="h-6 w-6 rounded-full bg-surface flex items-center justify-center flex-shrink-0">
-                      <Play className="h-3 w-3 text-text-secondary" />
-                    </div>
-                  )}
-                  <span className="text-sm text-white/70">
-                      {video.user?.name || 'Unknown Creator'}
-                  </span>
-                  {video.user && 'role' in video.user && video.user.role === 'creator' && (
-                    <Check className="h-4 w-4 text-accent flex-shrink-0" />
-                  )}
-                </div>
-
-                {/* Description Snippet - One line preview */}
-                {video.description && (
-                  <p className="text-sm text-white/60 line-clamp-1">
-                    {video.description}
-                  </p>
-                )}
-              </div>
-                  </Link>
-                ))}
-              </div>
+                );
+              }
+            });
+          })()}
+          </div>
         )}
-            </div>
+      </div>
     </div>
   );
 }
