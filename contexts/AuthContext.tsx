@@ -76,7 +76,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
     localStorage.setItem('token', data.token);
-    setUser(data.user);
+    
+    // Immediately fetch fresh user data from backend to ensure we have latest profile
+    try {
+      const userResponse = await fetch('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${data.token}`,
+        },
+      });
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        setUser(userData.user);
+      } else {
+        // Fallback to user from signin response if /me fails
+        setUser(data.user);
+      }
+    } catch (fetchError) {
+      // Fallback to user from signin response if fetch fails
+      console.error('Failed to fetch fresh user data:', fetchError);
+      setUser(data.user);
+    }
     } catch (error) {
       // Re-throw with better error message
       if (error instanceof Error) {
@@ -100,12 +120,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json();
     localStorage.setItem('token', data.token);
-    setUser(data.user);
+    
+    // Immediately fetch fresh user data from backend to ensure we have latest profile
+    try {
+      const userResponse = await fetch('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${data.token}`,
+        },
+      });
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        setUser(userData.user);
+      } else {
+        // Fallback to user from signup response if /me fails
+        setUser(data.user);
+      }
+    } catch (fetchError) {
+      // Fallback to user from signup response if fetch fails
+      console.error('Failed to fetch fresh user data:', fetchError);
+      setUser(data.user);
+    }
   };
 
   const logout = () => {
+    // Clear all localStorage items related to auth
     localStorage.removeItem('token');
+    
+    // Clear all sessionStorage items
+    if (typeof window !== 'undefined') {
+      sessionStorage.clear();
+    }
+    
+    // Reset user state to null
     setUser(null);
+    
+    // Force a full page reload to clear any client-side cache
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
   };
 
   const refreshUser = async () => {

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Video, Playlist, User } from '@/types';
 import { Play, Crown, Lock, Check, ListMusic, MoreVertical } from 'lucide-react';
 import { getAllPlaylists } from '@/data/mockData';
+import { usePurchase } from '@/contexts/PurchaseContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ChannelResult {
   id: string;
@@ -15,18 +17,88 @@ interface ChannelResult {
   isVerified?: boolean;
 }
 
+// Specialized Skeleton Loader Components
+
+// A. VideoCard Skeleton (Grid Layout)
+function VideoCardSkeleton() {
+  return (
+    <div className="flex flex-col animate-pulse">
+      {/* Thumbnail skeleton */}
+      <div className="relative w-full aspect-video bg-white/5 rounded-xl mb-3" />
+      
+      {/* Title - Exactly 2 lines */}
+      <div className="mt-3">
+        <div className="w-full h-4 bg-white/5 rounded mb-1" />
+        <div className="w-[70%] h-4 bg-white/5 rounded" />
+      </div>
+      
+      {/* Description - Exactly 1 line (50% width) */}
+      <div className="mt-3">
+        <div className="w-1/2 h-3 bg-white/5 rounded" />
+      </div>
+    </div>
+  );
+}
+
+// B. ListResult Skeleton (Search Layout)
+function ListResultSkeleton() {
+  return (
+    <div className="group flex flex-col md:flex-row items-start gap-6 rounded-xl p-4 animate-pulse">
+      {/* Left: Thumbnail block (40% width) */}
+      <div className="relative w-full md:w-[40%] flex-shrink-0 aspect-video bg-white/5 rounded-xl" />
+      
+      {/* Right: Metadata (60% width) */}
+      <div className="flex-1 min-w-0 pl-6 flex flex-col gap-2 items-start">
+        {/* Title - Exactly 2 lines: Line 1: 100% width, Line 2: 60% width */}
+        <div className="w-full h-6 bg-white/5 rounded" />
+        <div className="w-[60%] h-6 bg-white/5 rounded" />
+        
+        {/* Description - Exactly 1 line (full width) */}
+        <div className="w-full h-4 bg-white/5 rounded mt-1" />
+      </div>
+    </div>
+  );
+}
+
+// C. CreatorProfile Skeleton
+function CreatorProfileSkeleton() {
+  return (
+    <div className="group flex flex-col md:flex-row items-center gap-6 rounded-xl p-4 animate-pulse">
+      {/* Left: Avatar Container (40% width) */}
+      <div className="relative w-full md:w-[40%] flex-shrink-0 flex items-center justify-center">
+        {/* Circular avatar (w-32 h-32) */}
+        <div className="w-32 h-32 rounded-full bg-white/5" />
+      </div>
+      
+      {/* Right: Metadata */}
+      <div className="flex-1 min-w-0 pl-6">
+        {/* Channel Name - Exactly 1 line (w-[200px]) */}
+        <div className="w-[200px] h-7 bg-white/5 rounded mb-2" />
+        
+        {/* Description - Exactly 1 line (full width) */}
+        <div className="w-full h-4 bg-white/5 rounded" />
+      </div>
+    </div>
+  );
+}
+
 export default function SearchClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const query = searchParams.get('q') || '';
+  const { user } = useAuth();
+  const { checkVideoPurchased, checkPlaylistPurchased } = usePurchase();
   const [videos, setVideos] = useState<Video[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [channels, setChannels] = useState<ChannelResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [hoveredPlaylist, setHoveredPlaylist] = useState<string | null>(null);
   const [hoveredVideo, setHoveredVideo] = useState<string | null>(null);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   const [showAllCreators, setShowAllCreators] = useState(false);
+  const [allVideos, setAllVideos] = useState<Video[]>([]);
+  const [allPlaylists] = useState<any[]>(() => getAllPlaylists());
 
   // Format time ago helper
   const formatTimeAgo = (date: Date) => {
@@ -140,29 +212,148 @@ export default function SearchClient() {
     }
   };
 
-  // Simple local search - filter videos, playlists, and channels
+  // Immediate state reset when query changes (fixes stale data)
   useEffect(() => {
-    async function performSearch() {
-      if (typeof window === 'undefined') {
-        setLoading(false);
-        return;
-      }
+    if (!query.trim()) {
+      setVideos([]);
+      setPlaylists([]);
+      setChannels([]);
+      setShowAllCreators(false);
+      setLoading(false);
+      setDataLoaded(false);
+      return;
+    }
+    
+    // Immediately reset results and show loading
+    setVideos([]);
+    setPlaylists([]);
+    setChannels([]);
+    setShowAllCreators(false);
+    setLoading(true);
+    setDataLoaded(false);
+  }, [query]);
 
-      if (!query.trim()) {
-        setVideos([]);
-        setPlaylists([]);
-        setChannels([]);
-        setShowAllCreators(false);
-        setLoading(false);
-        return;
-      }
+  // Memoized search ranking logic (performance optimization)
+  const rankedResults = useMemo(() => {
+    if (!query.trim()) {
+      return { videos: [], playlists: [], channels: [] };
+    }
 
+    const q = query.trim();
+
+    // Rank and filter videos
+    const videoCandidates = allVideos
+      .map((v: Video) => {
+        const titleMatch = fuzzyScore(v.title || '', q);
+        const nameMatch = fuzzyScore(v.user?.name || '', q);
+        const categoryMatch = fuzzyScore(v.category || '', q);
+        if (titleMatch === 0 && nameMatch === 0 && categoryMatch === 0) return null;
+
+        const isExactTitle = isSpecificMatch(v.title || '', q);
+        const popularity = (v as any).views || 0;
+        const rankScore = calculateRankScore(
+          'video',
+          titleMatch,
+          nameMatch,
+          categoryMatch,
+          popularity,
+          isExactTitle,
+          q
+        );
+
+        return { video: v, rankScore, popularity };
+      })
+      .filter((x): x is { video: Video; rankScore: number; popularity: number } => x !== null)
+      .sort((a: { video: Video; rankScore: number; popularity: number }, b: { video: Video; rankScore: number; popularity: number }) => {
+        if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
+        return b.popularity - a.popularity;
+      })
+      .map((x: { video: Video; rankScore: number; popularity: number }) => x.video);
+
+    // Extract and rank channels
+    const channelMap = new Map<string, { channel: ChannelResult; rankScore: number; popularity: number }>();
+    allVideos.forEach((v: Video) => {
+      if (v.user) {
+        const userId = v.user.id || v.userId || 'unknown';
+        if (!channelMap.has(userId)) {
+          const nameMatch = fuzzyScore(v.user.name || '', q);
+          if (nameMatch === 0) return;
+
+          const isExactName = isSpecificMatch(v.user.name || '', q);
+          const subs = Math.floor(Math.random() * 1000000) + 1000;
+          const rankScore = calculateRankScore(
+            'channel',
+            0,
+            nameMatch,
+            0,
+            subs,
+            isExactName,
+            q
+          );
+
+          channelMap.set(userId, {
+            channel: {
+              id: userId,
+              name: v.user.name || 'Unknown Creator',
+              avatar: v.user.profileImageUrl,
+              subscriberCount: subs,
+              isVerified: Math.random() > 0.7,
+            },
+            rankScore,
+            popularity: subs,
+          });
+        }
+      }
+    });
+    
+    const sortedChannels = Array.from(channelMap.values())
+      .sort((a: { channel: ChannelResult; rankScore: number; popularity: number }, b: { channel: ChannelResult; rankScore: number; popularity: number }) => {
+        if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
+        if (b.popularity !== a.popularity) return b.popularity - a.popularity;
+        if (a.channel.isVerified !== b.channel.isVerified) return b.channel.isVerified ? 1 : -1;
+        return 0;
+      })
+      .map((x: { channel: ChannelResult; rankScore: number; popularity: number }) => x.channel);
+
+    // Rank playlists
+    const playlistCandidates = allPlaylists
+      .map((p: any) => {
+        const titleMatch = fuzzyScore(p.title || '', q);
+        const nameMatch = fuzzyScore(p.creatorName || '', q);
+        const categoryMatch = fuzzyScore(p.type || '', q);
+        if (titleMatch === 0 && nameMatch === 0 && categoryMatch === 0) return null;
+
+        const isExactTitle = isSpecificMatch(p.title || '', q);
+        const popularity = p.videoCount || 0;
+        const rankScore = calculateRankScore(
+          'playlist',
+          titleMatch,
+          nameMatch,
+          categoryMatch,
+          popularity,
+          isExactTitle,
+          q
+        );
+
+        return { playlist: p, rankScore, popularity };
+      })
+      .filter((x: { playlist: any; rankScore: number; popularity: number } | null): x is { playlist: any; rankScore: number; popularity: number } => x !== null)
+      .sort((a: { playlist: any; rankScore: number; popularity: number }, b: { playlist: any; rankScore: number; popularity: number }) => {
+        if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
+        return b.popularity - a.popularity;
+      })
+      .map((x: { playlist: any; rankScore: number; popularity: number }) => x.playlist);
+
+    return { videos: videoCandidates, playlists: playlistCandidates, channels: sortedChannels };
+  }, [query, allVideos, allPlaylists]);
+
+  // Load videos from API on mount
+  useEffect(() => {
+    async function loadVideos() {
+      if (typeof window === 'undefined') return;
+      
       try {
-        const q = query.trim();
-        setShowAllCreators(false);
-
-        // Fetch all videos from API
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const token = localStorage.getItem('token');
         const headers: HeadersInit = {};
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
@@ -171,132 +362,53 @@ export default function SearchClient() {
         const response = await fetch('/api/videos', { headers });
         if (response.ok) {
           const data = await response.json();
-          const allVideos = data.videos || [];
-          
-          // Rank and filter videos using smart ranking
-          const videoCandidates = allVideos
-            .map((v: Video) => {
-              const titleMatch = fuzzyScore(v.title || '', q);
-              const nameMatch = fuzzyScore(v.user?.name || '', q);
-              const categoryMatch = fuzzyScore(v.category || '', q);
-              if (titleMatch === 0 && nameMatch === 0 && categoryMatch === 0) return null;
-
-              const isExactTitle = isSpecificMatch(v.title || '', q);
-              const popularity = (v as any).views || 0;
-              const rankScore = calculateRankScore(
-                'video',
-                titleMatch,
-                nameMatch,
-                categoryMatch,
-                popularity,
-                isExactTitle,
-                q
-              );
-
-              return { video: v, rankScore, popularity };
-            })
-            .filter((x: { video: Video; rankScore: number; popularity: number } | null): x is { video: Video; rankScore: number; popularity: number } => x !== null)
-            .sort((a: { video: Video; rankScore: number; popularity: number }, b: { video: Video; rankScore: number; popularity: number }) => {
-              if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
-              return b.popularity - a.popularity;
-            })
-            .map((x: { video: Video; rankScore: number; popularity: number }) => x.video);
-          
-          setVideos(videoCandidates);
-
-          // Extract and rank channels/creators
-          const channelMap = new Map<string, { channel: ChannelResult; rankScore: number; popularity: number }>();
-          allVideos.forEach((video: Video) => {
-            if (video.user) {
-              const userId = video.user.id || video.userId || 'unknown';
-              if (!channelMap.has(userId)) {
-                const nameMatch = fuzzyScore(video.user.name || '', q);
-                if (nameMatch === 0) return;
-
-                const isExactName = isSpecificMatch(video.user.name || '', q);
-                const subs = Math.floor(Math.random() * 1000000) + 1000;
-                const rankScore = calculateRankScore(
-                  'channel',
-                  0,
-                  nameMatch,
-                  0,
-                  subs,
-                  isExactName,
-                  q
-                );
-
-                channelMap.set(userId, {
-                  channel: {
-                    id: userId,
-                    name: video.user.name || 'Unknown Creator',
-                    avatar: video.user.profileImageUrl,
-                    subscriberCount: subs,
-                    isVerified: Math.random() > 0.7,
-                  },
-                  rankScore,
-                  popularity: subs,
-                });
-              }
-            }
-          });
-          
-          const sortedChannels = Array.from(channelMap.values())
-            .sort((a: { channel: ChannelResult; rankScore: number; popularity: number }, b: { channel: ChannelResult; rankScore: number; popularity: number }) => {
-              if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
-              if (b.popularity !== a.popularity) return b.popularity - a.popularity;
-              if (a.channel.isVerified !== b.channel.isVerified) return b.channel.isVerified ? 1 : -1;
-              return 0;
-            })
-            .map((x: { channel: ChannelResult; rankScore: number; popularity: number }) => x.channel);
-          
-          setChannels(sortedChannels);
+          setAllVideos(data.videos || []);
         }
-        
-        // Search and rank playlists
-        const allPlaylists = getAllPlaylists();
-        const playlistCandidates = allPlaylists
-          .map((p: any) => {
-            const titleMatch = fuzzyScore(p.title || '', q);
-            const nameMatch = fuzzyScore(p.creatorName || '', q);
-            const categoryMatch = fuzzyScore(p.type || '', q);
-            if (titleMatch === 0 && nameMatch === 0 && categoryMatch === 0) return null;
-
-            const isExactTitle = isSpecificMatch(p.title || '', q);
-            const popularity = p.videoCount || 0;
-            const rankScore = calculateRankScore(
-              'playlist',
-              titleMatch,
-              nameMatch,
-              categoryMatch,
-              popularity,
-              isExactTitle,
-              q
-            );
-
-            return { playlist: p, rankScore, popularity };
-          })
-          .filter((x: { playlist: any; rankScore: number; popularity: number } | null): x is { playlist: any; rankScore: number; popularity: number } => x !== null)
-          .sort((a: { playlist: any; rankScore: number; popularity: number }, b: { playlist: any; rankScore: number; popularity: number }) => {
-            if (Math.abs(b.rankScore - a.rankScore) > 100) return b.rankScore - a.rankScore;
-            return b.popularity - a.popularity;
-          })
-          .map((x: { playlist: any; rankScore: number; popularity: number }) => x.playlist);
-        
-        setPlaylists(playlistCandidates);
       } catch (error) {
-        console.error('Error searching videos:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error loading videos:', error);
       }
     }
     
-    performSearch();
-  }, [query]);
+    loadVideos();
+  }, []);
 
-  if (loading) {
+  // Apply memoized ranked results to state (only when data is loaded)
+  useEffect(() => {
+    if (!query.trim()) {
+      return;
+    }
+
+    // Wait for data to be loaded before applying results
+    if (allVideos.length === 0) {
+      // Keep loading state until videos are loaded
+      return;
+    }
+
+    // Apply ranked results with a slight delay for smooth transition
+    const timer = setTimeout(() => {
+      setVideos(rankedResults.videos);
+      setChannels(rankedResults.channels);
+      setPlaylists(rankedResults.playlists);
+      setShowAllCreators(false);
+      setLoading(false);
+      setDataLoaded(true);
+    }, 150); // Small delay for smoother UX transition
+
+    return () => clearTimeout(timer);
+  }, [query, rankedResults, allVideos.length]);
+
+  // Don't show loading skeleton if no query
+  if (!query.trim()) {
     return (
       <div className="w-full px-4 md:px-6 lg:px-8 py-6">
-        <div className="text-center text-text-secondary">Searching...</div>
+        <div className="max-w-[1280px] mx-auto">
+          <h1 className="text-2xl font-bold mb-6 text-white">
+            Search results
+          </h1>
+          <div className="text-center py-12 text-text-secondary">
+            <p>Enter a search query to find videos, playlists, and creators</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -307,15 +419,28 @@ export default function SearchClient() {
     <div className="w-full px-4 md:px-6 lg:px-8 py-6">
       <div className="max-w-[1280px] mx-auto">
         <h1 className="text-2xl font-bold mb-6 text-white">
-        Search results for &quot;{query}&quot;
-      </h1>
-      
-        {allResultsCount === 0 ? (
+          Search results for &quot;{query}&quot;
+        </h1>
+        
+        {loading ? (
+          <div className="space-y-3">
+            {/* Creator skeletons (2) */}
+            {Array.from({ length: 2 }).map((_, idx) => (
+              <CreatorProfileSkeleton key={`creator-skeleton-${idx}`} />
+            ))}
+            {/* Separator skeleton */}
+            <div className="w-full border-t border-white/10 my-4" />
+            {/* Content skeletons (5) */}
+            {Array.from({ length: 5 }).map((_, idx) => (
+              <ListResultSkeleton key={`content-skeleton-${idx}`} />
+            ))}
+          </div>
+        ) : allResultsCount === 0 ? (
         <div className="text-center py-12 text-text-secondary">
             <p>No results found for &quot;{query}&quot;</p>
         </div>
       ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 opacity-0 animate-fadeIn">
           {/* Channels Results - Horizontal List Layout */}
           {channels.length > 0 && (
             <>
@@ -449,6 +574,37 @@ export default function SearchClient() {
                           <span>LIVE</span>
                         </div>
                       )}
+                      
+                      {/* Price/Subscription/Purchased Badge - Top Right Corner (if not live) */}
+                      {!video.isLive && (() => {
+                        const isPurchased = user && video.type === 'paid' && checkVideoPurchased(video.id);
+                        const hasPaidContent = (video.type === 'paid' && video.price !== undefined) || video.type === 'subscription';
+                        
+                        if (!hasPaidContent && !isPurchased) {
+                          return null;
+                        }
+                        
+                        return (
+                          <div className="absolute top-2 right-2 z-30">
+                            {isPurchased ? (
+                              <div className="bg-emerald-600/90 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                                <Check className="h-3 w-3" />
+                                <span>Purchased</span>
+                              </div>
+                            ) : video.type === 'subscription' ? (
+                              <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                                <Crown className="h-3 w-3" />
+                                <span>Subscription</span>
+                              </div>
+                            ) : video.type === 'paid' && video.price !== undefined ? (
+                              <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                                <Lock className="h-3 w-3" />
+                                <span>{video.price.toLocaleString()} {video.currency || 'UZS'}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Right Side - Metadata */}
@@ -557,21 +713,36 @@ export default function SearchClient() {
                   </div>
 
                   {/* Price/Subscription Label - Top Right Corner */}
-                  {playlist.price || playlist.isSubscription ? (
-                    <div className="absolute top-2 right-2 z-30">
-                      {playlist.isSubscription ? (
-                        <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
-                          <Crown className="h-3 w-3" />
-                          <span>Subscription</span>
-                        </div>
-                      ) : playlist.price ? (
-                        <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
-                          <Lock className="h-3 w-3" />
-                          <span>{playlist.price}</span>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  {/* Hide price if user is logged in and has purchased the playlist */}
+                  {(() => {
+                    const isPurchased = user && checkPlaylistPurchased(playlist.id);
+                    const shouldShowPrice = !isPurchased && (playlist.price || playlist.isSubscription);
+                    
+                    if (!shouldShowPrice && !isPurchased) {
+                      return null;
+                    }
+                    
+                    return (
+                      <div className="absolute top-2 right-2 z-30">
+                        {isPurchased ? (
+                          <div className="bg-emerald-600/90 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                            <Check className="h-3 w-3" />
+                            <span>Purchased</span>
+                          </div>
+                        ) : playlist.isSubscription ? (
+                          <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                            <Crown className="h-3 w-3" />
+                            <span>Subscription</span>
+                          </div>
+                        ) : playlist.price ? (
+                          <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                            <Lock className="h-3 w-3" />
+                            <span>{playlist.price}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Right Side - Metadata */}

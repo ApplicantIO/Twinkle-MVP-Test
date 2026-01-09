@@ -15,17 +15,75 @@ import AuthModal from '@/components/AuthModal';
 import { MobileMenu } from './MobileMenu';
 import { cn } from '@/lib/utils';
 
-// Mock user object for simulated logged-in state
-const MOCK_USER = {
-  email: 'yupbekha@gmail.com',
-  firstName: 'Behruz',
-  lastName: 'Sayfiddinov',
-  username: 'yupbekha',
-  avatar: null, // Will use user initial as placeholder
-};
-
 export function Header() {
   const { user, logout } = useAuth();
+  
+  // Helper function to extract firstname from name field
+  const getUserFirstName = () => {
+    if (!user) return null;
+    
+    // If name exists, try to extract firstname
+    if (user.name) {
+      const trimmedName = user.name.trim();
+      
+      // Remove @ prefix if present (username format)
+      const cleanName = trimmedName.startsWith('@') ? trimmedName.slice(1) : trimmedName;
+      
+      // If name contains a space, extract the first part (firstname)
+      // This handles cases like "Behruz Sayfiddinov" -> "Behruz"
+      const nameParts = cleanName.split(/\s+/);
+      if (nameParts.length > 1) {
+        return nameParts[0]; // First name
+      }
+      
+      // Single word - could be firstname, username, or fullname
+      // If it looks like a username (all lowercase alphanumeric with underscores/hyphens)
+      // prefer email prefix, otherwise use the name as firstname
+      if (/^[a-z0-9_-]+$/.test(cleanName) && cleanName.length > 0) {
+        // It's likely a username (e.g., "yupbekha"), prefer email prefix for display
+        // But if email prefix is also the same, just use the name without @
+        const emailPrefix = user.email?.split('@')[0];
+        if (emailPrefix && emailPrefix.toLowerCase() !== cleanName.toLowerCase()) {
+          return emailPrefix;
+        }
+        return cleanName;
+      }
+      
+      // Single word that's not a username format - treat as firstname
+      return cleanName;
+    }
+    
+    // Fallback to email prefix if no name
+    return user.email?.split('@')[0] || null;
+  };
+  
+  // Helper function to get user's display name (prioritizes firstname)
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+    
+    const firstName = getUserFirstName();
+    if (firstName) {
+      // Capitalize first letter and keep rest lowercase for professional look
+      // Handle edge cases like "bEHRUZ" -> "Behruz"
+      return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+    }
+    
+    // Final fallback
+    return user.email?.split('@')[0] || 'User';
+  };
+  
+  // Helper function to get user's first initial
+  const getUserInitial = () => {
+    if (!user) return 'U';
+    const displayName = getUserDisplayName();
+    return displayName.charAt(0).toUpperCase();
+  };
+  
+  // Watch for user state changes and force re-render
+  useEffect(() => {
+    // This effect will trigger a re-render whenever user changes
+    // The component will automatically re-render because user is from context
+  }, [user]);
   const { setIsCollapsed, isCollapsed } = useSidebar();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
@@ -854,21 +912,21 @@ export function Header() {
                   ref={profileButtonRef}
                   className="flex items-center gap-2.5 pl-3 pr-1 h-10 rounded-full bg-surface border border-transparent hover:border-gray-500 transition-colors focus:outline-none"
                 >
-                  {/* First Name */}
+                  {/* Display Name */}
                   <span className="text-sm font-medium text-text-primary">
-                    {MOCK_USER.firstName}
+                    {getUserDisplayName()}
                   </span>
                   {/* Avatar */}
-                  {MOCK_USER.avatar ? (
+                  {user?.profileImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img 
-                      src={MOCK_USER.avatar}
-                      alt={MOCK_USER.firstName}
+                      src={user.profileImageUrl}
+                      alt={getUserDisplayName()}
                       className="h-8 w-8 rounded-full object-cover"
                     />
                   ) : (
                     <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-white font-medium text-sm">
-                      {MOCK_USER.firstName.charAt(0)}
+                      {getUserInitial()}
                     </div>
                   )}
                 </button>
@@ -1136,27 +1194,31 @@ export function Header() {
                 <div className="border-t border-gray-700 my-1" />
                 
                 {/* Currently logged-in account */}
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleAccountSelect(MOCK_USER.email);
-                  }}
-                  className="text-text-primary hover:bg-background cursor-pointer flex items-center gap-2"
-                >
-                  <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
-                    {MOCK_USER.firstName.charAt(0)}
-                  </div>
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <span className="text-sm font-medium text-text-primary">
-                      {MOCK_USER.firstName} {MOCK_USER.lastName}
-                    </span>
-                    <span className="text-xs text-text-secondary truncate">
-                      {MOCK_USER.email}
-                    </span>
-                  </div>
-                  <div className="h-2 w-2 rounded-full bg-accent flex-shrink-0" />
-                </DropdownMenuItem>
+                {user && (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (user?.email) {
+                        handleAccountSelect(user.email);
+                      }
+                    }}
+                    className="text-text-primary hover:bg-background cursor-pointer flex items-center gap-2"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+                      {getUserInitial()}
+                    </div>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="text-sm font-medium text-text-primary">
+                        {getUserDisplayName()}
+                      </span>
+                      <span className="text-xs text-text-secondary truncate">
+                        {user?.email || 'No email'}
+                      </span>
+                    </div>
+                    <div className="h-2 w-2 rounded-full bg-accent flex-shrink-0" />
+                  </DropdownMenuItem>
+                )}
                 
                 {/* Secondary account */}
                 <DropdownMenuItem
