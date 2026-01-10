@@ -24,15 +24,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if username exists (case-insensitive)
-    const usersWithNames = await prisma.user.findMany({
-      where: { name: { not: null } },
-      select: { id: true, name: true },
+    // Check if username exists (case-insensitive) - Use database-level filtering for performance
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        name: {
+          equals: normalizedUsername,
+          mode: 'insensitive',
+        },
+      },
+      select: { id: true },
     });
-
-    const nameExists = usersWithNames.some(
-      (u) => u.name && u.name.toLowerCase() === normalizedUsername.toLowerCase()
-    );
+    
+    const nameExists = !!existingUser;
 
     return NextResponse.json({
       available: !nameExists,

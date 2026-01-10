@@ -347,6 +347,8 @@ export default function SearchClient() {
     return { videos: videoCandidates, playlists: playlistCandidates, channels: sortedChannels };
   }, [query, allVideos, allPlaylists]);
 
+  const [videosLoaded, setVideosLoaded] = useState(false);
+
   // Load videos from API on mount
   useEffect(() => {
     async function loadVideos() {
@@ -363,9 +365,17 @@ export default function SearchClient() {
         if (response.ok) {
           const data = await response.json();
           setAllVideos(data.videos || []);
+        } else {
+          // API call completed but failed - set empty array
+          setAllVideos([]);
         }
       } catch (error) {
         console.error('Error loading videos:', error);
+        // API call completed but errored - set empty array
+        setAllVideos([]);
+      } finally {
+        // Mark that the API call has completed (regardless of success/failure)
+        setVideosLoaded(true);
       }
     }
     
@@ -375,12 +385,13 @@ export default function SearchClient() {
   // Apply memoized ranked results to state (only when data is loaded)
   useEffect(() => {
     if (!query.trim()) {
+      setLoading(false);
       return;
     }
 
-    // Wait for data to be loaded before applying results
-    if (allVideos.length === 0) {
-      // Keep loading state until videos are loaded
+    // Wait for videos API call to complete before applying results
+    if (!videosLoaded) {
+      // Keep loading state until API call completes
       return;
     }
 
@@ -395,7 +406,7 @@ export default function SearchClient() {
     }, 150); // Small delay for smoother UX transition
 
     return () => clearTimeout(timer);
-  }, [query, rankedResults, allVideos.length]);
+  }, [query, rankedResults, videosLoaded]);
 
   // Don't show loading skeleton if no query
   if (!query.trim()) {
@@ -577,7 +588,8 @@ export default function SearchClient() {
                       
                       {/* Price/Subscription/Purchased Badge - Top Right Corner (if not live) */}
                       {!video.isLive && (() => {
-                        const isPurchased = user && video.type === 'paid' && checkVideoPurchased(video.id);
+                        // Check if video is purchased (works for both 'paid' and 'subscription' types)
+                        const isPurchased = user && (video.type === 'paid' || video.type === 'subscription') && checkVideoPurchased(video.id);
                         const hasPaidContent = (video.type === 'paid' && video.price !== undefined) || video.type === 'subscription';
                         
                         if (!hasPaidContent && !isPurchased) {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { User } from '@/types';
 
 interface AuthContextType {
@@ -15,6 +16,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -155,10 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Reset user state to null
     setUser(null);
     
-    // Force a full page reload to clear any client-side cache
-    if (typeof window !== 'undefined') {
-      window.location.href = '/';
-    }
+    // Use Next.js router for client-side navigation (preserves React state flow)
+    router.push('/');
   };
 
   const refreshUser = async () => {

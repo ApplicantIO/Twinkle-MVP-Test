@@ -52,24 +52,84 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   const emailCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const usernameCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resendTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loginErrorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const passwordErrorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const verifyAdvanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const signupErrorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const resetPasswordTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Reset form fields and validation state (used when switching modes)
+  const resetFormState = useCallback(() => {
+    setEmail('');
+    setFirstName('');
+    setLastName('');
+    setUsername('');
+    setPassword('');
+    setConfirmPassword('');
+    setEmailCode('');
+    setError('');
+    setSignupStep('email');
+    setCodeSent(false);
+    setShowPassword(false);
+    setPasswordMismatch(false);
+    setLoginError('');
+    setPasswordError(false);
+    setEmailTaken(false);
+    setCheckingEmail(false);
+    setUsernameTaken(false);
+    setCheckingUsername(false);
+    setUsernameAvailable(null);
+    setResendCooldown(0);
+    setVerifyStatus('idle');
+    setResetLinkSent(false);
+    // Clear any pending timers
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current);
+      emailCheckTimeoutRef.current = null;
+    }
+    if (usernameCheckTimeoutRef.current) {
+      clearTimeout(usernameCheckTimeoutRef.current);
+      usernameCheckTimeoutRef.current = null;
+    }
+    if (resendTimerRef.current) {
+      clearInterval(resendTimerRef.current);
+      resendTimerRef.current = null;
+    }
+  }, []);
 
   // Update mode when initialMode changes (when different button clicked in header)
-  if (mode !== initialMode) {
-    setMode(initialMode);
-    setViewMode(initialMode);
-  }
+  // Bug fix: Move state setters to useEffect to avoid calling during render
+  // Bug fix: Clear form fields when switching modes to prevent data persistence
+  useEffect(() => {
+    if (mode !== initialMode) {
+      // Reset all form fields and validation state before switching modes
+      resetFormState();
+      setMode(initialMode);
+      setViewMode(initialMode);
+    }
+  }, [initialMode, mode, resetFormState]);
 
   // Auto-focus email input when switching to forgot password view
   useEffect(() => {
     if (!isOpen) return;
     if (viewMode === 'forgotPassword' && resetEmailRef.current) {
-      setTimeout(() => {
+      // Bug fix: Store timeout in ref for cleanup
+      focusTimeoutRef.current = setTimeout(() => {
         resetEmailRef.current?.focus();
       }, 100);
     }
+    // Cleanup focus timeout
+    return () => {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
+    };
   }, [viewMode, isOpen]);
 
-  // Cleanup timers on unmount
+  // Cleanup all timers on unmount
   useEffect(() => {
     return () => {
       if (emailCheckTimeoutRef.current) {
@@ -80,6 +140,27 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
       }
       if (resendTimerRef.current) {
         clearInterval(resendTimerRef.current);
+      }
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+      }
+      if (loginErrorTimeoutRef.current) {
+        clearTimeout(loginErrorTimeoutRef.current);
+      }
+      if (passwordErrorTimeoutRef.current) {
+        clearTimeout(passwordErrorTimeoutRef.current);
+      }
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+      if (verifyAdvanceTimeoutRef.current) {
+        clearTimeout(verifyAdvanceTimeoutRef.current);
+      }
+      if (signupErrorTimeoutRef.current) {
+        clearTimeout(signupErrorTimeoutRef.current);
+      }
+      if (resetPasswordTimeoutRef.current) {
+        clearTimeout(resetPasswordTimeoutRef.current);
       }
     };
   }, []);
@@ -236,15 +317,19 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
       // Determine if it's a login not found or password invalid error
+      // Bug fix: Store timeouts in refs for proper cleanup
       if (errorMessage.toLowerCase().includes('identifier') || errorMessage.toLowerCase().includes('not found')) {
         setLoginError('not-found');
-        setTimeout(() => setLoginError(''), 2000);
+        if (loginErrorTimeoutRef.current) clearTimeout(loginErrorTimeoutRef.current);
+        loginErrorTimeoutRef.current = setTimeout(() => setLoginError(''), 2000);
       } else if (errorMessage.toLowerCase().includes('password') || errorMessage.toLowerCase().includes('invalid')) {
         setPasswordError(true);
-        setTimeout(() => setPasswordError(false), 2000);
+        if (passwordErrorTimeoutRef.current) clearTimeout(passwordErrorTimeoutRef.current);
+        passwordErrorTimeoutRef.current = setTimeout(() => setPasswordError(false), 2000);
       } else {
         setError(errorMessage);
-        setTimeout(() => setError(''), 2000);
+        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+        errorTimeoutRef.current = setTimeout(() => setError(''), 2000);
       }
     } finally {
       setLoading(false);
@@ -283,7 +368,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
       } else {
         setVerifyStatus('success');
         // Auto-advance to details after a brief delay
-        setTimeout(() => setSignupStep('details'), 1000);
+        // Bug fix: Store timeout in ref for proper cleanup
+        if (verifyAdvanceTimeoutRef.current) clearTimeout(verifyAdvanceTimeoutRef.current);
+        verifyAdvanceTimeoutRef.current = setTimeout(() => setSignupStep('details'), 1000);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify code';
@@ -318,7 +405,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
       const errorMessage = err instanceof Error ? err.message : 'Failed to create user';
       setError(errorMessage);
       // Auto-dismiss error after 2s
-      setTimeout(() => setError(''), 2000);
+      // Bug fix: Store timeout in ref for proper cleanup
+      if (signupErrorTimeoutRef.current) clearTimeout(signupErrorTimeoutRef.current);
+      signupErrorTimeoutRef.current = setTimeout(() => setError(''), 2000);
     } finally {
       setLoading(false);
     }
@@ -335,29 +424,10 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   };
 
   const switchMode = (newMode: AuthMode) => {
+    // Reset form state before switching
+    resetFormState();
     setMode(newMode);
     setViewMode(newMode);
-    setEmail('');
-    setFirstName('');
-    setLastName('');
-    setUsername('');
-    setPassword('');
-    setConfirmPassword('');
-    setEmailCode('');
-    setError('');
-    setSignupStep('email');
-    setCodeSent(false);
-    setShowPassword(false);
-    setPasswordMismatch(false);
-    setLoginError('');
-    setPasswordError(false);
-    setEmailTaken(false);
-    setUsernameTaken(false);
-    setUsernameAvailable(null);
-    setResendCooldown(0);
-    if (resendTimerRef.current) {
-      clearInterval(resendTimerRef.current);
-    }
   };
 
   const handleForgotPassword = (e: React.MouseEvent) => {
@@ -377,7 +447,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
       setResetLinkSent(true);
       setError('');
       // Auto-return to login after showing success
-      setTimeout(() => {
+      // Bug fix: Store timeout in ref for proper cleanup
+      if (resetPasswordTimeoutRef.current) clearTimeout(resetPasswordTimeoutRef.current);
+      resetPasswordTimeoutRef.current = setTimeout(() => {
         setViewMode('login');
         setEmail('');
         setResetLinkSent(false);
@@ -389,7 +461,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     } finally {
       setLoading(false);
     }
-  };
+};
 
   
 
@@ -403,13 +475,13 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
         }
       }}
     >
-        <div 
+      <div 
           className="w-full max-w-sm bg-background border border-surface rounded-lg shadow-xl relative transition-opacity duration-200"
-          onClick={(e) => {
-            // Prevent closing when clicking inside the modal
-            e.stopPropagation();
-          }}
-        >
+        onClick={(e) => {
+          // Prevent closing when clicking inside the modal
+          e.stopPropagation();
+        }}
+      >
         {/* Close button */}
         <button
           onClick={onClose}
@@ -425,7 +497,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-text-primary transition-opacity duration-200">
               {viewMode === 'forgotPassword' ? 'Reset Password' : mode === 'login' ? 'Sign In' : 'Sign Up'}
-            </h2>
+          </h2>
           </div>
           {error && (
             <div className="p-3 mb-4 bg-rose-50 text-rose-700 border border-rose-100 rounded text-sm transition-opacity duration-200">
@@ -586,16 +658,16 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   Email
                 </Label>
                 <div className="relative">
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    value={email}
+                <Input
+                  id="signup-email"
+                  type="email"
+                  value={email}
                     onChange={(e) => handleEmailChange(e.target.value)}
                     onBlur={handleEmailBlur}
-                    placeholder="you@example.com"
+                  placeholder="you@example.com"
                     className={emailTaken ? 'border-2 border-rose-500' : ''}
-                    required
-                  />
+                  required
+                />
                   {checkingEmail && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
                       <div className="w-4 h-4 border-2 border-text-secondary border-t-transparent rounded-full animate-spin" />

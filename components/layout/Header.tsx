@@ -589,9 +589,8 @@ export function Header() {
     }
     // Close the dropdown menu
     setIsSettingsOpen(false);
-    // Call the actual logout function
+    // Call the actual logout function (it handles navigation internally)
     logout();
-    router.push('/');
   };
 
   const handleSwitchAccount = (e: React.MouseEvent) => {
@@ -621,10 +620,10 @@ export function Header() {
         variant="ghost"
         size="icon"
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="hidden lg:flex items-center justify-center p-0 h-10 w-10 mr-3 text-text-secondary hover:text-text-primary hover:bg-surface"
+        className="hidden lg:flex items-center justify-center h-10 w-10 mr-3 text-text-secondary hover:text-text-primary hover:bg-white/5 rounded-lg"
         aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="h-5 w-5" strokeWidth={1.5} />
       </Button>
 
       {/* Logo - Always visible */}
