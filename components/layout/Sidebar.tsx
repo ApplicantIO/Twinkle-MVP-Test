@@ -28,7 +28,7 @@ const ShortsIcon = ({ className }: { className?: string }) => (
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, setIsCollapsed } = useSidebar();
   const [subscribedCreators, setSubscribedCreators] = useState<SubscribedCreator[]>([]);
   const [loadingCreators, setLoadingCreators] = useState(false);
 
@@ -226,22 +226,18 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Backdrop overlay when sidebar is expanded on watch page (desktop only) */}
-      {isWatchPage && !isCollapsed && (
-        <div
-          className="hidden lg:block fixed inset-0 bg-black/50 z-30 transition-opacity duration-300"
-          onClick={() => {
-            // Optional: Close sidebar when clicking backdrop
-            // setIsCollapsed(true);
-          }}
-        />
-      )}
+      {/* 
+        NO BACKDROP ON WATCH PAGE (Architectural Rule: Option A)
+        - Watch page sidebar is non-modal to preserve video player interactivity
+        - Sidebar can still be opened/closed but won't block video player (z-20)
+        - Backdrop would create invisible click wall violating L2/L1 layer contract
+      */}
       {/* Hide sidebar on mobile/tablet (below lg breakpoint) - Desktop only */}
       <aside 
         className={cn(
-          "hidden lg:block fixed left-0 top-16 h-[calc(100vh-4rem)] bg-background border-r border-surface overflow-y-auto transition-all duration-300",
+          "hidden lg:block fixed left-0 top-16 h-[calc(100vh-4rem)] bg-background border-r border-surface overflow-y-auto transition-all duration-300 pointer-events-auto",
           "sidebar-scrollbar-hide", // Custom class for hiding scrollbar
-          isCollapsed ? "w-16 z-40" : isWatchPage ? "w-52 z-50" : "w-52 z-40"
+          isCollapsed ? "w-16 z-20" : isWatchPage ? "w-52 z-20" : "w-52 z-50"
         )}
       >
       <nav className="px-2 py-2 space-y-1">

@@ -178,24 +178,24 @@ export default function HomePage() {
       {mixedContent.length > 0 ? (
         <div className="px-4 lg:px-5">
           <h1 className="text-2xl font-bold mb-3 text-white">
-            {user ? 'Recommended for you' : 'Recommended'}
-          </h1>
-          <div 
-            className="grid gap-x-0 gap-y-4"
-            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-          >
+        {user ? 'Recommended for you' : 'Recommended'}
+      </h1>
+      <div 
+        className="grid gap-x-0 gap-y-4"
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      >
             {mixedContent.map((item) => {
               if (item.type === 'video') {
                 return (
-                  <VideoCard
+            <VideoCard
                     key={item.data.id}
                     video={item.data}
-                    hoveredVideo={hoveredVideo}
-                    setHoveredVideo={setHoveredVideo}
-                    formatTimeAgo={formatTimeAgo}
-                    formatViews={formatViews}
-                    formatDuration={formatDuration}
-                  />
+              hoveredVideo={hoveredVideo}
+              setHoveredVideo={setHoveredVideo}
+              formatTimeAgo={formatTimeAgo}
+              formatViews={formatViews}
+              formatDuration={formatDuration}
+            />
                 );
               } else {
                 return (
@@ -209,7 +209,7 @@ export default function HomePage() {
               }
             })}
           </div>
-        </div>
+      </div>
       ) : (
         <div className="text-center py-12 px-4 lg:px-5">
           <p className="text-text-secondary mb-4">No videos available yet.</p>

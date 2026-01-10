@@ -214,15 +214,15 @@ export default function SearchClient() {
 
   // Immediate state reset when query changes (fixes stale data)
   useEffect(() => {
-    if (!query.trim()) {
-      setVideos([]);
-      setPlaylists([]);
+      if (!query.trim()) {
+        setVideos([]);
+        setPlaylists([]);
       setChannels([]);
       setShowAllCreators(false);
-      setLoading(false);
+        setLoading(false);
       setDataLoaded(false);
-      return;
-    }
+        return;
+      }
     
     // Immediately reset results and show loading
     setVideos([]);
@@ -430,9 +430,9 @@ export default function SearchClient() {
     <div className="w-full px-4 md:px-6 lg:px-8 py-6">
       <div className="max-w-[1280px] mx-auto">
         <h1 className="text-2xl font-bold mb-6 text-white">
-          Search results for &quot;{query}&quot;
-        </h1>
-        
+        Search results for &quot;{query}&quot;
+      </h1>
+      
         {loading ? (
           <div className="space-y-3">
             {/* Creator skeletons (2) */}
@@ -511,7 +511,7 @@ export default function SearchClient() {
                 >
                   Subscribe
                 </button>
-              </div>
+            </div>
             </Link>
           ))}
               {!showAllCreators && channels.length > 2 && (
@@ -624,8 +624,8 @@ export default function SearchClient() {
                       {/* Title Row - Title + More Button */}
                       <div className="flex justify-between items-start w-full gap-4">
                         <h3 className="text-xl font-semibold text-white line-clamp-2 leading-snug group-hover:text-white/90 flex-1 min-w-0">
-                          {video.title}
-                        </h3>
+                      {video.title}
+                    </h3>
                         <button
                           onClick={(e) => {
                             e.preventDefault();
@@ -667,7 +667,7 @@ export default function SearchClient() {
                           </div>
                         )}
                         <span className="text-sm text-white/70">
-                          {video.user?.name || 'Unknown Creator'}
+                      {video.user?.name || 'Unknown Creator'}
                         </span>
                         {video.user && 'role' in video.user && video.user.role === 'creator' && (
                           <Check className="h-4 w-4 text-accent flex-shrink-0" />
@@ -775,7 +775,7 @@ export default function SearchClient() {
                     >
                       <MoreVertical className="h-5 w-5" />
                     </button>
-                  </div>
+              </div>
 
                   {/* Creator Row - Avatar + Channel Name */}
                   <div className="flex items-center gap-2">

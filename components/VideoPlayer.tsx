@@ -854,7 +854,7 @@ export function VideoPlayer({
       ref={containerRef}
       className={`bg-transparent group ${
         isInMiniplayerMode
-          ? 'fixed w-96 h-56 z-50 rounded-xl overflow-hidden shadow-2xl'
+          ? 'fixed w-96 h-56 z-20 rounded-xl overflow-hidden shadow-2xl'
           : isFullscreen
           ? 'relative rounded-none'
           : 'relative w-full rounded-xl overflow-hidden'
@@ -914,7 +914,7 @@ export function VideoPlayer({
       
       {/* Access Restriction Text Overlay - Only show if no teaser available (fallback for old videos) */}
       {!hasFullAccess && video && !video.teaserVideoUrl && (
-        <div className="absolute inset-0 flex items-center justify-center z-[100]">
+        <div className="absolute inset-0 flex items-center justify-center z-[95]">
           <p className="text-white text-lg font-medium text-center max-w-md px-4" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
             Ushbu kontentni ko'rish uchun buni sotib olishingiz yoki obuna bo'lishingiz (subscribe) kerak
           </p>
@@ -928,13 +928,13 @@ export function VideoPlayer({
           {/* Always Visible: Thin Progress Bar at Bottom (below timing) - Always clickable */}
           <div 
             ref={progressBarContainerRef}
-            className="absolute bottom-0 left-0 right-0 z-[60]" 
+            className="absolute bottom-0 left-0 right-0 z-20" 
             style={{ paddingBottom: '4px' }}
           >
             {/* Progress Bar Hover Preview (for non-live videos only) */}
             {showPreview && !isLive && (
               <div
-                className="absolute bottom-full mb-8 pointer-events-none z-50"
+                className="absolute bottom-full mb-8 pointer-events-none z-20"
                 style={{ left: `${hoverPosition}%`, transform: 'translateX(-50%)' }}
               >
                 {/* Preview Tooltip */}
@@ -1002,7 +1002,7 @@ export function VideoPlayer({
         }`}
       >
             {/* Miniplayer Header - No background gradient */}
-            <div className="miniplayer-header absolute top-0 left-0 right-0 px-3 py-2 z-30 flex justify-between items-start pointer-events-none">
+            <div className="miniplayer-header absolute top-0 left-0 right-0 px-3 py-2 z-10 flex justify-between items-start pointer-events-none">
               {/* Left Group: Metadata (Title and Channel) - Stacked Vertically */}
               <div className="flex flex-col flex-grow min-w-0 pr-2 max-w-[calc(100%-80px)]">
                 {video?.title && (
@@ -1020,7 +1020,7 @@ export function VideoPlayer({
                       
             {/* Center: Play/Pause Button - Has pointer-events */}
             <div 
-              className="absolute inset-0 flex items-center justify-center z-30 pointer-events-auto"
+              className="absolute inset-0 flex items-center justify-center z-10 pointer-events-auto"
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1036,7 +1036,7 @@ export function VideoPlayer({
                   e.preventDefault();
                   e.stopPropagation();
                 }}
-                className="text-white hover:bg-white/30 rounded-full w-14 h-14 bg-black/70 backdrop-blur-sm transition-opacity z-50 relative drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
+                className="text-white hover:bg-white/30 rounded-full w-14 h-14 bg-black/70 backdrop-blur-sm transition-opacity z-20 relative drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
@@ -1048,7 +1048,7 @@ export function VideoPlayer({
             </div>
 
             {/* Bottom Bar - Timing/LIVE/TEASER Badge (only visible on hover, no dimming) */}
-            <div className={`absolute bottom-0 left-0 right-0 px-3 z-30 pointer-events-none transition-opacity duration-300 ${showMiniplayerControls ? 'opacity-100' : 'opacity-0'}`} style={{ paddingBottom: '40px' }}>
+            <div className={`absolute bottom-0 left-0 right-0 px-3 z-10 pointer-events-none transition-opacity duration-300 ${showMiniplayerControls ? 'opacity-100' : 'opacity-0'}`} style={{ paddingBottom: '40px' }}>
               {/* Timing, LIVE, or TEASER Badge - Left aligned like YouTube */}
               <div className="flex items-center justify-start">
                 {isLive ? (
@@ -1076,7 +1076,7 @@ export function VideoPlayer({
                   
           {/* Interactive Header Buttons Layer - Separate, Always Clickable (only visible on hover) */}
           <div 
-            className={`absolute top-0 right-0 px-3 py-2 z-50 pointer-events-auto flex items-center gap-2 transition-opacity duration-300 ${
+            className={`absolute top-0 right-0 px-3 py-2 z-20 pointer-events-auto flex items-center gap-2 transition-opacity duration-300 ${
               showMiniplayerControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
             onMouseDown={(e) => {
@@ -1137,10 +1137,9 @@ export function VideoPlayer({
           const controlsVisible = isFullscreen ? showControls : isHoveringPlayer;
           return (
             <div
-              className={`absolute inset-0 transition-opacity duration-300 pointer-events-none ${
+              className={`absolute inset-0 transition-opacity duration-300 pointer-events-none z-20 ${
                 controlsVisible ? 'opacity-100' : 'opacity-0'
               }`}
-              style={{ zIndex: 110 }}
             >
               {/* Top-Left: Video Title (Fullscreen Only) - Strong drop shadow for visibility */}
               {isFullscreen && video?.title && (
@@ -1153,8 +1152,7 @@ export function VideoPlayer({
 
               {/* Bottom Control Bar - Compact, minimal padding */}
               <div 
-                className="absolute bottom-0 left-0 right-0 px-3 pb-1 pointer-events-auto"
-                style={{ zIndex: 110 }}
+                className="absolute bottom-0 left-0 right-0 px-3 pb-1 pointer-events-auto z-20"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -1167,7 +1165,7 @@ export function VideoPlayer({
                   {/* Progress Bar Hover Preview (for non-live videos only) */}
                   {showPreview && !isLive && (
                     <div
-                      className="absolute bottom-full mb-8 pointer-events-none z-50"
+                      className="absolute bottom-full mb-8 pointer-events-none z-20"
                       style={{ left: `${hoverPosition}%`, transform: 'translateX(-50%)' }}
                     >
                       {/* Preview Tooltip */}
@@ -1376,7 +1374,7 @@ export function VideoPlayer({
             </Button>
 
                 {showSettings && (
-                  <div className="absolute bottom-full right-0 mb-2 bg-surface border border-surface rounded-lg shadow-xl min-w-[200px] z-50">
+                  <div className="absolute bottom-full right-0 mb-2 bg-surface border border-surface rounded-lg shadow-xl min-w-[200px] z-20">
                     {activeSetting === 'main' && (
                       <>
                         {/* Quality Option */}

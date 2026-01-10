@@ -7,6 +7,7 @@ import { Video, Playlist } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { motion } from 'framer-motion';
 import { User, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreVertical, Send, DollarSign, Copy, Check, X, Flag, ArrowLeft, CheckCircle2, Bell, BellOff, Reply, LayoutList, LayoutGrid, Minimize2, MessageSquare, Play, Trash2 } from 'lucide-react';
 import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -3519,9 +3520,9 @@ export default function WatchPage() {
                         <Trash2 className="h-4 w-4" />
                         Delete
                       </button>
-                    )}
-                  </div>
                 )}
+              </div>
+            )}
               </div>
           </div>
 
@@ -4266,7 +4267,7 @@ export default function WatchPage() {
             {/* Tab Navigation - Sticky */}
             <div className="sticky top-0 z-30 bg-[#0A0A0A] pt-2 pb-1 -mt-2">
               <div className="flex items-center justify-between gap-4 border-b border-surface/50 w-full">
-                <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide">
+                <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide relative">
                   {/* Scenario A: urlPlaylistId exists - Show ONLY playlist tabs (no standard recommendations) */}
                   {urlPlaylistId && currentPlaylist ? (
                     <>
@@ -4275,13 +4276,24 @@ export default function WatchPage() {
                           setRecommendedTab('playlist');
                           setPlaylistActiveTab('all');
                         }}
-                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
                           recommendedTab === 'playlist' && playlistActiveTab === 'all'
-                            ? 'border-white text-text-primary font-semibold'
-                            : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                            ? 'text-text-primary font-semibold'
+                            : 'text-text-secondary/70 hover:text-text-primary'
                         }`}
                       >
                         All
+                        {recommendedTab === 'playlist' && playlistActiveTab === 'all' && (
+                          <motion.div
+                            layoutId="activeRecommendationTab"
+                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                            transition={{
+                              type: "spring",
+                              stiffness: 500,
+                              damping: 30
+                            }}
+                          />
+                        )}
                       </button>
                       {currentPlaylist.sections.map((section) => (
                         <button
@@ -4290,13 +4302,24 @@ export default function WatchPage() {
                             setRecommendedTab('playlist');
                             setPlaylistActiveTab(section.id);
                           }}
-                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
                             recommendedTab === 'playlist' && playlistActiveTab === section.id
-                              ? 'border-white text-text-primary font-semibold'
-                              : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                              ? 'text-text-primary font-semibold'
+                              : 'text-text-secondary/70 hover:text-text-primary'
                           }`}
                         >
                           {section.title}
+                          {recommendedTab === 'playlist' && playlistActiveTab === section.id && (
+                            <motion.div
+                              layoutId="activeRecommendationTab"
+                              className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                              transition={{
+                                type: "spring",
+                                stiffness: 500,
+                                damping: 30
+                              }}
+                            />
+                          )}
                         </button>
                       ))}
                     </>
@@ -4305,13 +4328,24 @@ export default function WatchPage() {
                       {/* Scenario B: Standalone mode - Standard tabs + optional "From Playlist" tab */}
                       <button
                         onClick={() => setRecommendedTab('recommendations')}
-                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
                           recommendedTab === 'recommendations'
-                            ? 'border-white text-text-primary font-semibold'
-                            : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                            ? 'text-text-primary font-semibold'
+                            : 'text-text-secondary/70 hover:text-text-primary'
                         }`}
                       >
                         Recommended
+                        {recommendedTab === 'recommendations' && (
+                          <motion.div
+                            layoutId="activeRecommendationTab"
+                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                            transition={{
+                              type: "spring",
+                              stiffness: 500,
+                              damping: 30
+                            }}
+                          />
+                        )}
                       </button>
                       
                       {/* "From Playlist" tab - Only show if video belongs to playlist but NOT in listContext mode */}
@@ -4321,36 +4355,69 @@ export default function WatchPage() {
                             setRecommendedTab('playlist');
                             setPlaylistActiveTab('all');
                           }}
-                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
                             recommendedTab === 'playlist'
-                              ? 'border-white text-text-primary font-semibold'
-                              : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                              ? 'text-text-primary font-semibold'
+                              : 'text-text-secondary/70 hover:text-text-primary'
                           }`}
                           title={currentPlaylist.title}
                         >
                           From Playlist
+                          {recommendedTab === 'playlist' && (
+                            <motion.div
+                              layoutId="activeRecommendationTab"
+                              className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                              transition={{
+                                type: "spring",
+                                stiffness: 500,
+                                damping: 30
+                              }}
+                            />
+                          )}
                         </button>
                       )}
                       
                       <button
                         onClick={() => setRecommendedTab('creator')}
-                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
                           recommendedTab === 'creator'
-                            ? 'border-white text-text-primary font-semibold'
-                            : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                            ? 'text-text-primary font-semibold'
+                            : 'text-text-secondary/70 hover:text-text-primary'
                         }`}
                       >
                         {video.user?.name || 'Creator'}
+                        {recommendedTab === 'creator' && (
+                          <motion.div
+                            layoutId="activeRecommendationTab"
+                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                            transition={{
+                              type: "spring",
+                              stiffness: 500,
+                              damping: 30
+                            }}
+                          />
+                        )}
                       </button>
                       <button
                         onClick={() => setRecommendedTab('topic')}
-                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
                           recommendedTab === 'topic'
-                            ? 'border-white text-text-primary font-semibold'
-                            : 'border-transparent text-text-secondary/70 hover:text-text-primary hover:border-surface/50'
+                            ? 'text-text-primary font-semibold'
+                            : 'text-text-secondary/70 hover:text-text-primary'
                         }`}
                       >
                         Topic Related
+                        {recommendedTab === 'topic' && (
+                          <motion.div
+                            layoutId="activeRecommendationTab"
+                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                            transition={{
+                              type: "spring",
+                              stiffness: 500,
+                              damping: 30
+                            }}
+                          />
+                        )}
                       </button>
                     </>
                   )}
@@ -4950,7 +5017,7 @@ export default function WatchPage() {
                 </h2>
               </div>
             ) : reportCommentState === 'NONE' ? (
-              <div className="flex">
+              <div className="flex relative">
                 <button
                   onClick={() => setActiveTab('public')}
                   className={`flex-1 px-3 py-3 text-sm font-medium transition-colors relative ${
@@ -4961,7 +5028,15 @@ export default function WatchPage() {
                 >
                   {video?.isLive ? 'Chat' : 'Comments'}
                   {activeTab === 'public' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-text-secondary" />
+                    <motion.div
+                      layoutId="activeCommentsTab"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                      transition={{
+                        type: "spring",
+                        stiffness: 500,
+                        damping: 30
+                      }}
+                    />
                   )}
                 </button>
                 <button
@@ -4974,7 +5049,15 @@ export default function WatchPage() {
                 >
                   {video?.isLive ? 'Superchat' : 'Donations'}
                   {activeTab === 'donated' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-text-secondary" />
+                    <motion.div
+                      layoutId="activeCommentsTab"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                      transition={{
+                        type: "spring",
+                        stiffness: 500,
+                        damping: 30
+                      }}
+                    />
                   )}
                 </button>
               </div>
