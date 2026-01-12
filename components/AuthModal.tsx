@@ -103,10 +103,10 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   // Bug fix: Move state setters to useEffect to avoid calling during render
   // Bug fix: Clear form fields when switching modes to prevent data persistence
   useEffect(() => {
-    if (mode !== initialMode) {
+  if (mode !== initialMode) {
       // Reset all form fields and validation state before switching modes
       resetFormState();
-      setMode(initialMode);
+    setMode(initialMode);
       setViewMode(initialMode);
     }
   }, [initialMode, mode, resetFormState]);

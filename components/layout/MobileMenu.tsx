@@ -7,7 +7,6 @@ import {
   X, 
   Home, 
   Headphones, 
-  Calendar, 
   Users, 
   Settings, 
   History, 
@@ -135,14 +134,6 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                 >
                   <Headphones className="h-5 w-5 text-text-secondary" />
                   <span className="font-medium">Podcast</span>
-                </Link>
-                <Link
-                  href="/daily"
-                  onClick={onClose}
-                  className="flex items-center gap-3 px-4 py-3 text-text-primary hover:bg-surface transition-colors"
-                >
-                  <Calendar className="h-5 w-5 text-text-secondary" />
-                  <span className="font-medium">Daily</span>
                 </Link>
                 <Link
                   href="/fanzone"

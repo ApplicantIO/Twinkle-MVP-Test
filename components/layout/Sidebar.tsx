@@ -17,14 +17,6 @@ interface SubscribedCreator {
   latestActivity: Date | null;
 }
 
-// Shorts icon component (Play button inside vertical rectangle) - Defined outside component to maintain stable reference
-const ShortsIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-    <rect x="6" y="3" width="12" height="18" rx="2" />
-    <path d="M11 9l4 3-4 3V9z" />
-  </svg>
-);
-
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
@@ -95,7 +87,6 @@ export function Sidebar() {
   // Group 1: Feed
   const feedItems = [
     { icon: Home, label: 'Home', href: '/' },
-    { icon: ShortsIcon, label: 'Shorts', href: '/daily' },
     { icon: Users, label: 'Fan Zone', href: '/fan-zone' },
   ];
 
@@ -186,39 +177,37 @@ export function Sidebar() {
 
   // Render menu item helper
   const renderMenuItem = (item: { icon: any; label: string; href: string; disabled?: boolean }) => {
-    const Icon = item.icon;
-    const isActive = pathname === item.href;
-    return (
-      <Link
-        key={item.href}
-        href={item.disabled ? '#' : item.href}
-        className={cn(
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.disabled ? '#' : item.href}
+              className={cn(
           "flex items-center rounded-lg transition-colors relative",
-          isActive
+                isActive
             ? "text-white"
             : "text-white hover:bg-white/5",
           item.disabled && "opacity-50 cursor-not-allowed",
           isCollapsed ? "justify-center px-4 py-2" : "gap-3 px-4 py-2"
-        )}
-        onClick={(e) => item.disabled && e.preventDefault()}
+              )}
+              onClick={(e) => item.disabled && e.preventDefault()}
         title={isCollapsed ? item.label : undefined}
-      >
+            >
         {/* Active state left border */}
         {isActive && (
           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full" />
         )}
-        {typeof Icon === 'function' && Icon !== ShortsIcon ? (
+        {typeof Icon === 'function' ? (
           <Icon className={cn("flex-shrink-0", isCollapsed ? "h-5 w-5" : "h-5 w-5")} strokeWidth={1.5} />
-        ) : Icon === ShortsIcon ? (
-          <Icon className={cn("flex-shrink-0", isCollapsed ? "h-5 w-5" : "h-5 w-5")} />
         ) : (
           <Icon className={cn("flex-shrink-0", isCollapsed ? "h-5 w-5" : "h-5 w-5")} strokeWidth={1.5} />
         )}
         {!isCollapsed && (
           <span className={cn("font-medium text-sm text-white", isActive && "font-semibold")}>{item.label}</span>
         )}
-      </Link>
-    );
+            </Link>
+          );
   };
 
   // Check if we're on watch page for overlay mode
@@ -299,7 +288,7 @@ export function Sidebar() {
                 {pathname === `/creator/${creator.id}` && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full" />
                 )}
-                    <div className="relative flex-shrink-0">
+                <div className="relative flex-shrink-0">
                   {creator.profileImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -365,7 +354,7 @@ export function Sidebar() {
                       : "text-white hover:bg-white/5",
                     isCollapsed ? "justify-center px-4 py-2" : "gap-3 px-4 py-2"
                   )}
-                  title={isCollapsed ? item.label : undefined}
+                    title={isCollapsed ? item.label : undefined}
                 >
                   {/* Active state left border */}
                   {isActive && (

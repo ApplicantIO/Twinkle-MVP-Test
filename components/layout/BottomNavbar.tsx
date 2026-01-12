@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Headphones, Calendar, Users } from 'lucide-react';
+import { Home, Headphones, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -26,11 +26,6 @@ export function BottomNavbar() {
       label: 'Podcast',
       href: '/podcast',
       icon: <Headphones className="h-5 w-5" />,
-    },
-    {
-      label: 'Daily',
-      href: '/daily',
-      icon: <Calendar className="h-5 w-5" />,
     },
     {
       label: 'Fanzone',

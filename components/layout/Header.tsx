@@ -1194,29 +1194,29 @@ export function Header() {
                 
                 {/* Currently logged-in account */}
                 {user && (
-                  <DropdownMenuItem
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                       if (user?.email) {
                         handleAccountSelect(user.email);
                       }
-                    }}
-                    className="text-text-primary hover:bg-background cursor-pointer flex items-center gap-2"
-                  >
-                    <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
+                  }}
+                  className="text-text-primary hover:bg-background cursor-pointer flex items-center gap-2"
+                >
+                  <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
                       {getUserInitial()}
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="text-sm font-medium text-text-primary">
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-sm font-medium text-text-primary">
                         {getUserDisplayName()}
-                      </span>
-                      <span className="text-xs text-text-secondary truncate">
+                    </span>
+                    <span className="text-xs text-text-secondary truncate">
                         {user?.email || 'No email'}
-                      </span>
-                    </div>
-                    <div className="h-2 w-2 rounded-full bg-accent flex-shrink-0" />
-                  </DropdownMenuItem>
+                    </span>
+                  </div>
+                  <div className="h-2 w-2 rounded-full bg-accent flex-shrink-0" />
+                </DropdownMenuItem>
                 )}
                 
                 {/* Secondary account */}
