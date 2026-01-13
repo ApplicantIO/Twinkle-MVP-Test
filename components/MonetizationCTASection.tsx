@@ -149,7 +149,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
   // Check if wallet system is selected
   const isWalletSystemSelected = (): boolean => {
     if (!selectedPaymentMethod) return false;
-    const walletSystems = ['paynet', 'click', 'payme', 'uzum'];
+    const walletSystems = ['click', 'payme', 'uzum'];
     return walletSystems.includes(selectedPaymentMethod);
   };
 
@@ -285,7 +285,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
   const handlePayNow = () => {
     // Check if using saved card, new card, or wallet
     const isUsingSavedCard = selectedPaymentMethod && savedCards.find((c: SavedCard) => c.id === selectedPaymentMethod);
-    const walletSystems = ['paynet', 'click', 'payme', 'uzum'];
+    const walletSystems = ['click', 'payme', 'uzum'];
     const isUsingWallet = selectedPaymentMethod && walletSystems.includes(selectedPaymentMethod);
     const isUsingNewCard = !isUsingSavedCard && !isUsingWallet && isNewCardValid();
     
@@ -649,7 +649,6 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
       'click': 'Click',
       'payme': 'Payme',
       'uzum': 'Uzum Bank',
-      'paynet': 'Paynet',
     };
     return gatewayNames[selectedPaymentMethod] || 'Card';
   };
@@ -1077,63 +1076,59 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
             {/* 3.2 Payment Method: "Wallets" */}
             <div>
               <h3 className="text-sm font-medium text-text-secondary mb-2">Wallets</h3>
-              <div className="overflow-x-auto sidebar-scrollbar-hide">
-                <div className="overflow-x-auto scrollbar-hide">
-                  <div className="flex flex-row gap-2" style={{ width: 'max-content' }}>
-                    {[
-                      { id: 'paynet', name: 'Paynet', logo: '💸', color: 'bg-purple-600' },
-                      { id: 'click', name: 'Click', logo: '💳', color: 'bg-blue-600' },
-                      { id: 'payme', name: 'Payme', logo: '💵', color: 'bg-green-600' },
-                      { id: 'uzum', name: 'Uzum', logo: '🛒', color: 'bg-orange-600' },
-                    ].map((wallet) => (
-                      <button
-                        key={wallet.id}
-                        type="button"
-                        onClick={() => {
-                          // Toggle wallet selection (aligns with card selection behavior)
-                          if (selectedPaymentMethod === wallet.id) {
-                            setSelectedPaymentMethod(null);
-                            setSelectedWallet(null);
-                            setInvoicePhoneNumber('+998 ');
-                            setInvoiceCardNumber('');
-                            setInvoiceCardExpiry('');
-                            setActiveInvoiceIdentifier(null);
-                            setIsCardFormActive(false); // Deactivate card form
-                          } else {
-                            setSelectedWallet(wallet.id);
-                            setSelectedPaymentMethod(wallet.id);
-                            setIsCardFormActive(false); // Deactivate card form when selecting wallet
-                            // Clear new card inputs when selecting wallet
-                            setNewCardNumber('');
-                            setNewCardExpiry('');
-                            setNewCardCVC('');
-                            setCardName('');
-                            setSmsCode('');
-                            setCardType(null);
-                            setIsVerificationVerified(false);
-                            setSmsSent(false);
-                            setInvoicePhoneNumber('+998 ');
-                            setInvoiceCardNumber('');
-                            setInvoiceCardExpiry('');
-                            setActiveInvoiceIdentifier(null);
-                          }
-                        }}
-                        className={`flex-shrink-0 w-24 px-3 py-3 rounded-md border transition-colors h-14 flex flex-col items-center justify-center gap-1 ${
-                          selectedPaymentMethod === wallet.id
-                            ? 'border-white/20 bg-white/10'
-                            : 'border-surface/50 bg-surface/30 hover:bg-surface/50'
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded flex items-center justify-center ${wallet.color} text-white text-sm font-bold`}>
-                          {wallet.logo}
-                        </div>
-                        <span className="text-xs font-medium text-text-primary whitespace-nowrap">{wallet.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              <div className="grid grid-cols-3 gap-2 w-full">
+                {[
+                  { id: 'click', name: 'Click' },
+                  { id: 'payme', name: 'Payme' },
+                  { id: 'uzum', name: 'Uzum' },
+                ].map((wallet) => (
+                  <button
+                    key={wallet.id}
+                    type="button"
+                    onClick={() => {
+                      // Toggle wallet selection (aligns with card selection behavior)
+                      if (selectedPaymentMethod === wallet.id) {
+                        setSelectedPaymentMethod(null);
+                        setSelectedWallet(null);
+                        setInvoicePhoneNumber('+998 ');
+                        setInvoiceCardNumber('');
+                        setInvoiceCardExpiry('');
+                        setActiveInvoiceIdentifier(null);
+                        setIsCardFormActive(false); // Deactivate card form
+                      } else {
+                        setSelectedWallet(wallet.id);
+                        setSelectedPaymentMethod(wallet.id);
+                        setIsCardFormActive(false); // Deactivate card form when selecting wallet
+                        // Clear new card inputs when selecting wallet
+                        setNewCardNumber('');
+                        setNewCardExpiry('');
+                        setNewCardCVC('');
+                        setCardName('');
+                        setSmsCode('');
+                        setCardType(null);
+                        setIsVerificationVerified(false);
+                        setSmsSent(false);
+                        setInvoicePhoneNumber('+998 ');
+                        setInvoiceCardNumber('');
+                        setInvoiceCardExpiry('');
+                        setActiveInvoiceIdentifier(null);
+                      }
+                    }}
+                    className={`relative h-14 rounded-lg border-2 transition-all flex items-center justify-center bg-white overflow-hidden ${
+                      selectedPaymentMethod === wallet.id
+                        ? 'border-accent scale-95'
+                        : 'border-surface/50 hover:border-surface/70 active:scale-95'
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/assets/payments/${wallet.name}-logo-wht.png`}
+                      alt={wallet.name}
+                      className="w-full h-full object-contain p-0"
+                    />
+                  </button>
+                ))}
               </div>
-              
             </div>
           </div>
         </div>
@@ -1164,7 +1159,6 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
   const getWalletName = (walletId: string | null): string => {
     if (!walletId) return 'Wallet';
     const wallets: Record<string, string> = {
-      'paynet': 'Paynet',
       'click': 'Click',
       'payme': 'Payme',
       'uzum': 'Uzum'
