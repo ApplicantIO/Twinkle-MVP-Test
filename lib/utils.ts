@@ -66,3 +66,74 @@ export function formatExactDate(date: Date | string): string {
   return `${month} ${day}, ${year}`;
 }
 
+// Format date for history grouping: "Today", "Yesterday", day names, "19th March", "19th March, 2025"
+export function formatHistoryDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : new Date(date);
+  const now = new Date();
+  
+  // Reset time for comparison
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateToCompare = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const diffTime = today.getTime() - dateToCompare.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Today
+  if (diffDays === 0) {
+    return 'Today';
+  }
+  
+  // Yesterday
+  if (diffDays === 1) {
+    return 'Yesterday';
+  }
+  
+  // This week (day names)
+  if (diffDays < 7 && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return dayNames[d.getDay()];
+  }
+  
+  // Same year: "19th March"
+  if (d.getFullYear() === now.getFullYear()) {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const day = d.getDate();
+    const month = months[d.getMonth()];
+    const suffix = getOrdinalSuffix(day);
+    return `${day}${suffix} ${month}`;
+  }
+  
+  // Different year: "19th March, 2025"
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const day = d.getDate();
+  const month = months[d.getMonth()];
+  const year = d.getFullYear();
+  const suffix = getOrdinalSuffix(day);
+  return `${day}${suffix} ${month}, ${year}`;
+}
+
+function getOrdinalSuffix(day: number): string {
+  if (day > 3 && day < 21) return 'th';
+  switch (day % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+}
+
+// Format duration in seconds to "MM:SS" or "HH:MM:SS"
+export function formatDuration(seconds: number): string {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}

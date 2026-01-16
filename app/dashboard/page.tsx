@@ -36,12 +36,12 @@ export default function DashboardPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) {
-      router.push('/auth/signin');
-      return;
+    if (user) {
+      loadVideos();
+    } else {
+      setLoading(false);
     }
-    loadVideos();
-  }, [user, router, loadVideos]);
+  }, [user, loadVideos]);
 
   const handleEdit = (video: Video) => {
     setEditingVideo(video);
@@ -80,6 +80,17 @@ export default function DashboardPage() {
     return (
       <div className="p-8">
         <div className="text-center text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold mb-6">My Videos</h1>
+        <div className="text-center py-12 text-muted-foreground">
+          <p>Please log in to see your videos</p>
+        </div>
       </div>
     );
   }

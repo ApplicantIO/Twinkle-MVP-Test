@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (fetchError) {
       // Fallback to user from signin response if fetch fails
       console.error('Failed to fetch fresh user data:', fetchError);
-      setUser(data.user);
+    setUser(data.user);
     }
     } catch (error) {
       // Re-throw with better error message
@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (fetchError) {
       // Fallback to user from signup response if fetch fails
       console.error('Failed to fetch fresh user data:', fetchError);
-      setUser(data.user);
+    setUser(data.user);
     }
   };
 

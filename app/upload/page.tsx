@@ -21,8 +21,14 @@ export default function UploadPage() {
   const [error, setError] = useState('');
 
   if (!user) {
-    router.push('/auth/signin');
-    return null;
+    return (
+      <div className="max-w-3xl mx-auto p-8">
+        <h1 className="text-2xl font-bold mb-6">Upload Video</h1>
+        <div className="text-center py-12 text-muted-foreground">
+          <p>Please log in to upload videos</p>
+        </div>
+      </div>
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -1,21 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function SubscriptionsPage() {
   const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
 
-  useEffect(() => {
-    // Redirect only after auth finished loading
-    if (!authLoading && !user) {
-      router.push('/auth/signin');
-    }
-  }, [authLoading, user, router]);
-
-  if (authLoading || !user) {
+  // Show loading state while auth is being checked
+  if (authLoading) {
     return (
       <div className="p-8">
         <div className="text-center text-text-secondary">Loading...</div>
@@ -23,6 +14,19 @@ export default function SubscriptionsPage() {
     );
   }
 
+  // If user is not authenticated, show simple message
+  if (!user) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-semibold mb-6 text-text-primary">Subscriptions</h1>
+        <div className="text-center py-12">
+          <p className="text-text-secondary">Please log in to see your subscriptions</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated user: show subscriptions content
   return (
     <div className="p-8">
       <h1 className="text-2xl font-semibold mb-6 text-text-primary">Subscriptions</h1>
