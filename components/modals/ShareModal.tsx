@@ -73,7 +73,7 @@ export function ShareModal() {
       {/* Modal */}
       <div
         ref={shareModalRef}
-        className="relative bg-surface border border-surface rounded-lg shadow-xl z-[60] p-5 max-w-lg w-full mx-4"
+        className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-lg w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

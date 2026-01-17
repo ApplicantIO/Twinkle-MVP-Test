@@ -566,7 +566,7 @@ export default function PlaylistPage() {
                       </div>
                       
                       {/* More Button */}
-                      <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
+                      <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
                         <button
                           onClick={(e) => {
                             e.preventDefault();
@@ -582,7 +582,7 @@ export default function PlaylistPage() {
                         {isMenuOpen && (
                           <div
                             ref={menuRef}
-                            className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[100]"
+                            className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
                             onClick={(e) => e.stopPropagation()}
                             style={{ zIndex: 9999 }}
                           >

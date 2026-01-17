@@ -1,23 +1,18 @@
 'use client';
 
-import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
   Search,
-  Calendar,
   Trash2,
   Pause,
   Play,
 } from 'lucide-react';
-import HistoryCalendarModal from './HistoryCalendarModal';
-import ClearHistoryModal from './ClearHistoryModal';
+import { useModal } from '@/contexts/ModalContext';
 
 interface HistoryManagementSidebarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  selectedDate: Date | null;
-  onDateChange: (date: Date | null) => void;
   onClearHistory: () => void;
   isHistoryPaused: boolean;
   onPauseHistory: (paused: boolean) => void;
@@ -26,17 +21,14 @@ interface HistoryManagementSidebarProps {
 export default function HistoryManagementSidebar({
   searchQuery,
   onSearchChange,
-  selectedDate,
-  onDateChange,
   onClearHistory,
   isHistoryPaused,
   onPauseHistory,
 }: HistoryManagementSidebarProps) {
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const { openClearHistoryModal, openPauseHistoryModal } = useModal();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Search History */}
       <div>
         <label className="block text-sm font-medium text-text-secondary mb-2">
@@ -54,34 +46,11 @@ export default function HistoryManagementSidebar({
         </div>
       </div>
 
-      {/* Date Filter */}
-      <div>
-        <Button
-          variant="outline"
-          onClick={() => setIsCalendarOpen(true)}
-          className="w-full justify-start bg-surface border-surface/50 text-text-primary hover:bg-background"
-        >
-          <Calendar className="h-4 w-4 mr-2" />
-          Find history date
-        </Button>
-        {selectedDate && (
-          <div className="mt-2 text-sm text-text-secondary">
-            Selected: {selectedDate.toLocaleDateString()}
-            <button
-              onClick={() => onDateChange(null)}
-              className="ml-2 text-accent hover:underline"
-            >
-              Clear
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* Clear History */}
       <div>
         <Button
           variant="outline"
-          onClick={() => setIsClearModalOpen(true)}
+          onClick={() => openClearHistoryModal(onClearHistory)}
           className="w-full justify-start bg-surface border-surface/50 text-text-primary hover:bg-destructive hover:text-white hover:border-destructive"
         >
           <Trash2 className="h-4 w-4 mr-2" />
@@ -93,12 +62,18 @@ export default function HistoryManagementSidebar({
       <div>
         <Button
           variant="outline"
-          onClick={() => onPauseHistory(!isHistoryPaused)}
-          className={`w-full justify-start ${
-            isHistoryPaused
-              ? 'bg-surface border-surface/50 text-text-primary hover:bg-background'
-              : 'bg-surface border-surface/50 text-text-primary hover:bg-background'
-          }`}
+          onClick={() => {
+            if (isHistoryPaused) {
+              // Resume immediately (no confirmation needed)
+              onPauseHistory(false);
+            } else {
+              // Show confirmation modal for pausing
+              openPauseHistoryModal(() => {
+                onPauseHistory(true);
+              });
+            }
+          }}
+          className="w-full justify-start bg-surface border-surface/50 text-text-primary hover:bg-background"
         >
           {isHistoryPaused ? (
             <>
@@ -113,21 +88,6 @@ export default function HistoryManagementSidebar({
           )}
         </Button>
       </div>
-
-      {/* Calendar Modal */}
-      <HistoryCalendarModal
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-        selectedDate={selectedDate}
-        onDateSelect={onDateChange}
-      />
-
-      {/* Clear History Modal */}
-      <ClearHistoryModal
-        isOpen={isClearModalOpen}
-        onClose={() => setIsClearModalOpen(false)}
-        onConfirm={onClearHistory}
-      />
     </div>
   );
 }

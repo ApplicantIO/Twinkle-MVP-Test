@@ -2,7 +2,11 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-type ModalType = 'SHARE' | 'REPORT' | 'PURCHASE' | null;
+type ModalType = 'SHARE' | 'REPORT' | 'PURCHASE' | 'CLEAR_HISTORY' | 'PAUSE_HISTORY' | null;
+
+interface HistoryModalData {
+  onConfirm?: () => void | Promise<void>;
+}
 
 interface ModalContextType {
   isModalOpen: boolean;
@@ -12,9 +16,12 @@ interface ModalContextType {
   currentVideoPrice: number | null;
   currentVideoCurrency: string | null;
   currentVideoType: 'paid' | 'subscription' | null;
+  historyModalData: HistoryModalData | null;
   openShareModal: (videoId: string, videoTitle: string) => void;
   openReportModal: (videoId: string, videoTitle: string) => void;
   openPurchaseModal: (videoId: string, videoTitle: string, price: number, currency: string, type: 'paid' | 'subscription') => void;
+  openClearHistoryModal: (onConfirm: () => void | Promise<void>) => void;
+  openPauseHistoryModal: (onConfirm: () => void) => void;
   closeModal: () => void;
 }
 
@@ -28,6 +35,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [currentVideoPrice, setCurrentVideoPrice] = useState<number | null>(null);
   const [currentVideoCurrency, setCurrentVideoCurrency] = useState<string | null>(null);
   const [currentVideoType, setCurrentVideoType] = useState<'paid' | 'subscription' | null>(null);
+  const [historyModalData, setHistoryModalData] = useState<HistoryModalData | null>(null);
 
   const openShareModal = (videoId: string, videoTitle: string) => {
     setCurrentVideoId(videoId);
@@ -53,6 +61,18 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     setIsModalOpen(true);
   };
 
+  const openClearHistoryModal = (onConfirm: () => void | Promise<void>) => {
+    setHistoryModalData({ onConfirm });
+    setModalType('CLEAR_HISTORY');
+    setIsModalOpen(true);
+  };
+
+  const openPauseHistoryModal = (onConfirm: () => void) => {
+    setHistoryModalData({ onConfirm });
+    setModalType('PAUSE_HISTORY');
+    setIsModalOpen(true);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setModalType(null);
@@ -61,6 +81,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     setCurrentVideoPrice(null);
     setCurrentVideoCurrency(null);
     setCurrentVideoType(null);
+    setHistoryModalData(null);
   };
 
   return (
@@ -73,9 +94,12 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         currentVideoPrice,
         currentVideoCurrency,
         currentVideoType,
+        historyModalData,
         openShareModal,
         openReportModal,
         openPurchaseModal,
+        openClearHistoryModal: openClearHistoryModal,
+        openPauseHistoryModal: openPauseHistoryModal,
         closeModal,
       }}
     >

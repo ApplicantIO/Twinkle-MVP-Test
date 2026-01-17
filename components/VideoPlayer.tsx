@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Video } from '@/types';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
+import { useWatchHistoryTracker } from '@/hooks/useWatchHistoryTracker';
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -60,6 +61,9 @@ export function VideoPlayer({
   
   // Check if we're on the watch page
   const isOnWatchPage = pathname?.startsWith('/watch/') || false;
+  
+  // Get playlistId from URL params for history tracking
+  const playlistId = searchParams?.get('playlistId') || undefined;
 
   // State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -287,6 +291,19 @@ export function VideoPlayer({
       }
     }
   }, [searchParams]);
+
+  // Watch history tracker - only track on watch page (not in miniplayer)
+  useWatchHistoryTracker({
+    videoId: video?.id || '',
+    video: video ? {
+      id: video.id,
+      duration: duration > 0 ? duration : video.duration,
+    } : undefined,
+    currentTime,
+    isPlaying,
+    playlistId,
+    enabled: isOnWatchPage, // Only track when on the main watch page
+  });
 
   // Handle video events
   useEffect(() => {
@@ -914,7 +931,7 @@ export function VideoPlayer({
       
       {/* Access Restriction Text Overlay - Only show if no teaser available (fallback for old videos) */}
       {!hasFullAccess && video && !video.teaserVideoUrl && (
-        <div className="absolute inset-0 flex items-center justify-center z-[95]">
+        <div className="absolute inset-0 flex items-center justify-center z-20">
           <p className="text-white text-lg font-medium text-center max-w-md px-4" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
             Ushbu kontentni ko'rish uchun buni sotib olishingiz yoki obuna bo'lishingiz (subscribe) kerak
           </p>

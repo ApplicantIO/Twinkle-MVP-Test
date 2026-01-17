@@ -13,6 +13,8 @@ import { CentralizedVideoPlayer } from "@/components/CentralizedVideoPlayer";
 import { ShareModal } from "@/components/modals/ShareModal";
 import { ReportModal } from "@/components/modals/ReportModal";
 import { PurchaseFlowModal } from "@/components/modals/PurchaseFlowModal";
+import { ClearHistoryModal } from "@/components/history/ClearHistoryModal";
+import { PauseHistoryModal } from "@/components/history/PauseHistoryModal";
 
 export const metadata: Metadata = {
   title: "Twinkle",
@@ -42,6 +44,8 @@ export default function RootLayout({
                   <ShareModal />
                   <ReportModal />
                   <PurchaseFlowModal />
+                  <ClearHistoryModal />
+                  <PauseHistoryModal />
                 </ModalProvider>
               </MiniplayerProvider>
             </SidebarProvider>

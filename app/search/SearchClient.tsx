@@ -697,8 +697,8 @@ export default function SearchClient() {
                 {/* Left Side - Thumbnail with Stacked Card Effect (40% Width) */}
                 <div className="relative w-full md:w-[40%] flex-shrink-0 aspect-video">
                   {/* Stack Background Layers - Twinkle Design System */}
-                  <div className="absolute -top-1 -right-1 w-full h-full bg-zinc-800 rounded-xl -z-[1]" />
-                  <div className="absolute -top-2 -right-2 w-full h-full bg-zinc-800 rounded-xl -z-[2]" />
+                  <div className="absolute -top-1 -right-1 w-full h-full bg-zinc-800 rounded-xl z-0" />
+                  <div className="absolute -top-2 -right-2 w-full h-full bg-zinc-800 rounded-xl z-0" />
                   
                   {/* Main Thumbnail */}
                   <div className="relative w-full h-full aspect-video bg-surface rounded-xl overflow-hidden">

@@ -8,6 +8,16 @@ export interface WatchHistoryEntry {
   videoDuration?: number; // total video duration in seconds
 }
 
+export interface WatchHistoryDatabaseEntry {
+  id: string;
+  userId: string;
+  videoId: string;
+  playlistId?: string | null;
+  progress: number;
+  videoDuration?: number | null;
+  lastWatchedAt: Date;
+}
+
 /**
  * Get watch history for a specific video
  */
@@ -61,9 +71,9 @@ export function updateWatchHistory(videoId: string, progress: number, playlistId
     history.push(entry);
   }
   
-  // Keep only the last 100 entries to prevent localStorage from growing too large
+  // Keep only the last 50 entries for guests (as per requirements)
   const sortedHistory = history.sort((a, b) => b.lastWatchedAt - a.lastWatchedAt);
-  const limitedHistory = sortedHistory.slice(0, 100);
+  const limitedHistory = sortedHistory.slice(0, 50);
   
   localStorage.setItem('watchHistory', JSON.stringify(limitedHistory));
   
@@ -136,3 +146,89 @@ export function savePlaylistProgress(playlistId: string, lastVideoId: string, ti
   }
 }
 
+/**
+ * Save watch history to database (for logged-in users)
+ */
+export async function saveWatchHistoryToDatabase(data: {
+  videoId: string;
+  userId: string;
+  progress: number;
+  duration?: number;
+  playlistId?: string;
+}): Promise<void> {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('No authentication token');
+    }
+
+    const response = await fetch('/api/history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        videoId: data.videoId,
+        progress: data.progress,
+        videoDuration: data.duration,
+        playlistId: data.playlistId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to save history' }));
+      const errorMessage = errorData.error || 'Failed to save history';
+      
+      // Check if it's a service unavailable error (table doesn't exist) - don't throw, just fallback
+      if (response.status === 503 || errorData.code === 'MIGRATION_NEEDED') {
+        // Fallback to localStorage silently for migration issues
+        updateWatchHistory(data.videoId, data.progress, data.playlistId, data.duration);
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Watch history table not available, using localStorage fallback');
+        }
+        return;
+      }
+      
+      throw new Error(errorMessage);
+    }
+  } catch (error: any) {
+    // If error is not about migration, log it and fallback to localStorage
+    if (error?.message && !error.message.includes('MIGRATION_NEEDED')) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Error saving watch history to database, using localStorage fallback:', error);
+      }
+      // Fallback to localStorage for any save errors
+      updateWatchHistory(data.videoId, data.progress, data.playlistId, data.duration);
+    }
+    // Don't re-throw - we've handled it with localStorage fallback
+  }
+}
+
+/**
+ * Get watch history from database (for logged-in users)
+ */
+export async function getWatchHistoryFromDatabase(userId?: string): Promise<WatchHistoryDatabaseEntry[]> {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return [];
+    }
+
+    const response = await fetch('/api/history', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = await response.json();
+    return data.history || [];
+  } catch (error) {
+    console.error('Error fetching watch history from database:', error);
+    return [];
+  }
+}

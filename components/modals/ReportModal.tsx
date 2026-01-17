@@ -110,7 +110,7 @@ export function ReportModal() {
       {/* Modal */}
       <div
         ref={reportModalRef}
-        className="relative bg-surface border border-surface rounded-lg shadow-xl z-[60] p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+        className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

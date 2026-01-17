@@ -302,13 +302,13 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
   return (
           <Link
             href={`/watch/${video.id}`}
-      className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
+      className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-90' : ''}`}
       onMouseEnter={() => setHoveredVideo(video.id)}
       onMouseLeave={() => setHoveredVideo(null)}
     >
       {/* Card Container - flat design with uniform neutral hover effect */}
       <div
-        className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-[90]' : ''} ${
+        className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-90' : ''} ${
           isHovered ? 'bg-white/10' : 'bg-transparent'
         }`}
       >
@@ -468,7 +468,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
       </div>
           
           {/* Column 3: More Icon (3 dots) - Discreet, doesn't take ambient color */}
-          <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
+          <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -485,7 +485,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
             {isMenuOpen && (
               <div
                 ref={menuRef}
-                className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[100]"
+                className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
                 onClick={(e) => e.stopPropagation()}
                 style={{ zIndex: 9999 }}
               >

@@ -8,6 +8,12 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 
+// Check if watch history is paused
+const isWatchHistoryPaused = () => {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem('watchHistoryPaused') === 'true';
+};
+
 interface SubscribedCreator {
   id: string;
   name?: string;
@@ -21,6 +27,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { isCollapsed, setIsCollapsed } = useSidebar();
+  const [isHistoryPaused, setIsHistoryPaused] = useState(false);
   const [subscribedCreators, setSubscribedCreators] = useState<SubscribedCreator[]>([]);
   const [loadingCreators, setLoadingCreators] = useState(false);
 
@@ -93,7 +100,7 @@ export function Sidebar() {
   // Group 2: Your activity
   const activityItems = [
     { icon: Video, label: 'Subscriptions', href: '/subscriptions' },
-    { icon: History, label: 'History', href: '/history' },
+    { icon: History, label: 'History', href: '/history', showPausedIndicator: true },
     { icon: Bookmark, label: 'Saved', href: '/saved' },
   ];
 
@@ -175,8 +182,27 @@ export function Sidebar() {
     fetchSubscribedCreators();
   }, [user]);
 
+  // Check history pause state and listen for changes
+  useEffect(() => {
+    setIsHistoryPaused(isWatchHistoryPaused());
+
+    const handleHistoryPauseChange = () => {
+      setIsHistoryPaused(isWatchHistoryPaused());
+    };
+
+    // Listen for pause state changes
+    window.addEventListener('watchHistoryUpdated', handleHistoryPauseChange);
+    // Also check on storage events (in case changed in another tab)
+    window.addEventListener('storage', handleHistoryPauseChange);
+
+    return () => {
+      window.removeEventListener('watchHistoryUpdated', handleHistoryPauseChange);
+      window.removeEventListener('storage', handleHistoryPauseChange);
+    };
+  }, []);
+
   // Render menu item helper
-  const renderMenuItem = (item: { icon: any; label: string; href: string; disabled?: boolean }) => {
+  const renderMenuItem = (item: { icon: any; label: string; href: string; disabled?: boolean; showPausedIndicator?: boolean }) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           return (
@@ -204,29 +230,28 @@ export function Sidebar() {
           <Icon className={cn("flex-shrink-0", isCollapsed ? "h-5 w-5" : "h-5 w-5")} strokeWidth={1.5} />
         )}
         {!isCollapsed && (
-          <span className={cn("font-medium text-sm text-white", isActive && "font-semibold")}>{item.label}</span>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className={cn("font-medium text-sm text-white", isActive && "font-semibold")}>{item.label}</span>
+            {item.showPausedIndicator && isHistoryPaused && (
+              <span className="text-xs font-light text-zinc-500">(paused)</span>
+            )}
+          </div>
         )}
             </Link>
           );
   };
 
-  // Check if we're on watch page for overlay mode
-  const isWatchPage = pathname?.startsWith('/watch');
-
+  // NOTE: Sidebar must remain route-agnostic per ARCHITECTURE_RULES.md 8.1-8.3
+  // Z-index is constant at z-50 (L3) per section 5.1
+  // Watch page backdrop handling is managed by the page itself, not the sidebar
   return (
     <>
-      {/* 
-        NO BACKDROP ON WATCH PAGE (Architectural Rule: Option A)
-        - Watch page sidebar is non-modal to preserve video player interactivity
-        - Sidebar can still be opened/closed but won't block video player (z-20)
-        - Backdrop would create invisible click wall violating L2/L1 layer contract
-      */}
       {/* Hide sidebar on mobile/tablet (below lg breakpoint) - Desktop only */}
       <aside 
         className={cn(
           "hidden lg:block fixed left-0 top-16 h-[calc(100vh-4rem)] bg-background border-r border-surface overflow-y-auto transition-all duration-300 pointer-events-auto",
           "sidebar-scrollbar-hide", // Custom class for hiding scrollbar
-          isCollapsed ? "w-16 z-20" : isWatchPage ? "w-52 z-20" : "w-52 z-50"
+          isCollapsed ? "w-16 z-50" : "w-52 z-50" // Consistent z-50 (L3) per architecture rules
         )}
       >
       <nav className="px-2 py-2 space-y-1">

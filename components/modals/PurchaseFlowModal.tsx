@@ -50,7 +50,7 @@ export function PurchaseFlowModal() {
       
       {/* Modal */}
       <div
-        className="relative bg-surface border border-surface rounded-xl shadow-xl z-[60] p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+        className="relative bg-surface border border-surface rounded-xl shadow-xl z-70 p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

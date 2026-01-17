@@ -719,7 +719,7 @@ export function Header() {
 
           {/* Dropdown: RECENT + EXPLORE (empty) or RESULTS (typing) */}
           {showSearchDropdown && (
-            <div className="absolute left-0 top-full mt-2 w-full z-[60]">
+            <div className="absolute left-0 top-full mt-2 w-full z-60">
               <div className="bg-surface border border-gray-700 rounded-lg overflow-hidden">
                 <div id="search-suggestions" role="listbox" className="h-auto max-h-[80vh] overflow-auto">
                   {debouncedQuery.length === 0 ? (

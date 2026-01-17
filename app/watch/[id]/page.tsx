@@ -3682,7 +3682,7 @@ export default function WatchPage() {
                 {/* Modal */}
                 <div
                   ref={shareModalRef}
-                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-[60] p-5 max-w-lg w-full mx-4"
+                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-lg w-full mx-4"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Close Button */}
@@ -3772,7 +3772,7 @@ export default function WatchPage() {
                 {/* Modal */}
                 <div
                   ref={reportModalRef}
-                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-[60] p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Close Button */}
@@ -3897,7 +3897,7 @@ export default function WatchPage() {
                 {/* Modal */}
                 <div
                   ref={notificationsModalRef}
-                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-[60] p-5 max-w-md w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-md w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Close Button */}
@@ -4531,7 +4531,7 @@ export default function WatchPage() {
                         <>
                           {/* Card Container - flat design with uniform neutral hover effect */}
                           <div 
-                            className={`rounded-xl transition-all duration-200 p-3 relative ${isMenuOpen ? 'z-[90]' : ''} ${
+                            className={`rounded-xl transition-all duration-200 p-3 relative ${isMenuOpen ? 'z-90' : ''} ${
                               isCurrentlyPlaying 
                                 ? 'bg-white/10' 
                                 : isHovered 
@@ -4613,7 +4613,7 @@ export default function WatchPage() {
                               </div>
                               
                               {/* Column 3: More Icon (3 dots) */}
-                              <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
+                              <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
                                 <button
                                   onClick={(e) => {
                                     e.preventDefault();
@@ -4632,7 +4632,7 @@ export default function WatchPage() {
                                     ref={(el) => {
                                       menuRefs.current[relatedVideo.id] = el;
                                     }}
-                                    className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[100]"
+                                    className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
                                     onClick={(e) => e.stopPropagation()}
                                     style={{ zIndex: 9999 }}
                                   >
@@ -4682,7 +4682,7 @@ export default function WatchPage() {
                           key={relatedVideo.id}
                           ref={isCurrentlyPlaying ? activePlaylistVideoRef : null}
                           onClick={() => handleVideoSwitch(relatedVideo.id)}
-                          className={`group cursor-pointer flex flex-col relative w-full ${isMenuOpen ? 'z-[90]' : ''}`}
+                          className={`group cursor-pointer flex flex-col relative w-full ${isMenuOpen ? 'z-90' : ''}`}
                           onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
                           onMouseLeave={() => setHoveredVideo(null)}
                         >
@@ -4692,7 +4692,7 @@ export default function WatchPage() {
                         <Link
                           key={relatedVideo.id}
                           href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
-                          className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[90]' : ''}`}
+                          className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-90' : ''}`}
                           onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
                           onMouseLeave={() => setHoveredVideo(null)}
                         >
@@ -4785,7 +4785,7 @@ export default function WatchPage() {
             </div>
                             
                             {/* More Button - Right side */}
-                            <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[100]' : ''}`}>
+                            <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -4804,7 +4804,7 @@ export default function WatchPage() {
                                   ref={(el) => {
                                     menuRefs.current[relatedVideo.id] = el;
                                   }}
-                                  className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[100]"
+                                  className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
                                   onClick={(e) => e.stopPropagation()}
                                   style={{ zIndex: 9999 }}
                                 >

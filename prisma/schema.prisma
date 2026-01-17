@@ -28,8 +28,9 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  videos          Video[]
-  analytics       Analytics[]
+  videos         Video[]
+  analytics      Analytics[]
+  watchHistories WatchHistory[]
 
   @@map("users")
 }
@@ -46,22 +47,39 @@ model Video {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  analytics    Analytics[]
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analytics      Analytics[]
+  watchHistories WatchHistory[]
 
   @@map("videos")
 }
 
 model Analytics {
-  id        String   @id @default(cuid())
-  videoId   String
-  userId    String?
-  viewerIp  String?
-  viewedAt  DateTime @default(now())
+  id       String   @id @default(cuid())
+  videoId  String
+  userId   String?
+  viewerIp String?
+  viewedAt DateTime @default(now())
 
-  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("analytics")
 }
 
+model WatchHistory {
+  id            String   @id @default(cuid())
+  userId        String
+  videoId       String
+  playlistId    String?
+  progress      Float    @default(0) // seconds watched
+  videoDuration Float? // total video duration in seconds
+  lastWatchedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([userId, lastWatchedAt])
+  @@map("watch_history")
+}

@@ -21,6 +21,13 @@ const config: Config = {
         '3xl': '1920px',
         '4xl': '2560px',
       },
+      zIndex: {
+        '60': '60',
+        '70': '70',
+        '80': '80',
+        '90': '90',
+        '100': '100',
+      },
       keyframes: {
         fadeIn: {
           '0%': { opacity: '0' },

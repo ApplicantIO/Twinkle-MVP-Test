@@ -1,9 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Video } from '@/types';
-import { WatchHistoryEntry, getVideoWatchHistory } from '@/lib/watchHistory';
+import { 
+  WatchHistoryEntry, 
+  WatchHistoryDatabaseEntry,
+  getWatchHistoryFromDatabase 
+} from '@/lib/watchHistory';
 import HistoryVideoItem from '@/components/history/HistoryVideoItem';
 import HistoryManagementSidebar from '@/components/history/HistoryManagementSidebar';
 import { formatHistoryDate } from '@/lib/utils';
@@ -22,22 +26,117 @@ export default function HistoryPageClient() {
   const [historyVideos, setHistoryVideos] = useState<HistoryVideo[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isHistoryPaused, setIsHistoryPaused] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Track which video IDs we've already fetched to avoid duplicate requests
+  const fetchedVideoIdsRef = useRef<Set<string>>(new Set());
 
-  // Load history entries from localStorage
+  // Load history entries (from DB if logged in, localStorage if guest)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const history = JSON.parse(localStorage.getItem('watchHistory') || '[]') as WatchHistoryEntry[];
-    const paused = localStorage.getItem('watchHistoryPaused') === 'true';
-    
-    setHistoryEntries(history.sort((a, b) => b.lastWatchedAt - a.lastWatchedAt));
-    setIsHistoryPaused(paused);
-  }, []);
+    const loadHistory = async () => {
+      const paused = localStorage.getItem('watchHistoryPaused') === 'true';
+      setIsHistoryPaused(paused);
 
-  // Fetch video data for history entries
+      if (user) {
+        // Logged in: Fetch from database
+        try {
+          const token = localStorage.getItem('token');
+          const headers: HeadersInit = {};
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
+          const response = await fetch('/api/history', { headers });
+          if (response.ok) {
+            const data = await response.json();
+            const dbHistory = data.history || [];
+            
+            // Extract videos from DB response (includes video data)
+            if (dbHistory.length > 0) {
+              const videosFromDb = dbHistory
+                .map((entry: any) => entry.video)
+                .filter(Boolean) as Video[];
+              
+              // Set videos directly from DB (they include all necessary data)
+              if (videosFromDb.length > 0) {
+                setVideos(videosFromDb);
+                // Mark these videos as fetched to avoid refetching
+                videosFromDb.forEach(video => fetchedVideoIdsRef.current.add(video.id));
+              }
+            }
+            
+            // Convert DB entries to WatchHistoryEntry format
+            // For logged-in users, database is the source of truth - don't merge localStorage
+            // to prevent deleted entries from reappearing across devices
+            const convertedHistory: WatchHistoryEntry[] = dbHistory.map((entry: any) => ({
+              videoId: entry.videoId,
+              playlistId: entry.playlistId || undefined,
+              lastWatchedAt: new Date(entry.lastWatchedAt).getTime(),
+              progress: entry.progress,
+              videoDuration: entry.videoDuration || undefined,
+            }));
+            
+            // Sort by lastWatchedAt (most recent first)
+            const sortedHistory = convertedHistory.sort((a, b) => b.lastWatchedAt - a.lastWatchedAt);
+            setHistoryEntries(sortedHistory);
+          } else {
+            // Handle different error statuses gracefully
+            if (response.status === 401) {
+              // Unauthorized - user might not be logged in, use localStorage fallback
+              const localHistory = JSON.parse(localStorage.getItem('watchHistory') || '[]') as WatchHistoryEntry[];
+              setHistoryEntries(localHistory.sort((a, b) => b.lastWatchedAt - a.lastWatchedAt));
+            } else if (response.status === 503) {
+              // Service Unavailable - table doesn't exist, use localStorage fallback
+              const localHistory = JSON.parse(localStorage.getItem('watchHistory') || '[]') as WatchHistoryEntry[];
+              setHistoryEntries(localHistory.sort((a, b) => b.lastWatchedAt - a.lastWatchedAt));
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Watch history table not found. Using localStorage fallback. Run: npx prisma db push');
+              }
+            } else {
+              // Other errors (500, network, etc.) - fallback to localStorage without throwing
+              // Only log in development to reduce console noise
+              if (process.env.NODE_ENV === 'development') {
+                console.warn(`Failed to fetch history: ${response.status} ${response.statusText}. Using localStorage fallback.`);
+              }
+              const localHistory = JSON.parse(localStorage.getItem('watchHistory') || '[]') as WatchHistoryEntry[];
+              setHistoryEntries(localHistory.sort((a, b) => b.lastWatchedAt - a.lastWatchedAt));
+            }
+          }
+        } catch (error) {
+          // Only log in development to reduce console noise
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Error loading history from database, using localStorage fallback:', error);
+          }
+          // Fallback to localStorage
+          const localHistory = JSON.parse(localStorage.getItem('watchHistory') || '[]') as WatchHistoryEntry[];
+          setHistoryEntries(localHistory.sort((a, b) => b.lastWatchedAt - a.lastWatchedAt));
+        }
+      } else {
+        // Guest: Load from localStorage (limit to last 50)
+        const history = JSON.parse(localStorage.getItem('watchHistory') || '[]') as WatchHistoryEntry[];
+        const sortedHistory = history.sort((a, b) => b.lastWatchedAt - a.lastWatchedAt).slice(0, 50);
+        setHistoryEntries(sortedHistory);
+      }
+    };
+
+    loadHistory();
+
+    // Listen for real-time updates
+    const handleHistoryUpdate = () => {
+      loadHistory();
+    };
+
+    window.addEventListener('watchHistoryUpdated', handleHistoryUpdate);
+    
+    return () => {
+      window.removeEventListener('watchHistoryUpdated', handleHistoryUpdate);
+    };
+  }, [user]);
+
+  // Fetch video data for history entries (only for entries without video data)
   useEffect(() => {
     async function fetchVideos() {
       if (historyEntries.length === 0) {
@@ -45,6 +144,23 @@ export default function HistoryPageClient() {
         return;
       }
 
+      // Get unique video IDs from history entries
+      const requiredVideoIds = [...new Set(historyEntries.map(entry => entry.videoId))];
+
+      // Check which videos we haven't fetched yet using ref
+      const missingVideoIds = requiredVideoIds.filter(id => !fetchedVideoIdsRef.current.has(id));
+
+      // If no missing videos, don't fetch
+      if (missingVideoIds.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // Mark these as being fetched
+      missingVideoIds.forEach(id => fetchedVideoIdsRef.current.add(id));
+
+      setLoading(true);
+      
       try {
         const token = localStorage.getItem('token');
         const headers: HeadersInit = {};
@@ -52,31 +168,45 @@ export default function HistoryPageClient() {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const videoIds = historyEntries.map(entry => entry.videoId);
-        const videoPromises = videoIds.map(async (videoId) => {
+        // Fetch only missing videos in parallel
+        const videoPromises = missingVideoIds.map(async (videoId) => {
           try {
             const response = await fetch(`/api/videos/${videoId}`, { headers });
             if (response.ok) {
               const data = await response.json();
               return data.video;
+            } else {
+              // Remove from ref if fetch failed (non-OK response) so we can retry later
+              fetchedVideoIdsRef.current.delete(videoId);
+              return null;
             }
           } catch (error) {
             console.error(`Error fetching video ${videoId}:`, error);
+            // Remove from ref if fetch failed (exception) so we can retry later
+            fetchedVideoIdsRef.current.delete(videoId);
+            return null;
           }
-          return null;
         });
 
         const fetchedVideos = (await Promise.all(videoPromises)).filter(Boolean) as Video[];
-        setVideos(fetchedVideos);
+        
+        // Update videos state, avoiding duplicates
+        setVideos(prev => {
+          const existingIds = new Set(prev.map(v => v.id));
+          const newVideos = fetchedVideos.filter(v => !existingIds.has(v.id));
+          return [...prev, ...newVideos];
+        });
       } catch (error) {
         console.error('Error fetching videos:', error);
+        // Remove from ref on error so we can retry later
+        missingVideoIds.forEach(id => fetchedVideoIdsRef.current.delete(id));
       } finally {
         setLoading(false);
       }
     }
 
     fetchVideos();
-  }, [historyEntries]);
+  }, [historyEntries]); // Only depend on historyEntries - videos state is managed internally
 
   // Combine history entries with video data
   useEffect(() => {
@@ -129,22 +259,8 @@ export default function HistoryPageClient() {
       );
     }
 
-    // Apply date filter
-    if (selectedDate) {
-      const filterDate = new Date(selectedDate);
-      filterDate.setHours(0, 0, 0, 0);
-      const nextDay = new Date(filterDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-
-      filtered = filtered.filter(video => {
-        const watchedDate = new Date(video.watchedAt);
-        watchedDate.setHours(0, 0, 0, 0);
-        return watchedDate >= filterDate && watchedDate < nextDay;
-      });
-    }
-
     return filtered;
-  }, [historyVideos, activeFilter, searchQuery, selectedDate]);
+  }, [historyVideos, activeFilter, searchQuery]);
 
   // Group videos by date
   const groupedVideos = useMemo(() => {
@@ -161,25 +277,78 @@ export default function HistoryPageClient() {
     return groups;
   }, [filteredVideos]);
 
-  const handleClearHistory = () => {
-    localStorage.removeItem('watchHistory');
-    setHistoryEntries([]);
-    setHistoryVideos([]);
-    setSelectedDate(null);
+  // Note: Removed the user guard - guests can now view their localStorage history
+  // The history loading logic (lines 128-133) handles guests by loading from localStorage
+
+  const handleClearHistory = async () => {
+    let dbDeleteSucceeded = true;
+    
+    if (user) {
+      // Logged in: Clear from database
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const response = await fetch('/api/history', {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          
+          // Check if deletion succeeded
+          if (!response.ok) {
+            dbDeleteSucceeded = false;
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Failed to clear history from database:', response.status, response.statusText);
+            }
+          }
+        } else {
+          // User is logged in but no token - treat as failed deletion to maintain consistency
+          dbDeleteSucceeded = false;
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('User logged in but no token found, skipping database deletion to maintain consistency');
+          }
+        }
+      } catch (error) {
+        dbDeleteSucceeded = false;
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error clearing history from database:', error);
+        }
+      }
+    }
+    
+    // Only clear localStorage if database deletion succeeded (or user is guest)
+    // This prevents state sync issues where DB still has data but localStorage is empty
+    if (dbDeleteSucceeded || !user) {
+      localStorage.removeItem('watchHistory');
+      setHistoryEntries([]);
+      setHistoryVideos([]);
+      
+      // Dispatch event to notify other components
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('watchHistoryUpdated'));
+      }
+    } else {
+      // Database deletion failed - don't clear localStorage to maintain consistency
+      // Show error message to user (could add toast notification here)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Database deletion failed, keeping localStorage intact to maintain consistency');
+      }
+    }
   };
 
   const handlePauseHistory = (paused: boolean) => {
     setIsHistoryPaused(paused);
     localStorage.setItem('watchHistoryPaused', String(paused));
+    // Dispatch event to update sidebar indicator
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('watchHistoryUpdated'));
+    }
   };
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-        <div className="text-text-secondary">Please login to view your watch history.</div>
-      </div>
-    );
-  }
+  // Allow both logged-in users and guests to view history
+  // Guests see their localStorage history (last 50 entries)
+  // Logged-in users see their database history merged with localStorage
 
   if (loading) {
     return (
@@ -248,15 +417,13 @@ export default function HistoryPageClient() {
 
         {/* Right Sidebar - Management Tools (25-30%) */}
         <div className="w-full lg:w-[28%] flex-shrink-0">
-          <HistoryManagementSidebar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            selectedDate={selectedDate}
-            onDateChange={setSelectedDate}
-            onClearHistory={handleClearHistory}
-            isHistoryPaused={isHistoryPaused}
-            onPauseHistory={handlePauseHistory}
-          />
+                  <HistoryManagementSidebar
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    onClearHistory={handleClearHistory}
+                    isHistoryPaused={isHistoryPaused}
+                    onPauseHistory={handlePauseHistory}
+                  />
         </div>
       </div>
     </div>
