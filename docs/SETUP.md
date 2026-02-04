@@ -1,173 +1,156 @@
-# Twinkle MVP Setup Guide
+# Twinkle Setup Guide
+
+This guide gets you from clone to a running app. Twinkle is a **Next.js monolith**: one app with the App Router and API routes; there is no separate backend server.
+
+---
 
 ## Quick Start
 
-### 1. Install Dependencies
+1. **Install dependencies**
 
-```bash
-npm install
-```
+   ```bash
+   npm install
+   ```
 
-### 2. Set Up PostgreSQL Database
+2. **Set up PostgreSQL**
 
-Make sure PostgreSQL is running, then create the database:
+   Ensure PostgreSQL is running, then create the database:
 
-```bash
-psql postgres
-CREATE DATABASE twinkle;
-\q
-```
+   ```bash
+   psql postgres
+   CREATE DATABASE twinkle;
+   \q
+   ```
 
-### 3. Configure Environment
+3. **Configure environment**
 
-Copy the example environment file:
+   Copy the example env and edit with your DB credentials:
 
-```bash
-cp .env.example .env
-```
+   ```bash
+   cp .env.example .env
+   ```
 
-Edit `.env` and add your database credentials:
+   In `.env` set at least:
 
-```env
-DATABASE_URL="postgresql://your_username:your_password@localhost:5432/twinkle?schema=public"
-JWT_SECRET="your-super-secret-jwt-key-change-in-production"
-NODE_ENV=development
-```
+   ```env
+   DATABASE_URL="postgresql://your_username:your_password@localhost:5432/twinkle?schema=public"
+   JWT_SECRET="your-super-secret-jwt-key-change-in-production"
+   NODE_ENV=development
+   ```
 
-### 4. Initialize Database
+4. **Initialize database**
 
-```bash
-# Generate Prisma Client
-npm run prisma:generate
+   ```bash
+   npm run prisma:generate
+   npm run prisma:push
+   ```
 
-# Push schema to database
-npm run prisma:push
-```
+5. **Create upload directories** (or run full setup)
 
-### 5. Create Upload Directories
+   ```bash
+   mkdir -p public/uploads/profiles public/uploads/banners public/uploads/thumbnails
+   ```
 
-```bash
-mkdir -p public/uploads/profiles
-mkdir -p public/uploads/banners
-mkdir -p public/uploads/thumbnails
-```
+   Or in one go:
 
-Or run the full setup script:
+   ```bash
+   npm run setup
+   ```
+   (`npm run setup` also runs install, prisma generate, and prisma push.)
 
-```bash
-npm run setup
-```
+6. **Start the dev server**
 
-### 6. Start Development Server
+   ```bash
+   npm run dev
+   ```
 
-```bash
-npm run dev
-```
+   Open [http://localhost:3000](http://localhost:3000).
 
-Visit [http://localhost:3000](http://localhost:3000)
+---
 
 ## Creating Your First Creator Account
 
-1. Sign up with a new email
-2. In your database, update the user's role to `creator`:
+1. Sign up with a new email via the app.
+2. Promote the user to `creator` in the database:
 
-```sql
-UPDATE users SET role = 'creator' WHERE email = 'your-email@example.com';
-```
+   **Option A – SQL**
 
-Or use Prisma Studio:
+   ```sql
+   UPDATE users SET role = 'creator' WHERE email = 'your-email@example.com';
+   ```
 
-```bash
-npm run prisma:studio
-```
+   **Option B – Prisma Studio**
 
-Then navigate to the Users table and change the role field.
+   ```bash
+   npm run prisma:studio
+   ```
+
+   Open the `users` table and set the user’s `role` to `creator`.
+
+Creator Studio routes (`/studio`, `/studio/upload`, etc.) exist; some Studio features may still be minimal or work-in-progress.
+
+---
 
 ## Testing the Platform
 
-1. **As a Viewer:**
-   - Browse videos on homepage
-   - Search for videos
-   - Watch videos
-   - Sign up/login
+- **As a Viewer:** Browse the home feed, search, watch videos, sign up and sign in. Watch history is stored (DB when logged in, localStorage for guests). Profile, library, saved, and subscriptions routes may be placeholder pages.
+- **As a Creator:** After setting role to `creator`, log in and use the sidebar to reach Creator Studio. You can upload videos and manage content; exact feature set depends on current implementation.
+- **As an Admin:** Set role to `admin` in the database. Admin capabilities are currently basic (e.g. user checks and resets via APIs); there is no full in-app admin dashboard yet.
 
-2. **As a Creator:**
-   - After updating role to `creator`, login
-   - Access Creator Studio from sidebar
-   - Upload videos
-   - Manage videos (edit/delete)
-   - Update channel settings
-
-3. **As an Admin:**
-   - Update role to `admin` in database
-   - Full access to all features
-   - Can manage all users and videos
+---
 
 ## File Structure
 
 ```
-/app
-  /api              # API routes (auth, videos, history, admin)
-  /auth             # Sign in/up pages
-  /history          # Watch history page
-  /library          # User library
-  /creator          # Creator profiles
-  /playlist         # Playlist pages
-  /search           # Search results
-  /studio           # Creator Studio
-  /subscriptions    # Subscriptions page
-  /watch            # Video playback
-/components         # React components (layout, history, modals)
-/contexts           # Auth, Modal, Sidebar, Miniplayer, Purchase
-/hooks              # useWatchHistoryTracker
-/lib                # Utilities, Prisma, auth, watchHistory
-/prisma             # Database schema
-/public             # Static files & uploads
-/scripts            # Import, setup, check-z-index
+/app                    # Next.js App Router: pages and API routes
+  /api                  # API routes (auth, videos, history, admin, upload, user)
+  /auth, /creator, /history, /library, /playlist, /profile, /search, /studio, /subscriptions, /watch
+/components             # React components
+  /layout               # Header, Sidebar, MainContent, BottomNavbar, HeaderSearch, HeaderProfileMenu, MobileMenu
+  /modals               # ShareModal, ReportModal, PurchaseFlowModal
+  /history              # ClearHistoryModal, PauseHistoryModal, etc.
+  /monetization         # PaymentFormCard, PaymentFormWallet, PaymentSuccessReceipt, PaymentSMSVerification, types
+  /watch                # Watch page sections (WatchPageAboveFold, WatchPageRelated, etc.)
+  /ui                   # Shared UI primitives (button, input, dialog, etc.)
+/config                 # viewerConstants.ts – viewer/demo defaults (saved cards, donation amounts, mock account)
+/contexts               # AuthContext, ModalContext, SidebarContext, MiniplayerContext, PurchaseContext
+/hooks                  # useWatchHistoryTracker, etc.
+/lib                    # Utilities: utils.ts, viewerUtils.ts (formatting, card/phone helpers), auth, prisma, watchHistory
+/prisma                 # Database schema
+/public                 # Static assets and uploads (profiles, banners, thumbnails, videos)
+/scripts                # check-z-index, reset-default-user, setup-twinkle-creator, import-youtube-creator, etc.
+/types                  # Shared TypeScript types
 ```
+
+---
 
 ## Troubleshooting
 
-### Database Connection Issues
-- Verify PostgreSQL is running: `pg_isready`
-- Check DATABASE_URL in `.env` is correct
-- Ensure database `twinkle` exists
-- See [DATABASE_SETUP.md](./DATABASE_SETUP.md)
+- **Database connection:** Ensure PostgreSQL is running (`pg_isready`), `DATABASE_URL` in `.env` is correct, and the `twinkle` database exists. See [DATABASE_SETUP.md](./DATABASE_SETUP.md).
+- **Prisma:** After schema changes run `npm run prisma:generate` and `npm run prisma:push`.
+- **Uploads:** Ensure `public/uploads/` directories exist and file size limits in Next.js config are suitable for your use case.
+- **Auth / sign-in:** See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
 
-### Prisma Issues
-- Run `npm run prisma:generate` after schema changes
-- Run `npm run prisma:push` to sync schema
-
-### Upload Issues
-- Ensure `public/uploads/` directories exist
-- Check file permissions
-- Verify file size limits (adjust in Next.js config if needed)
-
-### Authentication Issues
-- Clear browser localStorage
-- Check JWT_SECRET in `.env`
-- Verify token expiration (default: 7 days)
-- See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+---
 
 ## Available Scripts
 
 | Script | Description |
 |--------|-------------|
 | `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run setup` | Install, generate Prisma, push schema, create upload dirs |
-| `npm run check:z-index` | Verify z-index architecture compliance |
-| `npm run prisma:studio` | Open Prisma Studio |
+| `npm run build` | Generate Prisma client and build for production |
+| `npm run start` | Start production server |
+| `npm run setup` | Install deps, prisma generate, prisma push, create upload dirs |
+| `npm run prisma:generate` | Generate Prisma client |
 | `npm run prisma:push` | Push schema to database |
+| `npm run prisma:studio` | Open Prisma Studio |
 | `npm run reset:user` | Reset users and create default user |
 | `npm run setup:twinkle` | Set up Twinkle creator |
+| `npm run check:z-index` | Check z-index architecture compliance |
+| `npm run check:videos` | Check videos script |
+
+---
 
 ## Next Steps
 
-- Set up cloud storage for video files (AWS S3, Cloudinary, etc.)
-- Implement video transcoding for multiple qualities
-- Add email verification
-- Implement subscription system
-- Add video comments
-- Set up analytics dashboard
-- Configure production environment variables
+Once the app runs locally, consider production environment variables, cloud storage for video files, transcoding, email verification, subscriptions, and other product priorities. The codebase is structured so these can be added incrementally.

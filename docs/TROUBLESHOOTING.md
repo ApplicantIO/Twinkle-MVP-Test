@@ -54,3 +54,5 @@
 - Username: `yupbekha` or `@yupbekha`
 - Email: `yupbekha@twinkle.uz`
 - Password: `#User123`
+
+These defaults are created by the `npm run reset:user` script and may change in future; check the script output or [DATABASE_SETUP.md](./DATABASE_SETUP.md) for the latest values.

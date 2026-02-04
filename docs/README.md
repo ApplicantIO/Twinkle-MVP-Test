@@ -1,31 +1,39 @@
 # Twinkle Documentation
 
+This folder is the main entry point for Twinkle docs: setup, architecture, and contribution guidelines for founders, developers, and AI agents.
+
+---
+
 ## Setup & Getting Started
 
-- **[QUICKSTART.md](./QUICKSTART.md)** – Quick start guide
-- **[SETUP.md](./SETUP.md)** – Setup instructions
-- **[DATABASE_SETUP.md](./DATABASE_SETUP.md)** – Database connection and user setup
-- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** – Sign-in troubleshooting
+- **[QUICKSTART.md](./QUICKSTART.md)** — Minimal steps to get the app running (install, DB, env, run dev).
+- **[SETUP.md](./SETUP.md)** — Full setup: environment, database, scripts, file structure, and first creator account.
+- **[DATABASE_SETUP.md](./DATABASE_SETUP.md)** — Database connection, sign-in fix, and default user creation.
+- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** — Common runtime and auth issues and how to fix them.
 
-## Code Analysis
-
-- **[CODE_ANALYSIS.md](./CODE_ANALYSIS.md)** – Unused code audit, dead code removal, and quality notes
+---
 
 ## Architecture
 
-- **[ARCHITECTURE_RULES.md](./ARCHITECTURE_RULES.md)** – Frontend architecture constitution (required reading before making changes)
-  - Z-index scale (L0–L5)
-  - Modal system (single ModalProvider)
-  - Layout rules (pages adapt to layout)
-  - Route-agnostic sidebar
+- **[ARCHITECTURE_RULES.md](./ARCHITECTURE_RULES.md)** — Frontend “constitution”: z-index scale, layout, modals, providers, scroll, and page rules. Required reading before making structural changes.
+- **[ARCHITECTURE_VIEWER.md](./ARCHITECTURE_VIEWER.md)** — Viewer-side map: routes, root layout, contexts, Watch page sections, and monetization components.
+- **[REFRACTORING_LEVELS.md](./REFRACTORING_LEVELS.md)** — Level 1/2/3 refactor history and how to scope future refactors.
 
-## Key Concepts
+---
 
-### Watch History
-- **Logged-in users:** Stored in database (`watch_history` table)
-- **Guests:** Stored in localStorage (last 50 videos)
-- **API:** `GET /api/history`, `POST /api/history`, `DELETE /api/history`
-- **Tracking:** `useWatchHistoryTracker` hook (5s threshold)
+## AI & Contribution
 
-### Z-Index Compliance
-Run `npm run check:z-index` to detect arbitrary `z-[...]` usage. Use only allowed scale values.
+- **[AI_CODING_GUIDE.md](./AI_CODING_GUIDE.md)** — Rules and patterns for AI agents and developers when editing the codebase (layout, modals, helpers, splitting components, when to refuse or adapt).
+- The Cursor rule file `.cursor/rules/twinkle-project-rule.mdc` enforces that ARCHITECTURE_RULES is checked before changes; it points agents to this docs folder.
+
+---
+
+## Code Analysis & Tech Debt
+
+- **[CODE_ANALYSIS.md](./CODE_ANALYSIS.md)** — Historical snapshot of dead code, unused items, and build/quality notes. Optional reference; may be outdated as the codebase evolves and should not be treated as source of truth.
+
+---
+
+## Scripts
+
+- **[../scripts/README.md](../scripts/README.md)** — Documentation for the YouTube creator import script and other scripts in `scripts/`.

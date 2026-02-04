@@ -1,5 +1,7 @@
 # Code Analysis Report
 
+> This report is a historical snapshot of the codebase as of 2026-01-31. It may no longer be fully accurate if the code has changed since then. Use it as a reference, not as a source of truth.
+
 *Generated: 2026-01-31*
 
 ## Build Status

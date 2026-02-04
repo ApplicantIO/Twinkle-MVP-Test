@@ -95,7 +95,7 @@ export function WatchPageAboveFold({
         views: 0,
         createdAt: new Date(currentPlaylist.lastUpdated),
         updatedAt: new Date(currentPlaylist.lastUpdated),
-        type: (currentPlaylist.isSubscription ? 'subscription' : 'paid') as const,
+        type: (currentPlaylist.isSubscription ? 'subscription' : 'paid') as 'subscription' | 'paid',
         price: parseInt(currentPlaylist.price.replace(/[^\d]/g, '')) || 50000,
         currency: 'UZS',
         user: {

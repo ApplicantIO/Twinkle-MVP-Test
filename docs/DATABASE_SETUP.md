@@ -1,171 +1,163 @@
-# Database Setup & Sign-In Fix Guide
+# Database Setup & Sign-In Guide
 
-This guide covers database setup, connection troubleshooting, and sign-in fixes for the Twinkle MVP.
+This guide covers PostgreSQL setup, Prisma, and sign-in for Twinkle. You need a working database connection before the app can authenticate users or store watch history.
+
+---
 
 ## Schema Overview
 
 The Prisma schema includes:
-- **users** - User accounts (viewer, creator, admin roles)
-- **videos** - Video metadata and file references
-- **analytics** - View tracking
-- **watch_history** - Watch history for logged-in users (videoId, progress, lastWatchedAt)
+
+- **users** — Accounts (viewer, creator, admin roles).
+- **videos** — Video metadata and file references.
+- **analytics** — View tracking.
+- **watch_history** — Watch history for logged-in users (videoId, progress, lastWatchedAt).
 
 Watch history is stored in the database for authenticated users; guests use localStorage (last 50 videos).
 
-## ✅ FIXED: Database Connection Issue
+---
 
-**The issue was:** The `.env` file had `DATABASE_URL="postgresql://postgres:password@localhost:5432/twinkle"` but the actual PostgreSQL user is your macOS username (e.g., `Bekha`).
+## Common Database Connection Issues
 
-**The fix:** Updated DATABASE_URL to use the correct username: `DATABASE_URL="postgresql://Bekha@localhost:5432/twinkle?schema=public"`
+Typical errors you may see:
 
-## Issue: Database Connection Error
+- **“database does not exist”** — The `twinkle` database has not been created.
+- **“role does not exist”** — The username in `DATABASE_URL` is not a valid PostgreSQL role.
+- **“password authentication failed”** — Wrong password in `.env`, or the user has no password set.
+- **“connection refused”** — PostgreSQL is not running, or the port (default 5432) is wrong.
 
-The error `User was denied access on the database (not available)` indicates a database connection problem.
+The rest of this guide walks through fixing these step by step.
+
+---
 
 ## Step 1: Verify PostgreSQL is Running
 
 ```bash
-# Check if PostgreSQL is running
 pg_isready
-
-# If not running, start it:
-# macOS with Homebrew:
-brew services start postgresql@14
-# or
-brew services start postgresql
-
-# Linux:
-sudo systemctl start postgresql
 ```
 
-## Step 2: Check/Create .env File
+If it fails, start PostgreSQL:
 
-The `.env` file should be in the project root.
+- **macOS (Homebrew):** `brew services start postgresql@14` or `brew services start postgresql`
+- **Linux:** `sudo systemctl start postgresql`
+- **Windows:** Start the PostgreSQL service from Services or your installer.
 
-**Create or verify `.env` file:**
+---
 
-If `.env` doesn't exist, create it:
+## Step 2: Configure .env
 
-```bash
-cat > .env << 'EOF'
-DATABASE_URL="postgresql://YOUR_USERNAME:YOUR_PASSWORD@localhost:5432/twinkle?schema=public"
+Create `.env` in the project root (copy from `.env.example` if present). You need at least:
+
+```env
+DATABASE_URL="postgresql://USERNAME:PASSWORD@localhost:5432/twinkle?schema=public"
 JWT_SECRET="your-super-secret-jwt-key-change-in-production"
 NODE_ENV=development
-EOF
 ```
 
-**Replace:**
-- `YOUR_USERNAME` - Your PostgreSQL username (usually your macOS username)
-- `YOUR_PASSWORD` - Your PostgreSQL password (if you set one, otherwise leave empty)
-- `twinkle` - Database name (create it if it doesn't exist)
+- **USERNAME** — Your PostgreSQL username (often your OS username, or a dedicated DB user like `twinkle_user`).
+- **PASSWORD** — That user’s password. If the user has no password, use `postgresql://USERNAME@localhost:5432/twinkle?schema=public` (no `:PASSWORD`).
 
-## Step 3: Create Database (if it doesn't exist)
+A very common sign-in failure is using the wrong PostgreSQL user in `DATABASE_URL` (e.g. a generic `postgres` user when your system expects a different role). Use the same username you would use for `psql -U USERNAME`.
+
+---
+
+## Step 3: Create Database and Role (if needed)
+
+**Create the database:**
 
 ```bash
-# Connect to PostgreSQL
 psql postgres
+```
 
-# In psql prompt, run:
+In the `psql` prompt:
+
+```sql
 CREATE DATABASE twinkle;
-
-# Exit psql
 \q
 ```
 
-**If you get "role does not exist" error:**
+**If you get “role does not exist”:** Create a PostgreSQL role and grant it access. Replace `twinkle_user` and the password with values you will use in `.env`:
+
 ```bash
-# Create a PostgreSQL user (replace 'your_username' with your macOS username)
 psql postgres
-CREATE USER your_username WITH PASSWORD '';
-ALTER USER your_username CREATEDB;
+```
+
+```sql
+CREATE USER twinkle_user WITH PASSWORD 'your_secure_password';
+ALTER USER twinkle_user CREATEDB;
 \q
 ```
 
-## Step 4: Test Database Connection
+Then set `DATABASE_URL` to use `twinkle_user` and that password.
+
+---
+
+## Step 4: Test Prisma & Migrations
+
+Generate the Prisma client and push the schema to the database:
 
 ```bash
-# Generate Prisma Client
-npx prisma generate
-
-# Push schema to database (this will create tables)
-npx prisma db push
+npm run prisma:generate
+npm run prisma:push
 ```
 
-If this succeeds, your database connection is working!
+If these succeed, your database connection is working and the tables exist.
+
+---
 
 ## Step 5: Create Default User
 
-Once the database connection works, you can create the default user:
+**Option A: Script (recommended)**
 
-**Option A: Using the script (recommended)**
 ```bash
 npm run reset:user
 ```
 
-**Option B: Using the API endpoint (if server is running)**
+This removes existing users and creates a single default user. The script prints the login credentials (email and password) to the console.
+
+**Option B: API endpoint (if the dev server is running)**
+
 ```bash
-# Start your dev server first, then:
 curl -X POST http://localhost:3000/api/admin/reset-users
 ```
 
-**Option C: Manual SQL (if needed)**
-```bash
-psql twinkle
+**Option C: Manual SQL**
 
-# In psql, run:
+Connect to the database and insert a user. The password must be a bcrypt hash; you can generate one in Node with `require('bcryptjs').hashSync('your_password', 10)`.
+
+```sql
+-- Example; replace id, email, passwordHash, name with your values
 INSERT INTO users (id, email, "passwordHash", role, name, "createdAt", "updatedAt")
 VALUES (
-  'default-user-id',
-  'yupbekha@twinkle.uz',
-  '$2a$10$...', -- You'll need to hash the password first
+  'your-generated-uuid',
+  'test@example.com',
+  '$2a$10$...',  -- bcrypt hash of the password
   'viewer',
-  'yupbekha',
+  'testuser',
   NOW(),
   NOW()
 );
 ```
 
+---
+
 ## Step 6: Test Sign-In
 
-Once the user is created, try signing in with:
-- **Email:** `yupbekha@twinkle.uz`
-- **Username:** `yupbekha` or `@yupbekha`
-- **Password:** `#User123`
+After creating a user:
 
-## Common Issues
+1. Start the app: `npm run dev`.
+2. Open [http://localhost:3000](http://localhost:3000).
+3. Sign in with the credentials from the reset script output (Option A), or with the email/password you used in Option B or C.
 
-### Issue: "database does not exist"
-**Solution:** Create the database (Step 3)
+You can sign in with email or with the username (with or without `@`). If sign-in still fails, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
 
-### Issue: "role does not exist"
-**Solution:** Create a PostgreSQL user or use your macOS username
+---
 
-### Issue: "password authentication failed"
-**Solution:** 
-- Check your password in `.env`
-- Try empty password: `postgresql://username@localhost:5432/twinkle`
-- Reset PostgreSQL password if needed
+## Quick Reference / Troubleshooting
 
-### Issue: "connection refused"
-**Solution:**
-- PostgreSQL is not running - start it (Step 1)
-- Wrong port - check if PostgreSQL is on port 5432
+- **“database does not exist”** → Create the database (Step 3).
+- **“role does not exist”** → Create a PostgreSQL user/role (Step 3) or use an existing username in `DATABASE_URL`.
+- **“password authentication failed”** → Check `USERNAME` and `PASSWORD` in `.env`; try no password if the role has none; reset the DB user’s password if needed.
+- **“connection refused”** → PostgreSQL is not running (Step 1) or the port in `DATABASE_URL` is wrong (default 5432).
 
-## Quick Test Commands
-
-```bash
-# Test PostgreSQL connection
-psql -U your_username -d twinkle -c "SELECT 1;"
-
-# List all databases
-psql -U your_username -l
-
-# Check if twinkle database exists
-psql -U your_username -l | grep twinkle
-```
-
-## After Database is Working
-
-1. Run `npx prisma db push` to create tables
-2. Run `npm run reset:user` to create default user
-3. Try signing in with the credentials above
+**Quick test:** `psql -U USERNAME -d twinkle -c "SELECT 1;"` (use the same `USERNAME` as in `.env`).

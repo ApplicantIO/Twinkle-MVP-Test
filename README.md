@@ -1,239 +1,60 @@
-# Twinkle MVP - Video Platform for Uzbekistan
+# Twinkle
 
-A desktop-first video-sharing platform inspired by YouTube, built with Next.js, TypeScript, and PostgreSQL.
+A video platform with creator monetization, built as a Next.js monolith, focused on a modern viewer experience and a simple Creator Studio.
 
-## Features
+## Overview
 
-- **YouTube-style Interface**: Dark theme with familiar navigation patterns
-- **Video Playback**: Full-featured video player with controls, miniplayer support
-- **Watch History**: Real-time tracking with date grouping; DB for logged-in users, localStorage for guests
-- **Creator Studio**: Dashboard for creators to manage content
-- **User Authentication**: Email/password signup and login
-- **Role-based Access**: Viewer, Creator, and Admin roles
-- **Video Upload**: Upload videos with thumbnails and metadata
-- **Search**: Search videos by title and description
-- **Creator Profiles**: Public channel pages for creators
-- **Playlists**: Create and manage playlists
+**What it does:** Viewers can browse a home feed, search, watch videos, and use watch history, playlists, and basic profile/library flows. Creators get a Creator Studio to upload and manage videos and channel profiles. The app includes a basic monetization demo (simulated payment flows). Authentication is email/password with JWT; roles are viewer, creator, and admin.
 
-## Tech Stack
+**Tech stack:** Next.js (App Router), React, TypeScript, PostgreSQL with Prisma, Tailwind CSS for styling. Single app—no separate backend server; API routes live in `app/api/`.
 
-- **Frontend**: Next.js 16, React 19, TypeScript
-- **Styling**: Tailwind CSS with custom dark theme
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: JWT tokens with bcrypt password hashing
-- **File Storage**: Local file system (public/uploads)
+**State of the project:** Viewer experience (home, watch, search, history, monetization demo) is functional. Creator Studio and admin features are basic or work-in-progress.
 
-## Prerequisites
+## Getting Started
 
-- Node.js 20.9.0 or higher
-- PostgreSQL 12 or higher
-- npm or yarn
+- **Clone** the repo and open the project directory.
+- **Install dependencies:** `npm install`
+- **Set up PostgreSQL** and create the `twinkle` database; create a `.env` from `.env.example` with `DATABASE_URL` and `JWT_SECRET`.
+- **Initialize DB and run:** `npm run prisma:generate`, `npm run prisma:push`, then `npm run dev` (optionally `npm run setup` for a one-shot install+Prisma+upload dirs; `npm run reset:user` for a default test user).
 
-## Setup Instructions
+For a minimal path from clone to running app, see [docs/QUICKSTART.md](./docs/QUICKSTART.md).  
+For full setup (env, DB, scripts, file structure), see [docs/SETUP.md](./docs/SETUP.md).  
+For database and sign-in details, see [docs/DATABASE_SETUP.md](./docs/DATABASE_SETUP.md).  
+Sign-in issues: [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md).
 
-### 1. Install Dependencies
+## Architecture & Docs
 
-```bash
-npm install
-```
+Before making structural changes to layout, modals, or global state, read the architecture docs.
 
-### 2. Set Up Database
+- **[docs/ARCHITECTURE_RULES.md](./docs/ARCHITECTURE_RULES.md)** — Frontend “constitution”: z-index scale, layout, modals, providers, scroll.
+- **[docs/ARCHITECTURE_VIEWER.md](./docs/ARCHITECTURE_VIEWER.md)** — Viewer routes, layout, contexts, Watch page and monetization.
+- **[docs/REFRACTORING_LEVELS.md](./docs/REFRACTORING_LEVELS.md)** — Level 1/2/3 refactor history and how to scope future refactors.
+- **[docs/AI_CODING_GUIDE.md](./docs/AI_CODING_GUIDE.md)** — Guide for AI agents and contributors (safe refactors, when to refuse a request).
+- **[docs/README.md](./docs/README.md)** — Full docs index.
 
-Create a PostgreSQL database:
+## Scripts
 
-```bash
-psql postgres
-CREATE DATABASE twinkle;
-\q
-```
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server |
+| `npm run setup` | Install deps, Prisma generate/push, create upload dirs |
+| `npm run prisma:generate` | Generate Prisma client |
+| `npm run prisma:push` | Push schema to database |
+| `npm run prisma:studio` | Open Prisma Studio |
+| `npm run reset:user` | Reset users and create default test user |
+| `npm run check:z-index` | Enforce z-index architecture (no arbitrary `z-[...]`) |
 
-### 3. Configure Environment Variables
+More scripts and details: [docs/SETUP.md](./docs/SETUP.md), [scripts/README.md](./scripts/README.md).
 
-Copy `.env.example` to `.env` and update with your database credentials:
+## Contribution & AI Usage
 
-```bash
-cp .env.example .env
-```
+Contributors and AI tools should read [docs/AI_CODING_GUIDE.md](./docs/AI_CODING_GUIDE.md) and [docs/ARCHITECTURE_RULES.md](./docs/ARCHITECTURE_RULES.md) before editing layout, modals, or global state. The Cursor rule [.cursor/rules/twinkle-project-rule.mdc](./.cursor/rules/twinkle-project-rule.mdc) points AI agents to these docs and requires checking architecture rules before making changes.
 
-Edit `.env`:
-```env
-DATABASE_URL="postgresql://username:password@localhost:5432/twinkle?schema=public"
-JWT_SECRET="your-super-secret-jwt-key-change-in-production"
-NODE_ENV=development
-```
+## Status & Roadmap
 
-### 4. Initialize Database
+This section is intentionally high-level; always check the code for the exact current state.
 
-```bash
-# Generate Prisma Client
-npx prisma generate
-
-# Push schema to database
-npx prisma db push
-```
-
-### 5. Create Upload Directories
-
-```bash
-mkdir -p public/uploads/profiles
-mkdir -p public/uploads/banners
-mkdir -p public/uploads/thumbnails
-```
-
-Or run the full setup script:
-
-```bash
-npm run setup
-```
-
-### 6. Run Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## User Roles
-
-### Viewer (Default)
-- Browse and watch videos
-- Search videos
-- Sign up and login
-
-### Creator
-- All viewer capabilities
-- Upload videos
-- Manage own videos (edit/delete)
-- Access Creator Studio
-- Update channel profile
-
-### Admin
-- All creator capabilities
-- Approve creators (via database)
-- Manage all users and videos
-
-## Project Structure
-
-```
-/app
-  /api          # API routes
-  /auth         # Authentication pages
-  /history      # Watch history page
-  /library      # User library
-  /creator      # Creator profile pages
-  /playlist     # Playlist pages
-  /search       # Search page
-  /studio       # Creator Studio pages
-  /subscriptions # Subscriptions page
-  /watch        # Video watch pages
-/components    # React components (layout, history, modals, ui)
-/contexts      # Auth, Modal, Sidebar, Miniplayer, Purchase
-/hooks         # useWatchHistoryTracker
-/lib           # Utilities, Prisma, auth, watchHistory
-/prisma        # Database schema
-/public        # Static files and uploads
-/scripts       # Import, setup, check-z-index
-```
-
-## API Routes
-
-### Auth
-- `POST /api/auth/signup` - Create new account
-- `POST /api/auth/signin` - Login
-- `GET /api/auth/me` - Get current user
-- `GET /api/auth/check-email` - Check email availability
-- `GET /api/auth/check-username` - Check username availability
-
-### Videos
-- `GET /api/videos` - List videos (supports ?search=, ?userId=)
-- `GET /api/videos/[id]` - Get video details
-- `POST /api/videos` - Create video (creator only)
-- `PATCH /api/videos/[id]` - Update video (owner/admin only)
-- `DELETE /api/videos/[id]` - Delete video (owner/admin only)
-- `POST /api/upload` - Upload video file (creator only)
-
-### User & History
-- `PATCH /api/user/profile` - Update user profile
-- `GET /api/history` - Fetch watch history (authenticated)
-- `POST /api/history` - Save/update watch history entry (authenticated)
-- `DELETE /api/history` - Clear watch history (authenticated)
-
-### Admin
-- `GET /api/admin/check-user` - Check user by email
-- `POST /api/admin/reset-users` - Reset users and create default user
-
-## Design System
-
-### Colors
-- Background: `#0F0F0F`
-- Surface: `#1A1A1A`
-- Text Primary: `#FFFFFF`
-- Text Secondary: `#CCCCCC`
-- Accent (Twinkle Purple): `#947CF2`
-- Error: `#FF4D4D`
-
-### Typography
-- Font: Inter
-- H1: 28px
-- H2: 22px
-- Body: 16px
-- Small: 14px
-
-## Development
-
-### Build for Production
-
-```bash
-npm run build
-npm start
-```
-
-### Z-Index Compliance Check
-
-Ensure no arbitrary z-index values (`z-[...]`) are used (see `docs/ARCHITECTURE_RULES.md`):
-
-```bash
-npm run check:z-index
-```
-
-### Database Migrations
-
-```bash
-# Create a new migration
-npx prisma migrate dev --name migration_name
-
-# Apply migrations
-npx prisma migrate deploy
-```
-
-### Prisma Studio
-
-View and edit database data:
-
-```bash
-npx prisma studio
-```
-
-## Notes
-
-- **Layout**: Desktop-first with responsive Sidebar, BottomNavbar for mobile
-- **Architecture**: See `docs/ARCHITECTURE_RULES.md` for z-index scale, modal system, and layout rules
-- Video files are stored locally in `public/uploads/` - consider cloud storage for production
-- Admin features require direct database access to change user roles
-- Search is basic text matching - consider full-text search for production
-
-## Documentation
-
-All documentation is in the [`docs/`](./docs) folder:
-
-- [docs/README.md](./docs/README.md) - Documentation index
-- [docs/ARCHITECTURE_RULES.md](./docs/ARCHITECTURE_RULES.md) - Frontend architecture constitution (z-index, modals, layout)
-- [docs/QUICKSTART.md](./docs/QUICKSTART.md) - Quick start guide
-- [docs/SETUP.md](./docs/SETUP.md) - Setup instructions
-- [docs/DATABASE_SETUP.md](./docs/DATABASE_SETUP.md) - Database connection and user setup
-- [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) - Sign-in troubleshooting
-
-## License
-
-Proprietary - Twinkle Uzbekistan
+- **Viewer experience:** Working—home feed, watch page, search, history, basic monetization demo.
+- **Creator Studio:** Basic upload and manage flow; some areas WIP.
+- **Payments:** Simulated flows only; real payment gateway not integrated.
+- **Production hardening** (cloud storage, transcoding, monitoring) is planned for later.

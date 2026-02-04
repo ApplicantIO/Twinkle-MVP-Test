@@ -366,9 +366,10 @@ This document MUST be version controlled.
 
 ---
 
-Document Version: 1.2
-Last Updated: 2026-01-31
+Document Version: 1.3
+Last Updated: 2026-02-05
 Status: Active and Enforceable
 
 ### Changelog
 * v1.2: Added ClearHistoryModal and PauseHistoryModal to global modals
+* v1.3: Synced terminology with ARCHITECTURE_VIEWER and AI_CODING_GUIDE; no rule changes, only documentation cross-references.

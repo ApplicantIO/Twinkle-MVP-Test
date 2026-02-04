@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Follow these steps to get Twinkle MVP running on your machine.
+Follow these steps to get the Twinkle app running on your machine. This is a minimal quick start, not the full setup guide—see [SETUP.md](./SETUP.md) for more.
 
 ## Prerequisites
 
@@ -54,8 +54,8 @@ npm install
 ## Step 3: Initialize Database
 
 ```bash
-npx prisma generate
-npx prisma db push
+npm run prisma:generate
+npm run prisma:push
 ```
 
 ## Step 4: Create Upload Directories
@@ -78,7 +78,7 @@ npm run setup
 npm run reset:user
 ```
 
-This creates a default user. See [DATABASE_SETUP.md](./DATABASE_SETUP.md) for credentials and troubleshooting.
+By default, the reset script creates a test user. The exact email, username, and password are defined by the script and documented in [DATABASE_SETUP.md](./DATABASE_SETUP.md). See that guide or the script output for the latest credentials.
 
 ## Step 6: Start Development Server
 
@@ -90,11 +90,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Default User Credentials
 
+The reset script creates a single default user. **Current example** (may change in future versions):
+
 - **Username:** `yupbekha` or `@yupbekha`
 - **Email:** `yupbekha@twinkle.uz`
 - **Password:** `#User123`
 
-Change these in production.
+For the authoritative credentials, see [DATABASE_SETUP.md](./DATABASE_SETUP.md) or run `npm run reset:user` and check the console output. Change or remove default users in production.
 
 ## Troubleshooting
 
@@ -107,8 +109,8 @@ Change these in production.
 ### Prisma Errors
 
 ```bash
-npx prisma generate
-npx prisma db push
+npm run prisma:generate
+npm run prisma:push
 ```
 
 ### Reset Users
