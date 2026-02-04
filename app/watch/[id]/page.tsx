@@ -23,7 +23,8 @@ import { WatchPageAboveFold } from '@/components/watch/WatchPageAboveFold';
 import { WatchPageRelated, type RecommendedTabType } from '@/components/watch/WatchPageRelated';
 import { WatchPageInlineModals } from '@/components/watch/WatchPageInlineModals';
 import { WatchPageComments, WatchPageCommentsTabs } from '@/components/watch/WatchPageComments';
-import { WatchPageDonation } from '@/components/watch/WatchPageDonation';
+import { WatchPageDonation, WatchPageDonationHeader, getDonationHeaderTitle } from '@/components/watch/WatchPageDonation';
+import type { CommentSectionHeaderType } from '@/components/watch/WatchPageComments';
 
 interface Comment {
   id: string;
@@ -3087,6 +3088,14 @@ export default function WatchPage() {
     }
   }, [reportCommentState]);
 
+  const handleDonationBack = useCallback(() => {
+    if (donationStep === 'WALLET_INVOICE_REQUEST' || donationStep === 'WALLET_WAITING' || donationStep === 'SMS_VERIFICATION') {
+      setDonationStep('DONATION');
+    } else {
+      setIsDonationViewActive(false);
+    }
+  }, [donationStep]);
+
   // Subscription handlers
   const handleSubscribe = () => {
     if (!isSubscribed) {
@@ -3852,93 +3861,27 @@ export default function WatchPage() {
 
       {/* Comments Section - Only show if user has access */}
       {hasFullAccess && (
-        <div ref={commentsSectionRef} className="hidden lg:flex w-[400px] flex-shrink-0 flex-col h-full overflow-hidden bg-[#1A1A1A] rounded-xl">
-          {/* Sticky Header with Tab Navigation or Report Header or Donation Header */}
-          <div className="sticky top-0 z-10 bg-[#1A1A1A] border-b border-surface/50">
-            {isDonationViewActive ? (
-              <div className="flex items-center gap-3 px-3 py-3">
-                <button
-                  onClick={() => {
-                    if (donationStep === 'WALLET_INVOICE_REQUEST' || donationStep === 'WALLET_WAITING' || donationStep === 'SMS_VERIFICATION') {
-                      setDonationStep('DONATION');
-                    } else {
-                      setIsDonationViewActive(false);
-                    }
-                  }}
-                  className="p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors"
-                  aria-label="Back"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </button>
-                <h2 className="text-lg font-semibold text-text-primary">
-                  {(donationStep === 'WALLET_INVOICE_REQUEST' || donationStep === 'WALLET_WAITING') && selectedWallet
-                    ? `${video?.isLive ? 'Superchat' : 'Donate'} with ${getWalletName(selectedWallet)}`
-                    : video?.isLive ? 'Superchat' : 'Donate'}
-                </h2>
-              </div>
-            ) : reportCommentState === 'NONE' ? (
-              <div className="flex relative">
-                <button
-                  onClick={() => setActiveTab('public')}
-                  className={`flex-1 px-3 py-3 text-sm font-medium transition-colors relative ${
-                    activeTab === 'public'
-                      ? 'text-text-primary'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  {video?.isLive ? 'Chat' : 'Comments'}
-                  {activeTab === 'public' && (
-                    <motion.div
-                      layoutId="activeCommentsTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
-                      transition={{
-                        type: "spring",
-                        stiffness: 500,
-                        damping: 30
-                      }}
-                    />
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('donated')}
-                  className={`flex-1 px-3 py-3 text-sm font-medium transition-colors relative ${
-                    activeTab === 'donated'
-                      ? 'text-text-primary'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  {video?.isLive ? 'Superchat' : 'Donations'}
-                  {activeTab === 'donated' && (
-                    <motion.div
-                      layoutId="activeCommentsTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
-                      transition={{
-                        type: "spring",
-                        stiffness: 500,
-                        damping: 30
-                      }}
-                    />
-                  )}
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 px-3 py-3">
-                <button
-                  onClick={handleCommentBackReport}
-                  className="p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors"
-                  aria-label="Back"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </button>
-                <h2 className="text-lg font-semibold text-text-primary">
-                  {reportCommentState === 'WRITE_DETAILS' ? commentReportReason : 'Report'}
-                </h2>
-              </div>
-            )}
-        </div>
-        
-          {/* Comments List or Report Flow or Donation Form - Scrollable */}
-          {isDonationViewActive ? (
+        <WatchPageComments
+          sectionRef={commentsSectionRef}
+          headerType={(isDonationViewActive ? 'donation' : reportCommentState === 'NONE' ? 'tabs' : 'report') as CommentSectionHeaderType}
+          donationHeader={isDonationViewActive ? <WatchPageDonationHeader onBack={handleDonationBack} title={getDonationHeaderTitle({ donationStep, selectedWallet, getWalletName, isLive: video?.isLive })} /> : null}
+          tabsContent={<WatchPageCommentsTabs activeTab={activeTab} onPublicTab={() => setActiveTab('public')} onDonatedTab={() => setActiveTab('donated')} isLive={video?.isLive} />}
+          reportHeaderContent={(
+            <div className="flex items-center gap-3 px-3 py-3">
+              <button
+                onClick={handleCommentBackReport}
+                className="p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors"
+                aria-label="Back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <h2 className="text-lg font-semibold text-text-primary">
+                {reportCommentState === 'WRITE_DETAILS' ? commentReportReason : 'Report'}
+              </h2>
+            </div>
+          )}
+          bodyContent={(() => {
+            return isDonationViewActive ? (
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               {(() => {
                 // Step-based conditional rendering for donation flow
@@ -4032,10 +3975,9 @@ export default function WatchPage() {
               </div>
             )}
           </div>
-          )}
-
-          {/* Bottom Footer - Conditional Rendering */}
-          {reportCommentState === 'NONE' && !isDonationViewActive ? (
+          );
+          })()}
+          footerContent={reportCommentState === 'NONE' && !isDonationViewActive ? (
             <>
               {/* Standard Comment Input Bar */}
               <div className="sticky bottom-0 border-t border-surface/50 bg-[#1A1A1A]">
@@ -4162,7 +4104,7 @@ export default function WatchPage() {
               </div>
             </div>
           ) : null}
-      </div>
+        />
       )}
 
       {/* Mobile Comments Overlay */}
