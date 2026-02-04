@@ -8,6 +8,8 @@ interface HistoryModalData {
   onConfirm?: () => void | Promise<void>;
 }
 
+export type AuthModalMode = 'signin' | 'signup';
+
 interface ModalContextType {
   isModalOpen: boolean;
   modalType: ModalType;
@@ -23,6 +25,11 @@ interface ModalContextType {
   openClearHistoryModal: (onConfirm: () => void | Promise<void>) => void;
   openPauseHistoryModal: (onConfirm: () => void) => void;
   closeModal: () => void;
+  // Auth modal (global, rendered in root layout)
+  isAuthModalOpen: boolean;
+  authModalMode: 'login' | 'signup';
+  openAuthModal: (mode: AuthModalMode) => void;
+  closeAuthModal: () => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -36,6 +43,17 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [currentVideoCurrency, setCurrentVideoCurrency] = useState<string | null>(null);
   const [currentVideoType, setCurrentVideoType] = useState<'paid' | 'subscription' | null>(null);
   const [historyModalData, setHistoryModalData] = useState<HistoryModalData | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
+
+  const openAuthModal = (mode: AuthModalMode) => {
+    setAuthModalMode(mode === 'signin' ? 'login' : 'signup');
+    setIsAuthModalOpen(true);
+  };
+
+  const closeAuthModal = () => {
+    setIsAuthModalOpen(false);
+  };
 
   const openShareModal = (videoId: string, videoTitle: string) => {
     setCurrentVideoId(videoId);
@@ -101,6 +119,10 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         openClearHistoryModal: openClearHistoryModal,
         openPauseHistoryModal: openPauseHistoryModal,
         closeModal,
+        isAuthModalOpen,
+        authModalMode,
+        openAuthModal,
+        closeAuthModal,
       }}
     >
       {children}

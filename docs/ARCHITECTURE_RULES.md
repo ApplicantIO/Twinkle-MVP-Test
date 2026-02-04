@@ -38,7 +38,7 @@ The following components are considered global layout components and MUST be ren
 * BottomNavbar (mobile navigation)
 * MainContent (content wrapper with layout margins)
 * CentralizedVideoPlayer (global video player instance)
-* All modal components (ShareModal, ReportModal, PurchaseFlowModal, AuthModal)
+* All modal components (ShareModal, ReportModal, PurchaseFlowModal, AuthModal, ClearHistoryModal, PauseHistoryModal)
 
 ### 2.2 Page Forbidden Actions
 
@@ -108,6 +108,8 @@ The root layout MUST render components in this exact logical sequence:
           * ReportModal
           * PurchaseFlowModal
           * AuthModal
+          * ClearHistoryModal
+          * PauseHistoryModal
 
 Provider order MUST NOT be changed.
 
@@ -207,6 +209,8 @@ The following are global modals:
 * ReportModal
 * PurchaseFlowModal
 * AuthModal
+* ClearHistoryModal (History page: clear watch history)
+* PauseHistoryModal (History page: pause watch history recording)
 
 ### 6.4 Forbidden Modal Patterns
 
@@ -362,6 +366,9 @@ This document MUST be version controlled.
 
 ---
 
-Document Version: 1.1
-Last Updated: 2026-01-17
+Document Version: 1.2
+Last Updated: 2026-01-31
 Status: Active and Enforceable
+
+### Changelog
+* v1.2: Added ClearHistoryModal and PauseHistoryModal to global modals

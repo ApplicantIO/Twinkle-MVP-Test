@@ -5,13 +5,15 @@ A desktop-first video-sharing platform inspired by YouTube, built with Next.js, 
 ## Features
 
 - **YouTube-style Interface**: Dark theme with familiar navigation patterns
-- **Video Playback**: Full-featured video player with controls
+- **Video Playback**: Full-featured video player with controls, miniplayer support
+- **Watch History**: Real-time tracking with date grouping; DB for logged-in users, localStorage for guests
 - **Creator Studio**: Dashboard for creators to manage content
 - **User Authentication**: Email/password signup and login
 - **Role-based Access**: Viewer, Creator, and Admin roles
 - **Video Upload**: Upload videos with thumbnails and metadata
 - **Search**: Search videos by title and description
 - **Creator Profiles**: Public channel pages for creators
+- **Playlists**: Create and manage playlists
 
 ## Tech Stack
 
@@ -75,6 +77,13 @@ npx prisma db push
 ```bash
 mkdir -p public/uploads/profiles
 mkdir -p public/uploads/banners
+mkdir -p public/uploads/thumbnails
+```
+
+Or run the full setup script:
+
+```bash
+npm run setup
 ```
 
 ### 6. Run Development Server
@@ -110,28 +119,49 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 /app
   /api          # API routes
   /auth         # Authentication pages
-  /studio       # Creator Studio pages
-  /watch        # Video watch pages
+  /history      # Watch history page
+  /library      # User library
   /creator      # Creator profile pages
+  /playlist     # Playlist pages
   /search       # Search page
-/components    # React components
-/lib           # Utilities and helpers
+  /studio       # Creator Studio pages
+  /subscriptions # Subscriptions page
+  /watch        # Video watch pages
+/components    # React components (layout, history, modals, ui)
+/contexts      # Auth, Modal, Sidebar, Miniplayer, Purchase
+/hooks         # useWatchHistoryTracker
+/lib           # Utilities, Prisma, auth, watchHistory
 /prisma        # Database schema
 /public        # Static files and uploads
+/scripts       # Import, setup, check-z-index
 ```
 
 ## API Routes
 
+### Auth
 - `POST /api/auth/signup` - Create new account
 - `POST /api/auth/signin` - Login
 - `GET /api/auth/me` - Get current user
+- `GET /api/auth/check-email` - Check email availability
+- `GET /api/auth/check-username` - Check username availability
+
+### Videos
 - `GET /api/videos` - List videos (supports ?search=, ?userId=)
 - `GET /api/videos/[id]` - Get video details
 - `POST /api/videos` - Create video (creator only)
 - `PATCH /api/videos/[id]` - Update video (owner/admin only)
 - `DELETE /api/videos/[id]` - Delete video (owner/admin only)
 - `POST /api/upload` - Upload video file (creator only)
+
+### User & History
 - `PATCH /api/user/profile` - Update user profile
+- `GET /api/history` - Fetch watch history (authenticated)
+- `POST /api/history` - Save/update watch history entry (authenticated)
+- `DELETE /api/history` - Clear watch history (authenticated)
+
+### Admin
+- `GET /api/admin/check-user` - Check user by email
+- `POST /api/admin/reset-users` - Reset users and create default user
 
 ## Design System
 
@@ -159,6 +189,14 @@ npm run build
 npm start
 ```
 
+### Z-Index Compliance Check
+
+Ensure no arbitrary z-index values (`z-[...]`) are used (see `docs/ARCHITECTURE_RULES.md`):
+
+```bash
+npm run check:z-index
+```
+
 ### Database Migrations
 
 ```bash
@@ -179,12 +217,23 @@ npx prisma studio
 
 ## Notes
 
-- This MVP is **desktop-only** - mobile responsiveness is not implemented
+- **Layout**: Desktop-first with responsive Sidebar, BottomNavbar for mobile
+- **Architecture**: See `docs/ARCHITECTURE_RULES.md` for z-index scale, modal system, and layout rules
 - Video files are stored locally in `public/uploads/` - consider cloud storage for production
 - Admin features require direct database access to change user roles
 - Search is basic text matching - consider full-text search for production
 
+## Documentation
+
+All documentation is in the [`docs/`](./docs) folder:
+
+- [docs/README.md](./docs/README.md) - Documentation index
+- [docs/ARCHITECTURE_RULES.md](./docs/ARCHITECTURE_RULES.md) - Frontend architecture constitution (z-index, modals, layout)
+- [docs/QUICKSTART.md](./docs/QUICKSTART.md) - Quick start guide
+- [docs/SETUP.md](./docs/SETUP.md) - Setup instructions
+- [docs/DATABASE_SETUP.md](./docs/DATABASE_SETUP.md) - Database connection and user setup
+- [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) - Sign-in troubleshooting
+
 ## License
 
 Proprietary - Twinkle Uzbekistan
-# Twinkle-MVP-Test

@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import AuthModal from '@/components/AuthModal';
+import { useModal } from '@/contexts/ModalContext';
 import { cn } from '@/lib/utils';
 
 interface MobileMenuProps {
@@ -34,9 +34,8 @@ interface MobileMenuProps {
 
 export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
   const { user, logout } = useAuth();
+  const { openAuthModal } = useModal();
   const router = useRouter();
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
   const [language, setLanguage] = useState('en');
   const [appearance, setAppearance] = useState('system');
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'appearance'>('main');
@@ -97,19 +96,13 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                 <div className="p-4 border-b border-surface flex gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setAuthModalMode('login');
-                      setIsAuthModalOpen(true);
-                    }}
+                    onClick={() => openAuthModal('signin')}
                     className="flex-1"
                   >
                     Sign In
                   </Button>
                   <Button
-                    onClick={() => {
-                      setAuthModalMode('signup');
-                      setIsAuthModalOpen(true);
-                    }}
+                    onClick={() => openAuthModal('signup')}
                     className="flex-1 bg-accent hover:bg-accent/90"
                   >
                     Sign Up
@@ -318,13 +311,6 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           )}
         </div>
       </div>
-
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={isAuthModalOpen} 
-        onClose={() => setIsAuthModalOpen(false)} 
-        initialMode={authModalMode} 
-      />
     </>
   );
 }

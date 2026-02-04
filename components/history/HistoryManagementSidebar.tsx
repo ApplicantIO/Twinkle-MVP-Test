@@ -28,10 +28,10 @@ export default function HistoryManagementSidebar({
   const { openClearHistoryModal, openPauseHistoryModal } = useModal();
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Search History */}
       <div>
-        <label className="block text-sm font-medium text-text-secondary mb-2">
+        <label className="block text-xs font-medium text-text-secondary mb-2">
           Search History
         </label>
         <div className="relative">

@@ -10,6 +10,8 @@ import { useModal } from '@/contexts/ModalContext';
 import { usePurchase } from '@/contexts/PurchaseContext';
 import PlaylistCard from '@/components/ui/PlaylistCard';
 import { getAllPlaylists } from '@/data/mockData';
+import { formatTimeAgo, formatViews, formatDuration } from '@/lib/utils';
+import { PRIORITY_VIDEO_IDS_DEMO } from '@/config/viewerConstants';
 
 export default function HomePage() {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -63,15 +65,9 @@ export default function HomePage() {
           console.log('Videos loaded:', data.videos?.length || 0);
           
           // Sort videos to prioritize test videos at the top
-          const TEST_VIDEO_IDS = [
-            'twinkle_live_video_test',
-            'twinkle_paid_content',
-            'twinkle_membership_content',
-          ];
-          
           const sortedVideos = (data.videos || []).sort((a: Video, b: Video) => {
-            const aIsTest = TEST_VIDEO_IDS.includes(a.id);
-            const bIsTest = TEST_VIDEO_IDS.includes(b.id);
+            const aIsTest = PRIORITY_VIDEO_IDS_DEMO.includes(a.id);
+            const bIsTest = PRIORITY_VIDEO_IDS_DEMO.includes(b.id);
             
             if (aIsTest && !bIsTest) return -1; // 'a' comes first
             if (!aIsTest && bIsTest) return 1;  // 'b' comes first
@@ -94,43 +90,6 @@ export default function HomePage() {
     }
     loadVideos();
   }, [user]);
-
-  const formatTimeAgo = (date: Date) => {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - new Date(date).getTime()) / 1000);
-    
-    if (diffInSeconds < 60) return 'just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
-    if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} months ago`;
-    return `${Math.floor(diffInSeconds / 31536000)} years ago`;
-  };
-
-  // Format view count to compact format (e.g., 100K, 1.2M)
-  const formatViews = (views: number): string => {
-    if (views >= 1000000) {
-      return `${(views / 1000000).toFixed(1)}M`;
-    }
-    if (views >= 1000) {
-      return `${(views / 1000).toFixed(0)}K`;
-    }
-    return views.toString();
-  };
-
-  // Format duration in seconds to MM:SS or HH:MM:SS format
-  const formatDuration = (seconds: number): string => {
-    if (!seconds || seconds <= 0) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
 
   if (loading) {
     return (
@@ -218,13 +177,6 @@ export default function HomePage() {
               To add videos to your feed, you can:
             </p>
             <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
-              <a
-                href="/admin/import"
-                className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 text-sm"
-              >
-                Import YouTube Channel
-              </a>
-              <span className="text-text-secondary text-sm">or</span>
               <a
                 href="/studio"
                 className="px-4 py-2 bg-surface text-text-primary rounded-lg hover:bg-surface/80 text-sm border border-surface"
@@ -487,7 +439,6 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                 ref={menuRef}
                 className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
                 onClick={(e) => e.stopPropagation()}
-                style={{ zIndex: 9999 }}
               >
                 <button
                   onClick={(e) => {

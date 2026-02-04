@@ -15,6 +15,7 @@ import { ReportModal } from "@/components/modals/ReportModal";
 import { PurchaseFlowModal } from "@/components/modals/PurchaseFlowModal";
 import { ClearHistoryModal } from "@/components/history/ClearHistoryModal";
 import { PauseHistoryModal } from "@/components/history/PauseHistoryModal";
+import { AuthModalWrapper } from "@/components/AuthModalWrapper";
 
 export const metadata: Metadata = {
   title: "Twinkle",
@@ -44,6 +45,7 @@ export default function RootLayout({
                   <ShareModal />
                   <ReportModal />
                   <PurchaseFlowModal />
+                  <AuthModalWrapper />
                   <ClearHistoryModal />
                   <PauseHistoryModal />
                 </ModalProvider>

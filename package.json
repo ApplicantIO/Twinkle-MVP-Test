@@ -13,7 +13,6 @@
     "prisma:studio": "prisma studio",
     "postinstall": "prisma generate",
     "setup": "npm install && npx prisma generate && npx prisma db push && mkdir -p public/uploads/profiles public/uploads/banners public/uploads/thumbnails",
-    "import:youtube": "tsx scripts/import-youtube-creator.ts",
     "check:videos": "tsx scripts/check-videos.ts",
     "setup:twinkle": "tsx scripts/setup-twinkle-creator.ts",
     "reset:user": "tsx scripts/reset-default-user.ts"

@@ -14,10 +14,16 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { useModal } from '@/contexts/ModalContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatRelativeTime, formatExactDate } from '@/lib/utils';
+import { formatRelativeTime, formatExactDate, formatTimeAgo, formatViews, formatDuration } from '@/lib/utils';
 import VideoDescription from '@/components/VideoDescription';
 import { getAllPlaylists } from '@/data/mockData';
 import { updateWatchHistory, savePlaylistProgress } from '@/lib/watchHistory';
+import { DONATION_MIN_UZS, DONATION_RECOMMENDED_UZS, DEFAULT_SAVED_CARDS_DEMO } from '@/config/viewerConstants';
+import { WatchPageAboveFold } from '@/components/watch/WatchPageAboveFold';
+import { WatchPageRelated, type RecommendedTabType } from '@/components/watch/WatchPageRelated';
+import { WatchPageInlineModals } from '@/components/watch/WatchPageInlineModals';
+import { WatchPageComments, WatchPageCommentsTabs } from '@/components/watch/WatchPageComments';
+import { WatchPageDonation } from '@/components/watch/WatchPageDonation';
 
 interface Comment {
   id: string;
@@ -87,8 +93,6 @@ export default function WatchPage() {
   const prevNewCardExpiryRef = useRef<string>('');
   const [isSending, setIsSending] = useState(false);
   const [countdownTime, setCountdownTime] = useState(0);
-  const MIN_DONATION_AMOUNT = 5000;
-  const recommendedAmounts = [5000, 10000, 20000, 50000];
   const [isAnonymousDonation, setIsAnonymousDonation] = useState(false);
   const [paymentCategory, setPaymentCategory] = useState<'card' | 'ewallet'>('card');
   const [cardNumber, setCardNumber] = useState('');
@@ -102,10 +106,7 @@ export default function WatchPage() {
   const [isCardFormActive, setIsCardFormActive] = useState(false);
   const [saveCardEnabled, setSaveCardEnabled] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
-  const [savedCards, setSavedCards] = useState([
-    { id: '1', type: 'UzCard', last4: '1234', cardName: 'Uy Karta', maskedNumber: '**** 4321' },
-    { id: '2', type: 'HUMO', last4: '5678', cardName: 'Ish Karta', maskedNumber: '**** 8765' },
-  ]);
+  const [savedCards, setSavedCards] = useState(DEFAULT_SAVED_CARDS_DEMO);
   const [openCardMenuId, setOpenCardMenuId] = useState<string | null>(null);
   const [addCardStep, setAddCardStep] = useState<'name' | 'details' | 'verification'>('name');
   const [cardName, setCardName] = useState('');
@@ -1124,36 +1125,6 @@ export default function WatchPage() {
   }, [openMenuVideoId]);
 
 
-  const formatTimeAgo = (date: Date | string) => {
-    const now = new Date();
-    // Convert to Date object if it's a string
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    const diffInSeconds = Math.floor((now.getTime() - dateObj.getTime()) / 1000);
-    
-    if (diffInSeconds < 60) return 'just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-    return `${Math.floor(diffInSeconds / 604800)}w ago`;
-  };
-
-  const formatViews = (views: number) => {
-    if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
-    if (views >= 1000) return `${(views / 1000).toFixed(1)}K`;
-    return views.toString();
-  };
-
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const handleLike = () => {
     if (isLiked) {
       setLikes(likes - 1);
@@ -1677,7 +1648,7 @@ export default function WatchPage() {
       return;
     }
     const amount = parseInt(donationAmount);
-    if (amount < MIN_DONATION_AMOUNT) {
+    if (amount < DONATION_MIN_UZS) {
       return; // Don't generate invoice if below minimum
     }
     const isEwallet = ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod);
@@ -1726,7 +1697,7 @@ export default function WatchPage() {
     }
 
     const amount = parseInt(donationAmount);
-    if (amount < MIN_DONATION_AMOUNT) {
+    if (amount < DONATION_MIN_UZS) {
       return;
     }
 
@@ -2170,7 +2141,7 @@ export default function WatchPage() {
               <Input
                 type="text"
                 inputMode="numeric"
-                placeholder={`Minimal miqdor: ${MIN_DONATION_AMOUNT.toLocaleString()} UZS`}
+                placeholder={`Minimal miqdor: ${DONATION_MIN_UZS.toLocaleString()} UZS`}
                 value={formatNumberWithCommas(donationAmount)}
                 onChange={handleDonationAmountChange}
                 onKeyDown={(e) => {
@@ -2548,7 +2519,7 @@ export default function WatchPage() {
           disabled={
             paymentProcessing ||
             !donationAmount ||
-            parseInt(donationAmount) < MIN_DONATION_AMOUNT ||
+            parseInt(donationAmount) < DONATION_MIN_UZS ||
             (!selectedPaymentMethod && !isNewCardValid())
           }
           className="w-full h-10 bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
@@ -2874,7 +2845,7 @@ export default function WatchPage() {
     // If donation is enabled, validate payment method and minimum amount
     if (donationAmount && selectedPaymentMethod) {
       const amount = parseInt(donationAmount);
-      if (amount < MIN_DONATION_AMOUNT) {
+      if (amount < DONATION_MIN_UZS) {
         return; // Don't submit if below minimum
       }
       const isEwallet = ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod);
@@ -3077,6 +3048,33 @@ export default function WatchPage() {
   const handleCloseNotifications = () => {
     setIsNotificationsModalOpen(false);
   };
+
+  const handlePurchaseCompleteFromCTA = useCallback(() => {
+    if (currentPlaylist && currentPlaylist.price) {
+      if (typeof window !== 'undefined') {
+        const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
+        if (!purchasedPlaylists.includes(currentPlaylist.id)) {
+          purchasedPlaylists.push(currentPlaylist.id);
+          localStorage.setItem('purchasedPlaylists', JSON.stringify(purchasedPlaylists));
+          window.dispatchEvent(new CustomEvent('playlistPurchased', { detail: { playlistId: currentPlaylist.id } }));
+        }
+      }
+      if (typeof window !== 'undefined') window.location.reload();
+    } else if (video) {
+      setHasPurchasedVideoLocal(true);
+      if (typeof window !== 'undefined') {
+        const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
+        if (!purchasedVideos.includes(video.id)) {
+          purchasedVideos.push(video.id);
+          localStorage.setItem('purchasedVideos', JSON.stringify(purchasedVideos));
+          window.dispatchEvent(new CustomEvent('videoPurchased', { detail: { videoId: video.id } }));
+        }
+      }
+      setCurrentWatchVideo({ ...video, videoUrl: video.fullVideoUrl || video.videoUrl });
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) setIsCommentsOpen(true);
+      else setTimeout(() => commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }
+  }, [currentPlaylist, video]);
 
   // Comment report confirmation timeout
   useEffect(() => {
@@ -3661,1232 +3659,94 @@ export default function WatchPage() {
       <div className="flex-grow space-y-4 min-w-0 max-w-full overflow-y-auto overflow-x-hidden scrollbar-hide">
           {/* Video Player Placeholder - CRITICAL: Always render on watch page to provide portal target */}
           {/* CentralizedVideoPlayer always renders full-size on watch page, ignoring miniplayer state */}
-          <div className="relative w-full aspect-video">
-            <div 
-              id="video-player-placeholder" 
-              className="absolute inset-0"
-            >
-              {/* Placeholder maintains space for the centralized VideoPlayer */}
-              {/* The actual VideoPlayer is rendered here via React Portal from MainLayout */}
-            </div>
-            
-            {/* Share Modal - Centered in Video Player Area */}
-            {isShareModalOpen && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg">
-                {/* Backdrop Overlay */}
-                <div 
-                  className="absolute inset-0 bg-black/70 rounded-lg"
-                  onClick={() => setIsShareModalOpen(false)}
-                />
-                
-                {/* Modal */}
-                <div
-                  ref={shareModalRef}
-                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-lg w-full mx-4"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Close Button */}
-                  <button
-                    onClick={() => setIsShareModalOpen(false)}
-                    className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors"
-                    aria-label="Close share modal"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-
-                  {/* Copy Link Section */}
-                  <div className="mb-5 pr-8">
-                    <label className="text-xs font-medium text-text-secondary mb-2 block">
-                      Share link
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="text"
-                        value={getVideoUrl()}
-                        readOnly
-                        className="flex-1 bg-background border-surface text-text-primary text-sm"
-                      />
-                      <Button
-                        onClick={handleCopyLink}
-                        size="sm"
-                        className={`rounded-full gap-2 ${
-                          isLinkCopied
-                            ? 'bg-green-600 hover:bg-green-700'
-                            : 'bg-accent hover:bg-accent/90 text-white'
-                        }`}
-                      >
-                        {isLinkCopied ? (
-                          <>
-                            <Check className="h-4 w-4" />
-                            <span className="text-sm">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-4 w-4" />
-                            <span className="text-sm">Copy</span>
-                          </>
-                        )}
-                      </Button>
-              </div>
-            </div>
-            
-                  {/* Social Networks Section */}
-                  <div>
-                    <label className="text-xs font-medium text-text-secondary mb-3 block">
-                      Share to
-                    </label>
-                    <div className="grid grid-cols-4 gap-3">
-                      {socialNetworks.map((network) => (
-                        <a
-                          key={network.name}
-                          href={network.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => setIsShareModalOpen(false)}
-                          className="flex flex-col items-center gap-2 p-3 rounded-lg bg-background hover:scale-105 border border-surface transition-all duration-200 group cursor-pointer"
-                        >
-                          <div className={`w-10 h-10 rounded-full ${network.color} flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:shadow-lg transition-shadow`}>
-                            {network.icon}
-                          </div>
-                          <span className="text-xs text-text-secondary group-hover:text-text-primary text-center leading-tight font-medium">
-                            {network.name}
-                          </span>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Report Modal - Centered in Video Player Area */}
-            {reportStep !== 'CLOSED' && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg">
-                {/* Backdrop Overlay - No blur, clean solid overlay */}
-                <div 
-                  className="absolute inset-0 bg-black/80 rounded-lg"
-                  style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
-                  onClick={handleCloseReport}
-                />
-                
-                {/* Modal */}
-                <div
-                  ref={reportModalRef}
-                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Close Button */}
-                  <button
-                    onClick={handleCloseReport}
-                    className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors z-10"
-                    aria-label="Close report modal"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-
-                  {/* Step 1: Select Reason */}
-                  {reportStep === 'SELECT_REASON' && (
-                    <div className="flex flex-col h-full">
-                      <div className="flex items-center gap-3 mb-4">
-                        <button
-                          onClick={handleBackReport}
-                          className="p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors"
-                          aria-label="Back"
-                        >
-                          <ArrowLeft className="h-5 w-5" />
-                        </button>
-                        <h2 className="text-lg font-semibold text-text-primary">Report video</h2>
-                      </div>
-                      <div className="flex-1 overflow-y-auto pr-2">
-                        <p className="text-sm text-text-secondary mb-4">
-                          Tell us why you're reporting this video
-                        </p>
-                        <div className="flex flex-col gap-1">
-                          {reportReasons.map((reason) => (
-                            <button
-                              key={reason}
-                              onClick={() => handleReportReasonSelect(reason)}
-                              className="flex items-center gap-3 p-3 rounded-lg hover:bg-background text-text-primary transition-colors text-left"
-                            >
-                              <span className="font-medium">{reason}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Step 3: Write Details */}
-                  {reportStep === 'WRITE_DETAILS' && (
-                    <div className="flex flex-col h-full">
-                      <div className="flex items-center gap-3 mb-4">
-                        <button
-                          onClick={handleBackReport}
-                          className="p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors"
-                          aria-label="Back"
-                        >
-                          <ArrowLeft className="h-5 w-5" />
-                        </button>
-                        <h2 className="text-lg font-semibold text-text-primary">{reportReason}</h2>
-                      </div>
-                      <div className="flex-1 flex flex-col mb-4">
-                        <label className="text-sm font-medium text-text-secondary mb-2 block">
-                          Additional details <span className="text-red-500">*</span>
-                        </label>
-                        <Textarea
-                          value={reportDetails}
-                          onChange={(e) => setReportDetails(e.target.value)}
-                          placeholder="Provide more information about why you're reporting this video..."
-                          className="flex-1 min-h-[120px] bg-background border-surface text-text-primary placeholder:text-text-secondary resize-none"
-                          required
-                        />
-                      </div>
-                      <div className="flex gap-3">
-                        <Button
-                          onClick={handleBackReport}
-                          variant="outline"
-                          className="flex-1 rounded-full border-surface bg-background hover:bg-surface hover:border-surface"
-                        >
-                          Back
-                        </Button>
-                        <Button
-                          onClick={handleReportSubmit}
-                          disabled={!reportDetails.trim()}
-                          className="flex-1 rounded-full bg-accent hover:bg-accent/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Submit
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Step 4: Submission Confirmation */}
-                  {reportStep === 'SUBMITTED_CONFIRMATION' && (
-                    <div className="flex flex-col items-center justify-center min-h-[300px] py-8">
-                      <div className="flex flex-col items-center gap-4 opacity-0 animate-[fadeIn_0.3s_ease-in-out_forwards]">
-                        <div className="relative">
-                          <CheckCircle2 className="h-20 w-20 text-green-500" />
-                        </div>
-                        <div className="text-center">
-                          <h2 className="text-xl font-semibold text-text-primary mb-2">
-                            Report Submitted
-                          </h2>
-                          <p className="text-sm text-text-secondary">
-                            Thank you for your feedback.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Notifications Modal - Only show when player placeholder is visible */}
-          {!isMiniplayerActive && isNotificationsModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-                {/* Backdrop Overlay - No blur, clean solid overlay */}
-                <div 
-                className="absolute inset-0 bg-black/80"
-                  style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
-                  onClick={handleCloseNotifications}
-                />
-                
-                {/* Modal */}
-                <div
-                  ref={notificationsModalRef}
-                  className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-md w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Close Button */}
-                  <button
-                    onClick={handleCloseNotifications}
-                    className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-background text-text-secondary hover:text-text-primary transition-colors z-10"
-                    aria-label="Close notifications modal"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-
-                  {/* Notifications Settings */}
-                  <div className="flex flex-col h-full">
-                    <h2 className="text-lg font-semibold text-text-primary mb-4 pr-8">Notifications</h2>
-                    <div className="flex-1 flex flex-col">
-                      <p className="text-sm text-text-secondary mb-4">
-                        Choose how you want to be notified about new content from this channel
-                      </p>
-                      <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => setNotificationState('ALL')}
-                          className={`flex items-center justify-between gap-3 p-3 rounded-lg transition-colors text-left ${
-                            notificationState === 'ALL'
-                              ? 'bg-background border border-white/20'
-                              : 'hover:bg-background border border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Bell className="h-5 w-5 text-text-secondary fill-current" />
-                            <div className="flex flex-col">
-                              <span className="font-medium text-text-primary">All notifications</span>
-                              <span className="text-xs text-text-secondary">Get notified about all new videos and posts</span>
-                            </div>
-                          </div>
-                          {notificationState === 'ALL' && (
-                            <Check className="h-5 w-5 text-white" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setNotificationState('NONE')}
-                          className={`flex items-center justify-between gap-3 p-3 rounded-lg transition-colors text-left ${
-                            notificationState === 'NONE'
-                              ? 'bg-background border border-white/20'
-                              : 'hover:bg-background border border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <BellOff className="h-5 w-5 text-text-secondary" />
-                            <div className="flex flex-col">
-                              <span className="font-medium text-text-primary">No notifications</span>
-                              <span className="text-xs text-text-secondary">Don't send me any notifications</span>
-                            </div>
-                          </div>
-                          {notificationState === 'NONE' && (
-                            <Check className="h-5 w-5 text-white" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setNotificationState('PERSONALIZED')}
-                          className={`flex items-center justify-between gap-3 p-3 rounded-lg transition-colors text-left ${
-                            notificationState === 'PERSONALIZED'
-                              ? 'bg-background border border-white/20'
-                              : 'hover:bg-background border border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Bell className="h-5 w-5 text-text-secondary" />
-                            <div className="flex flex-col">
-                              <span className="font-medium text-text-primary">Personalized</span>
-                              <span className="text-xs text-text-secondary">Only notify me about content I might like</span>
-                            </div>
-                          </div>
-                          {notificationState === 'PERSONALIZED' && (
-                            <Check className="h-5 w-5 text-white" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-          {/* Video Title */}
-          <h1 className="text-xl font-semibold text-text-primary">{video.title}</h1>
-          
-          {/* Action Row */}
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            {/* Left Group: Creator Profile & Subscribe */}
-            <div className="flex items-center gap-3 flex-shrink-0">
-              {/* Avatar */}
-              <Link href={`/creator/${video.userId}`}>
-                  {video.user?.profileImageUrl ? (
-                    <img
-                      src={video.user.profileImageUrl}
-                      alt={video.user.name || 'Creator'}
-                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                    />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center flex-shrink-0">
-                    <User className="h-5 w-5 text-text-secondary" />
-                  </div>
-                )}
-              </Link>
-              
-              {/* Channel Name / Subscriber Count */}
-              <div className="flex-shrink-0">
-                <Link href={`/creator/${video.userId}`}>
-                  <h3 className="font-medium text-text-primary hover:text-white whitespace-nowrap">
-                    {video.user?.name || 'Unknown Creator'}
-                  </h3>
-                </Link>
-                <p className="text-xs text-text-secondary whitespace-nowrap">
-                  {subscribersCount.toLocaleString()} subscribers
-                </p>
-              </div>
-              
-              {/* Subscription Button - Multi-state */}
-              {!isSubscribed && (
-                <Button
-                  onClick={handleSubscribe}
-                  className="rounded-full h-10 px-4 bg-accent hover:bg-accent/90 text-white transition-all duration-300 flex-shrink-0 whitespace-nowrap"
-                >
-                Subscribe
-              </Button>
-              )}
-              {isSubscribed && isAnimating && (
-                <Button
-                  disabled
-                  className="rounded-full h-10 px-4 bg-green-600 text-white transition-all duration-300 flex-shrink-0 whitespace-nowrap"
-                >
-                  Subscribed 🎉
-                </Button>
-              )}
-            </div>
-            
-            {/* Right Group: Action Buttons (Like, Share, Save, More) */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Like/Dislike */}
-              <div className="flex items-center gap-1 bg-surface rounded-full p-1 h-10">
-                <Button
-                  variant="ghost"
-                  onClick={handleLike}
-                  className={`rounded-full gap-2 h-10 px-4 ${
-                    isLiked 
-                      ? 'text-text-primary' 
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  <ThumbsUp className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
-                  <span className={`text-sm font-medium ${isLiked ? 'text-text-primary' : ''}`}>
-                    {likes.toLocaleString()}
-                  </span>
-                </Button>
-                <div className="w-px h-6 bg-background" />
-                <Button
-                  variant="ghost"
-                  onClick={handleDislike}
-                  className={`rounded-full h-10 px-3 ${
-                    isDisliked 
-                      ? 'text-text-primary' 
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  <ThumbsDown className={`h-5 w-5 ${isDisliked ? 'fill-current' : ''}`} />
-                </Button>
-              </div>
-
-              {/* Share */}
-              <Button
-                variant="ghost"
-                onClick={() => setIsShareModalOpen(!isShareModalOpen)}
-                className="rounded-full h-10 w-10 p-0 text-text-secondary hover:text-text-primary hover:bg-surface"
-              >
-                <Share2 className="h-5 w-5" />
-              </Button>
-
-              {/* Save/Playlist */}
-              <Button
-                variant="ghost"
-                onClick={handleSave}
-                className={`rounded-full h-10 w-10 p-0 hover:bg-surface ${
-                  isSaved 
-                    ? 'text-text-primary' 
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <Bookmark className={`h-5 w-5 ${isSaved ? 'fill-current' : ''}`} />
-              </Button>
-
-              {/* Comment Icon Button (Mobile only) - Disabled if no access */}
-              <Button
-                variant="ghost"
-                onClick={() => setIsCommentsOpen(true)}
-                disabled={!hasFullAccess}
-                className={`lg:hidden rounded-full h-10 w-10 p-0 hover:bg-surface ${
-                  !hasFullAccess
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-                title={!hasFullAccess ? 'Comments unavailable for restricted content' : 'Open comments'}
-              >
-                <MessageSquare className="h-5 w-5" />
-              </Button>
-
-              {/* More */}
-              <div className="relative">
-                <Button
-                  ref={moreButtonRef}
-                  variant="ghost"
-                  onClick={handleMoreMenuClick}
-                  className="rounded-full h-10 w-10 p-0 text-text-secondary hover:text-text-primary hover:bg-surface"
-                >
-                  <MoreVertical className="h-5 w-5" />
-                </Button>
-                
-                {/* More Menu Popup */}
-                {isMoreMenuOpen && (
-                  <div
-                    ref={moreMenuRef}
-                    className="absolute bottom-full right-0 mb-2 w-48 bg-surface border border-surface rounded-lg shadow-xl z-50 overflow-hidden"
-                  >
-                    <div className="flex flex-col py-1">
-                      {isSubscribed && (
-                        <button
-                          onClick={handleNotificationsClick}
-                          className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-background text-text-primary transition-colors text-left"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Bell className={`h-5 w-5 text-text-secondary ${notificationState === 'ALL' ? 'fill-current' : ''}`} />
-                            <span className="font-medium text-sm">Notifications</span>
-                          </div>
-                          {notificationState === 'ALL' && (
-                            <Check className="h-4 w-4 text-white" />
-                          )}
-                        </button>
-                      )}
-                      <button
-                        onClick={handleReportClick}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-background text-text-primary transition-colors text-left"
-                      >
-                        <Flag className="h-5 w-5 text-text-secondary" />
-                        <span className="font-medium text-sm">Report</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Description with Views, Date, and Merch */}
-          <VideoDescription
-            views={video.views}
-            createdAt={video.createdAt}
-            description={video.description}
+          <WatchPageAboveFold
+            video={video}
+            currentPlaylist={currentPlaylist}
+            hasFullAccess={hasFullAccess}
+            shareModalRef={shareModalRef}
+            reportModalRef={reportModalRef}
+            notificationsModalRef={notificationsModalRef}
+            moreButtonRef={moreButtonRef}
+            moreMenuRef={moreMenuRef}
+            commentsSectionRef={commentsSectionRef}
+            likes={likes}
+            dislikes={dislikes}
+            isLiked={isLiked}
+            isDisliked={isDisliked}
+            isSubscribed={isSubscribed}
+            isSaved={isSaved}
+            subscribersCount={subscribersCount}
+            notificationState={notificationState}
+            isAnimating={isAnimating}
+            isShareModalOpen={isShareModalOpen}
+            onShareModalToggle={() => setIsShareModalOpen(!isShareModalOpen)}
+            isMoreMenuOpen={isMoreMenuOpen}
+            onMoreMenuClick={handleMoreMenuClick}
+            isNotificationsModalOpen={isNotificationsModalOpen}
+            isMiniplayerActive={isMiniplayerActive}
+            onLike={handleLike}
+            onDislike={handleDislike}
+            onSubscribe={handleSubscribe}
+            onSave={handleSave}
+            onOpenComments={() => setIsCommentsOpen(true)}
+            onNotificationsClick={handleNotificationsClick}
+            onCloseNotifications={handleCloseNotifications}
+            onReportClick={handleReportClick}
+            inlineModalsProps={{
+              shareModalRef,
+              reportModalRef,
+              notificationsModalRef,
+              isShareModalOpen,
+              onCloseShare: () => setIsShareModalOpen(false),
+              getVideoUrl,
+              isLinkCopied,
+              onCopyLink: handleCopyLink,
+              reportStep,
+              reportReason,
+              reportDetails,
+              onReportReasonSelect: handleReportReasonSelect,
+              onReportSubmit: handleReportSubmit,
+              onCloseReport: handleCloseReport,
+              onBackReport: handleBackReport,
+              onReportDetailsChange: setReportDetails,
+              isNotificationsModalOpen,
+              onCloseNotifications: handleCloseNotifications,
+              notificationState,
+              onNotificationStateChange: setNotificationState,
+              isMiniplayerActive,
+            }}
+            onPurchaseComplete={handlePurchaseCompleteFromCTA}
           />
 
-          {/* Monetization CTA Section - Replace comments area when access restricted */}
-          {!hasFullAccess && (
-            <div className="lg:hidden">
-              <MonetizationCTASection 
-                video={currentPlaylist && currentPlaylist.price ? {
-                  // If video belongs to paid playlist, show playlist info
-                  id: currentPlaylist.id,
-                  userId: currentPlaylist.creatorId || 'playlist-creator',
-                  title: currentPlaylist.title,
-                  description: currentPlaylist.description,
-                  videoUrl: '',
-                  views: 0,
-                  createdAt: new Date(currentPlaylist.lastUpdated),
-                  updatedAt: new Date(currentPlaylist.lastUpdated),
-                  type: currentPlaylist.isSubscription ? 'subscription' : 'paid',
-                  price: parseInt(currentPlaylist.price.replace(/[^\d]/g, '')) || 50000,
-                  currency: 'UZS',
-                  user: {
-                    id: currentPlaylist.creatorId || 'playlist-creator',
-                    name: currentPlaylist.creatorName,
-                    profileImageUrl: currentPlaylist.creatorAvatar,
-                  },
-                } : video!}
-                isPlaylist={currentPlaylist && currentPlaylist.price ? true : false}
-                onPurchase={() => {
-                  // TODO: Implement purchase flow
-                  if (currentPlaylist && currentPlaylist.price) {
-                    console.log('Purchase clicked for playlist:', currentPlaylist.id);
-                  } else {
-                    console.log('Purchase clicked for video:', video?.id);
-                  }
-                }}
-                onSubscribe={() => {
-                  // TODO: Implement subscription flow
-                  console.log('Subscribe clicked for channel:', video?.userId);
-                }}
-                onPurchaseComplete={() => {
-                  if (currentPlaylist && currentPlaylist.price) {
-                    // Purchase playlist - unlock all videos in playlist
-                    if (typeof window !== 'undefined') {
-                      const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
-                      if (!purchasedPlaylists.includes(currentPlaylist.id)) {
-                        purchasedPlaylists.push(currentPlaylist.id);
-                        localStorage.setItem('purchasedPlaylists', JSON.stringify(purchasedPlaylists));
-                        // Dispatch custom event for global sync
-                        window.dispatchEvent(new CustomEvent('playlistPurchased', { detail: { playlistId: currentPlaylist.id } }));
-                      }
-                    }
-                    // Reload page to update video access
-                    if (typeof window !== 'undefined') {
-                      window.location.reload();
-                    }
-                  } else {
-                    // Purchase individual video
-                    setHasPurchasedVideoLocal(true);
-                    
-                    // Persist purchase to localStorage
-                    if (typeof window !== 'undefined' && video) {
-                      const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
-                      if (!purchasedVideos.includes(video.id)) {
-                        purchasedVideos.push(video.id);
-                        localStorage.setItem('purchasedVideos', JSON.stringify(purchasedVideos));
-                        // Dispatch custom event for global sync
-                        window.dispatchEvent(new CustomEvent('videoPurchased', { detail: { videoId: video.id } }));
-                      }
-                    }
-                    
-                    // Update video URL to full video if available
-                    if (video) {
-                      const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
-                      setCurrentWatchVideo({
-                        ...video,
-                        videoUrl: fullVideoUrl
-                      });
-                    }
-                    
-                    // Open comments section
-                    // On mobile, open the comments overlay
-                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                      setIsCommentsOpen(true);
-                    } else {
-                      // On desktop, scroll to comments section after a brief delay
-                      setTimeout(() => {
-                        if (commentsSectionRef.current) {
-                          commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                      }, 300);
-                    }
-                  }
-                }}
-              />
-          </div>
-          )}
+          <WatchPageRelated
+            video={video}
+            relatedVideos={relatedVideos}
+            currentPlaylist={currentPlaylist}
+            urlPlaylistId={urlPlaylistId}
+            listContext={!!listContext}
+            isPlaylistSession={!!isPlaylistSession}
+            recommendedTab={recommendedTab}
+            setRecommendedTab={setRecommendedTab}
+            playlistActiveTab={playlistActiveTab}
+            setPlaylistActiveTab={setPlaylistActiveTab}
+            isCardViewActive={isCardViewActive}
+            setIsCardViewActive={setIsCardViewActive}
+            columns={columns}
+            hoveredVideo={hoveredVideo}
+            setHoveredVideo={setHoveredVideo}
+            openMenuVideoId={openMenuVideoId}
+            setOpenMenuVideoId={setOpenMenuVideoId}
+            onVideoSwitch={handleVideoSwitch}
+            onSaveToPlaylist={handleRecommendedSaveToPlaylist}
+            onShare={openShareModal}
+            onReport={openReportModal}
+            playlistScrollContainerRef={playlistScrollContainerRef}
+            activePlaylistVideoRef={activePlaylistVideoRef}
+            menuRefs={menuRefs}
+            imageRefs={imageRefs}
+          />
+      </div>
 
-          {/* Recommended Videos Section */}
-          <div className="mt-6 w-full max-w-full">
-            {/* Playlist Link - Show if video belongs to playlist */}
-            {currentPlaylist && (
-              <div className="mb-4">
-                <Link
-                  href={`/playlist/${currentPlaylist.id}`}
-                  className="text-sm text-text-secondary hover:text-accent transition-colors inline-flex items-center gap-1"
-                >
-                  <span>From: {currentPlaylist.title}</span>
-                </Link>
-              </div>
-            )}
-            
-            {/* Tab Navigation - Sticky */}
-            <div className="sticky top-0 z-30 bg-[#0A0A0A] pt-2 pb-1 -mt-2">
-              <div className="flex items-center justify-between gap-4 border-b border-surface/50 w-full">
-                <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide relative">
-                  {/* Scenario A: urlPlaylistId exists - Show ONLY playlist tabs (no standard recommendations) */}
-                  {urlPlaylistId && currentPlaylist ? (
-                    <>
-                      <button
-                        onClick={() => {
-                          setRecommendedTab('playlist');
-                          setPlaylistActiveTab('all');
-                        }}
-                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
-                          recommendedTab === 'playlist' && playlistActiveTab === 'all'
-                            ? 'text-text-primary font-semibold'
-                            : 'text-text-secondary/70 hover:text-text-primary'
-                        }`}
-                      >
-                        All
-                        {recommendedTab === 'playlist' && playlistActiveTab === 'all' && (
-                          <motion.div
-                            layoutId="activeRecommendationTab"
-                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
-                            transition={{
-                              type: "spring",
-                              stiffness: 500,
-                              damping: 30
-                            }}
-                          />
-                        )}
-                      </button>
-                      {currentPlaylist.sections.map((section) => (
-                        <button
-                          key={section.id}
-                          onClick={() => {
-                            setRecommendedTab('playlist');
-                            setPlaylistActiveTab(section.id);
-                          }}
-                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
-                            recommendedTab === 'playlist' && playlistActiveTab === section.id
-                              ? 'text-text-primary font-semibold'
-                              : 'text-text-secondary/70 hover:text-text-primary'
-                          }`}
-                        >
-                          {section.title}
-                          {recommendedTab === 'playlist' && playlistActiveTab === section.id && (
-                            <motion.div
-                              layoutId="activeRecommendationTab"
-                              className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
-                              transition={{
-                                type: "spring",
-                                stiffness: 500,
-                                damping: 30
-                              }}
-                            />
-                          )}
-                        </button>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      {/* Scenario B: Standalone mode - Standard tabs + optional "From Playlist" tab */}
-                      <button
-                        onClick={() => setRecommendedTab('recommendations')}
-                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
-                          recommendedTab === 'recommendations'
-                            ? 'text-text-primary font-semibold'
-                            : 'text-text-secondary/70 hover:text-text-primary'
-                        }`}
-                      >
-                        Recommended
-                        {recommendedTab === 'recommendations' && (
-                          <motion.div
-                            layoutId="activeRecommendationTab"
-                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
-                            transition={{
-                              type: "spring",
-                              stiffness: 500,
-                              damping: 30
-                            }}
-                          />
-                        )}
-                      </button>
-                      
-                      {/* "From Playlist" tab - Only show if video belongs to playlist but NOT in listContext mode */}
-                      {currentPlaylist && !listContext && (
-                        <button
-                          onClick={() => {
-                            setRecommendedTab('playlist');
-                            setPlaylistActiveTab('all');
-                          }}
-                          className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
-                            recommendedTab === 'playlist'
-                              ? 'text-text-primary font-semibold'
-                              : 'text-text-secondary/70 hover:text-text-primary'
-                          }`}
-                          title={currentPlaylist.title}
-                        >
-                          From Playlist
-                          {recommendedTab === 'playlist' && (
-                            <motion.div
-                              layoutId="activeRecommendationTab"
-                              className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
-                              transition={{
-                                type: "spring",
-                                stiffness: 500,
-                                damping: 30
-                              }}
-                            />
-                          )}
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => setRecommendedTab('creator')}
-                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
-                          recommendedTab === 'creator'
-                            ? 'text-text-primary font-semibold'
-                            : 'text-text-secondary/70 hover:text-text-primary'
-                        }`}
-                      >
-                        {video.user?.name || 'Creator'}
-                        {recommendedTab === 'creator' && (
-                          <motion.div
-                            layoutId="activeRecommendationTab"
-                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
-                            transition={{
-                              type: "spring",
-                              stiffness: 500,
-                              damping: 30
-                            }}
-                          />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => setRecommendedTab('topic')}
-                        className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors relative ${
-                          recommendedTab === 'topic'
-                            ? 'text-text-primary font-semibold'
-                            : 'text-text-secondary/70 hover:text-text-primary'
-                        }`}
-                      >
-                        Topic Related
-                        {recommendedTab === 'topic' && (
-                          <motion.div
-                            layoutId="activeRecommendationTab"
-                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
-                            transition={{
-                              type: "spring",
-                              stiffness: 500,
-                              damping: 30
-                            }}
-                          />
-                        )}
-                      </button>
-                    </>
-                  )}
-                </div>
-                
-                {/* View Layout Switcher */}
-                <button
-                  onClick={() => setIsCardViewActive(!isCardViewActive)}
-                  className="flex-shrink-0 p-2 rounded-lg hover:bg-surface/50 text-text-secondary hover:text-text-primary transition-colors"
-                  aria-label={isCardViewActive ? 'Switch to list view' : 'Switch to grid view'}
-                >
-                  {isCardViewActive ? (
-                    <LayoutList className="h-5 w-5" />
-                  ) : (
-                    <LayoutGrid className="h-5 w-5" />
-                  )}
-                </button>
-            </div>
-          </div>
-        
-            {/* Video List/Grid */}
-            <div className="w-full max-w-full">
-            {(() => {
-              // Filter videos based on active tab
-              let filteredVideos: Video[] = [];
-              
-              if (currentPlaylist && recommendedTab === 'playlist') {
-                // Filter by playlist sections (maintaining creator-defined order)
-                const videoMap = new Map(relatedVideos.map(v => [v.id, v]));
-                
-                // Include current video in playlist session mode (to show "Now Playing" indicator)
-                if (isPlaylistSession && video) {
-                  videoMap.set(video.id, video);
-                }
-                
-                if (playlistActiveTab === 'all') {
-                  // Show all videos from playlist in creator-defined order
-                  filteredVideos = currentPlaylist.allVideoIds
-                    .map(id => videoMap.get(id))
-                    .filter((v): v is Video => v !== undefined);
-                } else {
-                  // Show videos from specific section in creator-defined order
-                  const section = currentPlaylist.sections.find(s => s.id === playlistActiveTab);
-                  if (section) {
-                    filteredVideos = section.videoIds
-                      .map(id => videoMap.get(id))
-                      .filter((v): v is Video => v !== undefined);
-                  }
-                }
-              } else if (recommendedTab === 'recommendations') {
-                // Show general recommendations (exclude current video)
-                // In listContext mode, this should never be reached, but add safety check
-                if (listContext && currentPlaylist) {
-                  // Fallback: show playlist videos if somehow in recommendations tab
-                  const videoMap = new Map(relatedVideos.map(v => [v.id, v]));
-                  filteredVideos = currentPlaylist.allVideoIds
-                    .map(id => videoMap.get(id))
-                    .filter((v): v is Video => v !== undefined && v.id !== video?.id);
-                } else {
-                  filteredVideos = relatedVideos.filter(v => v.id !== video?.id).slice(0, 10);
-                }
-              } else if (recommendedTab === 'playlist' && !listContext) {
-                // Scenario B: "From Playlist" tab - Show playlist videos
-                if (currentPlaylist) {
-                  const videoMap = new Map(relatedVideos.map(v => [v.id, v]));
-                  filteredVideos = currentPlaylist.allVideoIds
-                    .map(id => videoMap.get(id))
-                    .filter((v): v is Video => v !== undefined && v.id !== video?.id);
-                } else {
-                  // Fallback: show similar category videos
-                  filteredVideos = relatedVideos
-                    .filter(v => v.id !== video?.id && v.category === video?.category)
-                    .slice(0, 8);
-                }
-              } else if (recommendedTab === 'creator') {
-                // Show creator's other videos
-                filteredVideos = relatedVideos
-                  .filter(v => v.id !== video?.id && v.userId === video?.userId)
-                  .slice(0, 8);
-              } else if (recommendedTab === 'topic') {
-                // Show topic-related videos (same category)
-                filteredVideos = relatedVideos
-                  .filter(v => v.id !== video?.id && v.category === video?.category)
-                  .slice(0, 8);
-              }
-
-              // If no filtered videos, show general recommendations
-              if (filteredVideos.length === 0) {
-                filteredVideos = relatedVideos.filter(v => v.id !== video?.id).slice(0, 10);
-              }
-
-              // Render based on view mode
-              if (isCardViewActive) {
-                // Grid/Card View - Match Homepage styling with dynamic columns
-                return (
-                  <div 
-                    ref={isPlaylistSession && recommendedTab === 'playlist' ? playlistScrollContainerRef : null}
-                    className={isPlaylistSession && recommendedTab === 'playlist'
-                      ? "grid gap-x-0 gap-y-0 overflow-y-auto"
-                      : "grid gap-x-0 gap-y-0"
-                    }
-                    style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-                  >
-                    {filteredVideos.map((relatedVideo) => {
-                      const isHovered = hoveredVideo === relatedVideo.id;
-                      const isMenuOpen = openMenuVideoId === relatedVideo.id;
-                      const isCurrentlyPlaying = video?.id === relatedVideo.id;
-                      const isPlaylistSessionVideo = isPlaylistSession && recommendedTab === 'playlist';
-                      
-                      const videoItemContent = (
-                        <>
-                          {/* Card Container - flat design with uniform neutral hover effect */}
-                          <div 
-                            className={`rounded-xl transition-all duration-200 p-3 relative ${isMenuOpen ? 'z-90' : ''} ${
-                              isCurrentlyPlaying 
-                                ? 'bg-white/10' 
-                                : isHovered 
-                                  ? 'bg-white/10' 
-                                  : 'bg-transparent'
-                            }`}
-                          >
-                            {/* Thumbnail Container */}
-                            <div className="relative w-full aspect-video bg-surface rounded-lg overflow-hidden mb-3">
-                              {relatedVideo.thumbnailUrl ? (
-                                <img
-                                  src={relatedVideo.thumbnailUrl}
-                                  alt={relatedVideo.title}
-                                  className="w-full h-full object-cover"
-                                  crossOrigin="anonymous"
-                                  onLoad={() => {
-                                    // Image loaded - color extraction will happen automatically via effect
-                                  }}
-                                  onError={() => {
-                                    // Image failed to load - skip color extraction
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-surface">
-                                  <span className="text-text-secondary text-xs">No thumbnail</span>
-                                </div>
-                              )}
-                              
-                              {/* Duration Badge */}
-                              {!relatedVideo.isLive && relatedVideo.duration && (
-                                <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold z-20">
-                                  {formatDuration(relatedVideo.duration)}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Video Info - 3-Column Layout like Homepage */}
-                            <div className="flex items-start gap-3 mt-3">
-                              {/* Column 1: Avatar */}
-                              <div className="flex-shrink-0 relative">
-                                {relatedVideo.user?.profileImageUrl ? (
-                                  <img
-                                    src={relatedVideo.user.profileImageUrl}
-                                    alt={relatedVideo.user.name || 'Creator'}
-                                    className="w-10 h-10 rounded-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center"></div>
-                                )}
-                              </div>
-                              
-                              {/* Column 2: Details Block (Flex-Grow) */}
-                              <div className="flex-1 min-w-0 relative">
-                                <h3 className="font-medium text-sm text-text-primary line-clamp-3 mb-1 leading-5">
-                                  {relatedVideo.title}
-                                </h3>
-                                
-                                {/* Channel Name, Views, Date */}
-                                <div className="flex flex-wrap items-center gap-1.5 text-xs text-white/70">
-                                  <span className="line-clamp-1">{relatedVideo.user?.name || 'Unknown Creator'}</span>
-                                  <span>•</span>
-                                  {relatedVideo.isLive ? (
-                                    <span className="text-white font-semibold">
-                                      {relatedVideo.liveViewers ? `${formatViews(relatedVideo.liveViewers)} watching` : 'Live'}
-                                    </span>
-                                  ) : (
-                                    <>
-                                      <span>{formatViews(relatedVideo.views)} views</span>
-                                      <span>•</span>
-                                      <span 
-                                        className="cursor-help"
-                                        title={formatExactDate(relatedVideo.createdAt)}
-                                      >
-                                        {formatTimeAgo(relatedVideo.createdAt)}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {/* Column 3: More Icon (3 dots) */}
-                              <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setOpenMenuVideoId(isMenuOpen ? null : relatedVideo.id);
-                                  }}
-                                  className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
-                                  aria-label="More options"
-                                >
-                                  <MoreVertical className="h-5 w-5" />
-                                </button>
-                                
-                                {/* Dropdown Menu */}
-                                {isMenuOpen && (
-                                  <div
-                                    ref={(el) => {
-                                      menuRefs.current[relatedVideo.id] = el;
-                                    }}
-                                    className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{ zIndex: 9999 }}
-                                  >
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleRecommendedSaveToPlaylist(relatedVideo.id, relatedVideo.title);
-                                        setOpenMenuVideoId(null);
-                                      }}
-                                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
-                                    >
-                                      Save to playlist
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        openShareModal(relatedVideo.id, relatedVideo.title);
-                                        setOpenMenuVideoId(null);
-                                      }}
-                                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
-                                    >
-                                      Share
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        openReportModal(relatedVideo.id, relatedVideo.title);
-                                        setOpenMenuVideoId(null);
-                                      }}
-                                      className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
-                                    >
-                                      Report
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      );
-                      
-                      return isPlaylistSessionVideo ? (
-                        <div
-                          key={relatedVideo.id}
-                          ref={isCurrentlyPlaying ? activePlaylistVideoRef : null}
-                          onClick={() => handleVideoSwitch(relatedVideo.id)}
-                          className={`group cursor-pointer flex flex-col relative w-full ${isMenuOpen ? 'z-90' : ''}`}
-                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
-                          onMouseLeave={() => setHoveredVideo(null)}
-                        >
-                          {videoItemContent}
-                        </div>
-                      ) : (
-                        <Link
-                          key={relatedVideo.id}
-                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
-                          className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-90' : ''}`}
-                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
-                          onMouseLeave={() => setHoveredVideo(null)}
-                        >
-                          {videoItemContent}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                );
-              } else {
-                // List View (Vertical) - Larger thumbnails and More button
-                return (
-                  <div 
-                    ref={isPlaylistSession && recommendedTab === 'playlist' ? playlistScrollContainerRef : null}
-                    className={isPlaylistSession && recommendedTab === 'playlist' 
-                      ? "space-y-0 overflow-y-auto"
-                      : "space-y-0"
-                    }
-                  >
-                    {filteredVideos.map((relatedVideo) => {
-                      const isMenuOpen = openMenuVideoId === relatedVideo.id;
-                      const isCurrentlyPlaying = video?.id === relatedVideo.id;
-                      const isPlaylistSessionVideo = isPlaylistSession && recommendedTab === 'playlist';
-                      
-                      const videoItemContent = (
-                        <>
-                          {/* Thumbnail - Larger on desktop */}
-                          <div className="flex-shrink-0 relative w-40 md:w-64 lg:w-72 aspect-video rounded-lg overflow-hidden bg-surface">
-                            {relatedVideo.thumbnailUrl ? (
-                              <img
-                                ref={(el) => {
-                                  imageRefs.current[relatedVideo.id] = el;
-                                }}
-                                src={relatedVideo.thumbnailUrl}
-                                alt={relatedVideo.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                                crossOrigin="anonymous"
-                                onLoad={() => {
-                                  // Image loaded - color extraction will happen automatically via effect
-                                }}
-                                onError={() => {
-                                  // Image failed to load - skip color extraction
-                                }}
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-surface">
-                                <span className="text-text-secondary text-xs">No thumbnail</span>
-                              </div>
-                            )}
-                            {!relatedVideo.isLive && relatedVideo.duration && (
-                              <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold">
-                                {formatDuration(relatedVideo.duration)}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Video Info - Flex grow with More button */}
-                          <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0 flex flex-col gap-2">
-                              <h4 className="text-base font-medium text-text-primary line-clamp-3 group-hover:text-white transition-colors leading-snug">
-                                {relatedVideo.title}
-                              </h4>
-                              <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
-                                <span>{relatedVideo.user?.name || 'Unknown Creator'}</span>
-                                {relatedVideo.isLive ? (
-                                  <span className="text-white font-semibold">
-                                    {relatedVideo.liveViewers ? `${formatViews(relatedVideo.liveViewers)} watching` : 'Live'}
-                                  </span>
-                                ) : (
-                                  <>
-                                    <span>•</span>
-                                    <span>{formatViews(relatedVideo.views)} views</span>
-                                    <span>•</span>
-                                    <span 
-                                      className="underline decoration-dotted underline-offset-2 cursor-help"
-                                      title={formatExactDate(relatedVideo.createdAt)}
-                                    >
-                                      {formatTimeAgo(relatedVideo.createdAt)}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                              
-                              {/* Video Description - Only in List Layout */}
-                              {!isCardViewActive && relatedVideo.description && (
-                                <p className="text-zinc-400 text-xs line-clamp-2 mt-1">
-                                  {relatedVideo.description}
-                                </p>
-                              )}
-            </div>
-                            
-                            {/* More Button - Right side */}
-                            <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setOpenMenuVideoId(isMenuOpen ? null : relatedVideo.id);
-                                }}
-                                className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10"
-                                aria-label="More options"
-                              >
-                                <MoreVertical className="h-5 w-5" />
-                              </button>
-                              
-                              {/* Dropdown Menu */}
-                              {isMenuOpen && (
-                                <div
-                                  ref={(el) => {
-                                    menuRefs.current[relatedVideo.id] = el;
-                                  }}
-                                  className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{ zIndex: 9999 }}
-                                >
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleRecommendedSaveToPlaylist(relatedVideo.id, relatedVideo.title);
-                                      setOpenMenuVideoId(null);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
-                                  >
-                                    Save to playlist
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      openShareModal(relatedVideo.id, relatedVideo.title);
-                                      setOpenMenuVideoId(null);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
-                                  >
-                                    Share
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      openReportModal(relatedVideo.id, relatedVideo.title);
-                                      setOpenMenuVideoId(null);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
-                                  >
-                                    Report
-                                  </button>
-          </div>
-                              )}
-                            </div>
-                          </div>
-                        </>
-                      );
-                      
-                      return isPlaylistSessionVideo ? (
-                        <div
-                          key={relatedVideo.id}
-                          ref={isCurrentlyPlaying ? activePlaylistVideoRef : null}
-                          onClick={() => handleVideoSwitch(relatedVideo.id)}
-                          className={`flex gap-4 rounded-lg p-3 transition-all duration-200 group relative w-full cursor-pointer ${
-                            isCurrentlyPlaying 
-                              ? 'bg-white/10' 
-                              : hoveredVideo === relatedVideo.id 
-                                ? 'bg-white/10' 
-                                : 'bg-transparent'
-                          }`}
-                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
-                          onMouseLeave={() => setHoveredVideo(null)}
-                        >
-                          {videoItemContent}
-                        </div>
-                      ) : (
-                        <Link
-                          key={relatedVideo.id}
-                          href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
-                          className={`flex gap-4 rounded-lg p-3 transition-colors duration-200 group relative ${
-                            hoveredVideo === relatedVideo.id ? 'bg-white/10' : 'bg-transparent'
-                          }`}
-                          onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
-                          onMouseLeave={() => setHoveredVideo(null)}
-                        >
-                          {videoItemContent}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                );
-              }
-            })()}
-            </div>
-            </div>
-          </div>
-        
       {/* Right Column - Comments Section or Monetization CTA */}
       {/* Desktop: Always show right column */}
       {/* Mobile: Hide by default, show via overlay */}
@@ -5269,7 +4129,7 @@ export default function WatchPage() {
                           !commentText.trim() || 
                           commentText.length > MAX_COMMENT_LENGTH ||
                           (!!donationAmount && !selectedPaymentMethod) ||
-                          (!!donationAmount && parseInt(donationAmount) < MIN_DONATION_AMOUNT) ||
+                          (!!donationAmount && parseInt(donationAmount) < DONATION_MIN_UZS) ||
                           (!!donationAmount && selectedPaymentMethod !== null && ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod) && waitingForPayment)
                         }
                 >

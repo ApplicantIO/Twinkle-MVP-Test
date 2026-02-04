@@ -11,9 +11,10 @@ import { getAllPlaylists } from '@/data/mockData';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
-import AuthModal from '@/components/AuthModal';
+import { useModal } from '@/contexts/ModalContext';
 import { MobileMenu } from './MobileMenu';
 import { cn } from '@/lib/utils';
+import { MOCK_SECONDARY_ACCOUNT } from '@/config/viewerConstants';
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -87,8 +88,7 @@ export function Header() {
   const { setIsCollapsed, isCollapsed } = useSidebar();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
+  const { openAuthModal } = useModal();
   const [language, setLanguage] = useState('en');
   const [appearance, setAppearance] = useState('system');
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'appearance' | 'switchAccount'>('main');
@@ -107,13 +107,6 @@ export function Header() {
   // Use actual user role if available, otherwise default to viewer
   const userRole = (user?.role as 'viewer' | 'creator' | 'admin') || 'viewer';
   
-  // Mock secondary account
-  const mockSecondaryAccount = {
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@example.com',
-  };
-
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const query = searchQuery.trim();
@@ -1224,19 +1217,19 @@ export function Header() {
                   onSelect={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleAccountSelect(mockSecondaryAccount.email);
+                    handleAccountSelect(MOCK_SECONDARY_ACCOUNT.email);
                   }}
                   className="text-text-primary hover:bg-background cursor-pointer flex items-center gap-2"
                 >
                   <div className="h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
-                    {mockSecondaryAccount.firstName.charAt(0)}
+                    {MOCK_SECONDARY_ACCOUNT.firstName.charAt(0)}
                   </div>
                   <div className="flex flex-col flex-1 min-w-0">
                     <span className="text-sm font-medium text-text-primary">
-                      {mockSecondaryAccount.firstName} {mockSecondaryAccount.lastName}
+                      {MOCK_SECONDARY_ACCOUNT.firstName} {MOCK_SECONDARY_ACCOUNT.lastName}
                     </span>
                     <span className="text-xs text-text-secondary truncate">
-                      {mockSecondaryAccount.email}
+                      {MOCK_SECONDARY_ACCOUNT.email}
                     </span>
                   </div>
                 </DropdownMenuItem>
@@ -1266,19 +1259,13 @@ export function Header() {
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              onClick={() => {
-                setAuthModalMode('login');
-                setIsAuthModalOpen(true);
-              }}
+              onClick={() => openAuthModal('signin')}
               className="text-text-secondary hover:text-text-primary"
             >
               Sign In
             </Button>
             <Button
-              onClick={() => {
-                setAuthModalMode('signup');
-                setIsAuthModalOpen(true);
-              }}
+              onClick={() => openAuthModal('signup')}
               className="bg-accent hover:bg-accent/90 text-white"
             >
               Sign Up
@@ -1500,9 +1487,6 @@ export function Header() {
         )}
       </div>
 
-      {/* Auth Modal */}
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} initialMode={authModalMode} />
-      
       {/* Mobile Menu Slide-out */}
       <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
     </header>

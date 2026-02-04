@@ -4,21 +4,11 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { HistoryVideo } from '@/app/history/HistoryPageClient';
 import { Play, MoreVertical, Check } from 'lucide-react';
-import { formatDuration, formatRelativeTime } from '@/lib/utils';
+import { formatDuration, formatRelativeTime, formatViews } from '@/lib/utils';
 
 interface HistoryVideoItemProps {
   video: HistoryVideo;
 }
-
-// Format views count (matches SearchClient formatViews)
-const formatViews = (views: number): string => {
-  if (views >= 1000000) {
-    return `${(views / 1000000).toFixed(1)}M`;
-  } else if (views >= 1000) {
-    return `${(views / 1000).toFixed(0)}K`;
-  }
-  return views.toString();
-};
 
 export default function HistoryVideoItem({ video }: HistoryVideoItemProps) {
   const [isHovered, setIsHovered] = useState(false);

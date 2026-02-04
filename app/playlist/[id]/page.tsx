@@ -9,7 +9,7 @@ import { Share2, Bookmark, MoreVertical, Lock, Crown, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { useModal } from '@/contexts/ModalContext';
 import { usePurchase } from '@/contexts/PurchaseContext';
-import { formatRelativeTime, formatExactDate } from '@/lib/utils';
+import { formatRelativeTime, formatExactDate, formatViews, formatDuration } from '@/lib/utils';
 import { MonetizationCTASection } from '@/components/MonetizationCTASection';
 import { X } from 'lucide-react';
 import { getPlaylistProgress } from '@/lib/watchHistory';
@@ -189,30 +189,6 @@ export default function PlaylistPage() {
   }, [playlist, videos]);
 
   const filteredVideos = getFilteredVideos();
-
-  // Format duration
-  const formatDuration = (seconds: number): string => {
-    if (!seconds || seconds <= 0) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Format views
-  const formatViews = (views: number): string => {
-    if (views >= 1000000) {
-      return `${(views / 1000000).toFixed(1)}M`;
-    }
-    if (views >= 1000) {
-      return `${(views / 1000).toFixed(0)}K`;
-    }
-    return views.toString();
-  };
 
   // Check access (placeholder)
   const hasAccess = false;
@@ -584,7 +560,6 @@ export default function PlaylistPage() {
                             ref={menuRef}
                             className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
                             onClick={(e) => e.stopPropagation()}
-                            style={{ zIndex: 9999 }}
                           >
                             <button
                               onClick={(e) => {

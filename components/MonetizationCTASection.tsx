@@ -1,6 +1,7 @@
 'use client';
 
 import { Video, Transaction } from '@/types';
+import { DEFAULT_SAVED_CARDS_DEMO } from '@/config/viewerConstants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Lock, Crown, Shield, CreditCard, Check, ArrowLeft, CheckCircle2, MoreVertical, X, Download } from 'lucide-react';
@@ -45,11 +46,7 @@ export function MonetizationCTASection({ video, onPurchase, onSubscribe, onPurch
         }
       }
     }
-    // Default cards
-    return [
-      { id: '1', type: 'UzCard', last4: '1234', cardName: 'Uy Karta', maskedNumber: '**** 4321' },
-      { id: '2', type: 'HUMO', last4: '5678', cardName: 'Ish Karta', maskedNumber: '**** 8765' },
-    ];
+    return DEFAULT_SAVED_CARDS_DEMO;
   });
   const [openCardMenuId, setOpenCardMenuId] = useState<string | null>(null);
   const [cardName, setCardName] = useState('');

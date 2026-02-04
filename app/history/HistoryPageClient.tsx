@@ -3,11 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Video } from '@/types';
-import { 
-  WatchHistoryEntry, 
-  WatchHistoryDatabaseEntry,
-  getWatchHistoryFromDatabase 
-} from '@/lib/watchHistory';
+import { WatchHistoryEntry } from '@/lib/watchHistory';
 import HistoryVideoItem from '@/components/history/HistoryVideoItem';
 import HistoryManagementSidebar from '@/components/history/HistoryManagementSidebar';
 import { formatHistoryDate } from '@/lib/utils';
@@ -389,9 +385,9 @@ export default function HistoryPageClient() {
       </div>
 
       {/* Main Content - Two Column Layout */}
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* Left Column - Main History Feed (70-75%) */}
-        <div className="flex-1 min-w-0 lg:w-[72%]">
+      <div className="flex flex-col lg:flex-row gap-8 items-start">
+        {/* Left Column - Main History Feed (flex-1 takes remaining space) */}
+        <div className="flex-1 min-w-0">
           {Object.keys(groupedVideos).length === 0 ? (
             <div className="text-center py-12 text-text-secondary">
               <p>Your watch history is empty.</p>
@@ -415,8 +411,8 @@ export default function HistoryPageClient() {
           )}
         </div>
 
-        {/* Right Sidebar - Management Tools (25-30%) */}
-        <div className="w-full lg:w-[28%] flex-shrink-0">
+        {/* Right Sidebar - Management Tools (Fixed Width) */}
+        <div className="w-full lg:w-[280px] flex-shrink-0">
                   <HistoryManagementSidebar
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}

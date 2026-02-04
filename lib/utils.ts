@@ -127,13 +127,39 @@ function getOrdinalSuffix(day: number): string {
 // Format duration in seconds to "MM:SS" or "HH:MM:SS"
 export function formatDuration(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
-  
+
   const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  
+
   if (hours > 0) {
     return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
   return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Format view count to compact format (e.g. 100K, 1.2M)
+export function formatViews(views: number): string {
+  if (views >= 1000000) {
+    return `${(views / 1000000).toFixed(1)}M`;
+  }
+  if (views >= 1000) {
+    return `${(views / 1000).toFixed(0)}K`;
+  }
+  return views.toString();
+}
+
+// Format date as "time ago" (e.g. "5 minutes ago", "2 days ago")
+export function formatTimeAgo(date: Date | string): string {
+  const now = new Date();
+  const past = typeof date === 'string' ? new Date(date) : date;
+  const diffInSeconds = Math.floor((now.getTime() - past.getTime()) / 1000);
+
+  if (diffInSeconds < 60) return 'just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
+  if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} months ago`;
+  return `${Math.floor(diffInSeconds / 31536000)} years ago`;
 }

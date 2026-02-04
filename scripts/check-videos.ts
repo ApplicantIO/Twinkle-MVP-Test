@@ -11,8 +11,7 @@ async function checkVideos() {
 
     if (videoCount === 0) {
       console.log('❌ No videos found in database.');
-      console.log('   Run the import script first:');
-      console.log('   npm run import:youtube https://www.youtube.com/@ozimizuz\n');
+      console.log('   Upload videos via Creator Studio: /studio\n');
       return;
     }
 

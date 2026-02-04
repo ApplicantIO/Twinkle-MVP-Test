@@ -8,6 +8,7 @@ import { Play, Crown, Lock, Check, ListMusic, MoreVertical } from 'lucide-react'
 import { getAllPlaylists } from '@/data/mockData';
 import { usePurchase } from '@/contexts/PurchaseContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatTimeAgo, formatViews, formatDuration } from '@/lib/utils';
 
 interface ChannelResult {
   id: string;
@@ -99,44 +100,6 @@ export default function SearchClient() {
   const [showAllCreators, setShowAllCreators] = useState(false);
   const [allVideos, setAllVideos] = useState<Video[]>([]);
   const [allPlaylists] = useState<any[]>(() => getAllPlaylists());
-
-  // Format time ago helper
-  const formatTimeAgo = (date: Date) => {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - new Date(date).getTime()) / 1000);
-    
-    if (diffInSeconds < 60) return 'just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
-    if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} months ago`;
-    return `${Math.floor(diffInSeconds / 31536000)} years ago`;
-  };
-
-  // Format view count to compact format (e.g., 100K, 1.2M)
-  const formatViews = (views: number): string => {
-    if (views >= 1000000) {
-      return `${(views / 1000000).toFixed(1)}M`;
-    }
-    if (views >= 1000) {
-      return `${(views / 1000).toFixed(0)}K`;
-    }
-    return views.toString();
-  };
-
-  // Format duration in seconds to MM:SS or HH:MM:SS format
-  const formatDuration = (seconds: number): string => {
-    if (!seconds || seconds <= 0) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
 
   // Format subscriber count
   const formatSubscribers = (count: number): string => {
