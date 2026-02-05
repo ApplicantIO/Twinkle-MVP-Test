@@ -93,7 +93,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <div className="px-4 py-8 md:px-6">
         <div className="text-center text-text-secondary">Loading videos...</div>
       </div>
     );
@@ -101,7 +101,7 @@ export default function HomePage() {
 
   if (error) {
     return (
-      <div className="p-8">
+      <div className="px-4 py-8 md:px-6">
         <div className="text-center">
           <p className="text-error mb-4">{error}</p>
           <button
@@ -132,17 +132,17 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="pt-2 pb-4 md:pt-3 md:pb-6 lg:pt-4 lg:pb-8">
+    <div className="px-4 py-6 md:px-6 md:py-8">
       {/* Mixed Content: Videos and Playlists in one grid */}
       {mixedContent.length > 0 ? (
-        <div className="px-4 lg:px-5">
-          <h1 className="text-2xl font-bold mb-3 text-white">
-        {user ? 'Recommended for you' : 'Recommended'}
-      </h1>
-      <div 
-        className="grid gap-x-0 gap-y-4"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-      >
+        <div>
+          <h1 className="text-2xl font-bold mb-4 text-text-primary">
+            {user ? 'Recommended for you' : 'Recommended'}
+          </h1>
+          <div
+            className="grid gap-4"
+            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+          >
             {mixedContent.map((item) => {
               if (item.type === 'video') {
                 return (
@@ -168,9 +168,9 @@ export default function HomePage() {
               }
             })}
           </div>
-      </div>
+        </div>
       ) : (
-        <div className="text-center py-12 px-4 lg:px-5">
+        <div className="text-center py-12">
           <p className="text-text-secondary mb-4">No videos available yet.</p>
           <div className="space-y-2">
             <p className="text-sm text-text-secondary">
@@ -261,7 +261,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
       {/* Card Container - flat design with uniform neutral hover effect */}
       <div
         className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-90' : ''} ${
-          isHovered ? 'bg-white/10' : 'bg-transparent'
+          isHovered ? 'bg-white/5' : 'bg-transparent'
         }`}
       >
         {/* Thumbnail Container */}
@@ -305,7 +305,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
         
         {/* Duration Badge - Bottom Right Corner (hidden for live videos) */}
         {!video.isLive && video.duration && (
-          <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold z-20">
+          <div className="absolute bottom-2 right-2 bg-background/80 text-text-primary px-1.5 py-0.5 rounded text-xs font-semibold z-20">
             {formatDuration(video.duration)}
           </div>
         )}
@@ -318,7 +318,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
             <div className="flex items-center gap-2">
               {/* Subscription Label - Only show if user doesn't have access */}
               {video.type === 'subscription' && !hasAccess && (
-                <div className="bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                <div className="bg-background/80 backdrop-blur-sm text-text-primary px-2 py-1 rounded-full flex items-center gap-1 text-xs font-semibold">
                   <Crown className="h-3 w-3" />
                   <span>Subscription</span>
                 </div>
@@ -326,7 +326,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
               
               {/* Paid Video Label - Only show if user doesn't have access */}
               {video.type === 'paid' && video.price !== undefined && !hasAccess && (
-                <div className="bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                <div className="bg-background/80 backdrop-blur-sm text-text-primary px-2 py-1 rounded-full flex items-center gap-1 text-xs font-semibold">
                   <Lock className="h-3 w-3" />
                   <span>
                     {video.price.toLocaleString()} {video.currency || 'UZS'}
@@ -336,7 +336,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
               
               {/* LIVE Label - Right side (always last) */}
               {video.isLive && (
-                <div className="bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                <div className="bg-error text-text-primary px-2 py-1 rounded-full flex items-center gap-1 text-xs font-semibold">
                   <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                   <span>LIVE</span>
                 </div>
@@ -352,7 +352,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                 e.stopPropagation();
                 setIsMuted(!isMuted);
               }}
-              className="bg-black/60 backdrop-blur-md text-white p-2 rounded-full hover:bg-black/80 transition-all duration-200"
+              className="bg-background/80 backdrop-blur-md text-text-primary p-2 rounded-full hover:bg-background transition-all duration-200"
               aria-label={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted ? (
@@ -400,11 +400,11 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                 </h3>
             
             {/* Channel Name, Views/Live Viewers, Date - Semi-transparent */}
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-white/70">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-text-secondary">
               <span className="line-clamp-1">{video.user?.name || 'Unknown Creator'}</span>
               <span>•</span>
               {video.isLive ? (
-                <span className="text-white font-semibold">
+                <span className="text-text-primary font-semibold">
                   {video.liveViewers ? `${formatViews(video.liveViewers)} watching` : 'Live'}
                 </span>
               ) : (
@@ -427,7 +427,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                 e.stopPropagation();
                 setIsMenuOpen(!isMenuOpen);
               }}
-              className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+              className="text-text-secondary hover:text-text-primary transition-colors p-1 rounded-full hover:bg-accent/10"
               aria-label="More options"
             >
               <MoreVertical className="h-5 w-5" />
@@ -447,7 +447,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                     setIsMenuOpen(false);
                     // TODO: Implement save to playlist
                   }}
-                  className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                  className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-accent/10 transition-colors"
                 >
                   Save to playlist
                 </button>
@@ -458,7 +458,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                     setIsMenuOpen(false);
                     openShareModal(video.id, video.title);
                   }}
-                  className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                  className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-accent/10 transition-colors"
                 >
                   Share
                 </button>
@@ -469,7 +469,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
                     setIsMenuOpen(false);
                     openReportModal(video.id, video.title);
                   }}
-                  className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-background transition-colors"
+                  className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-accent/10 transition-colors"
                 >
                   Report
                 </button>

@@ -36,14 +36,14 @@ export default function PlaylistCard({ playlist, hoveredPlaylist, setHoveredPlay
       {/* Card Container */}
       <div
         className={`rounded-xl transition-colors duration-200 p-3 relative ${
-          isHovered ? 'bg-white/10' : 'bg-transparent'
+          isHovered ? 'bg-white/5' : 'bg-transparent'
         }`}
       >
         {/* Thumbnail Container with Stack Effect */}
         <div className="relative w-full aspect-video mb-3">
           {/* Stack Background Layers - Twinkle Design System */}
-          <div className="absolute -top-1 -right-1 w-full h-full bg-zinc-800 rounded-xl z-0" />
-          <div className="absolute -top-2 -right-2 w-full h-full bg-zinc-800 rounded-xl z-0" />
+          <div className="absolute -top-1 -right-1 w-full h-full bg-background rounded-xl z-0" />
+          <div className="absolute -top-2 -right-2 w-full h-full bg-background rounded-xl z-0" />
           
           {/* Main Thumbnail */}
           <div className="relative w-full h-full aspect-video bg-surface rounded-xl overflow-hidden">
@@ -66,12 +66,12 @@ export default function PlaylistCard({ playlist, hoveredPlaylist, setHoveredPlay
           {!hasAccess && (playlist.price || playlist.isSubscription) && (
             <div className="absolute top-2 right-2 z-30">
               {playlist.isSubscription ? (
-                <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                <div className="bg-background/80 backdrop-blur-md text-text-primary px-2 py-1 rounded-full flex items-center gap-1 text-xs font-semibold">
                   <Crown className="h-3 w-3" />
                   <span>Subscription</span>
                 </div>
               ) : playlist.price ? (
-                <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded flex items-center gap-1 text-xs font-semibold">
+                <div className="bg-background/80 backdrop-blur-md text-text-primary px-2 py-1 rounded-full flex items-center gap-1 text-xs font-semibold">
                   <Lock className="h-3 w-3" />
                   <span>{playlist.price}</span>
                 </div>
@@ -81,7 +81,7 @@ export default function PlaylistCard({ playlist, hoveredPlaylist, setHoveredPlay
 
           {/* Playlist Type Label - Bottom Right Corner (Same Twinkle Pill Style) */}
           <div className="absolute bottom-2 right-2 z-30">
-            <div className="bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded text-xs font-semibold">
+            <div className="bg-background/80 backdrop-blur-md text-text-primary px-2 py-1 rounded-full text-xs font-semibold">
               {playlist.type}
             </div>
           </div>
@@ -99,7 +99,7 @@ export default function PlaylistCard({ playlist, hoveredPlaylist, setHoveredPlay
             <h3 className="font-medium text-sm text-text-primary line-clamp-2 mb-1 leading-5">
               {playlist.title}
             </h3>
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-white/70">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-text-secondary">
               <span className="line-clamp-1">{playlist.creatorName}</span>
               <span>•</span>
               <span>{playlist.videoCount} videos</span>
