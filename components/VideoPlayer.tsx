@@ -34,6 +34,8 @@ interface VideoPlayerProps {
   hasNext?: boolean;
   onPrevious?: () => void;
   onNext?: () => void;
+  /** When true, miniplayer is inside DraggableMiniplayerContainer which handles positioning/drag */
+  positionedByParent?: boolean;
 }
 
 export function VideoPlayer({
@@ -46,6 +48,7 @@ export function VideoPlayer({
   hasNext = false,
   onPrevious,
   onNext,
+  positionedByParent = false,
 }: VideoPlayerProps) {
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -729,62 +732,83 @@ export function VideoPlayer({
   }, [showSettings]);
 
   // Determine positioning based on route and miniplayer state
-  const isInMiniplayerMode = isMiniplayerActive && !isOnWatchPage;
+  // When positionedByParent, we're inside DraggableMiniplayerContainer (miniplayer mode)
+  const isInMiniplayerMode = positionedByParent || (isMiniplayerActive && !isOnWatchPage);
 
-  // Initialize miniplayer position to bottom-right (default) when entering miniplayer mode
+  // Initialize miniplayer position only when NOT using DraggableMiniplayerContainer
   useEffect(() => {
-    if (isInMiniplayerMode) {
-      // Reset position to default bottom-right when entering miniplayer mode
-      // w-96 = 384px, h-56 = 224px, bottom-4 = 16px, right-4 = 16px
+    if (isInMiniplayerMode && !positionedByParent) {
       const defaultX = typeof window !== 'undefined' ? window.innerWidth - 384 - 16 : 0;
       const defaultY = typeof window !== 'undefined' ? window.innerHeight - 224 - 16 : 0;
       setMiniPlayerPosition({ x: defaultX, y: defaultY });
     }
-  }, [isInMiniplayerMode]);
+  }, [isInMiniplayerMode, positionedByParent]);
 
-  // Handle drag start with hold-to-drag delay (YouTube-style)
+  // Resize: reposition miniplayer on window resize (only when NOT using container)
+  useEffect(() => {
+    if (positionedByParent) return;
+    let timeoutId: NodeJS.Timeout;
+
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (isInMiniplayerMode) {
+          const x = window.innerWidth - 384 - 16;
+          const y = window.innerHeight - 224 - 16;
+          setMiniPlayerPosition({ x, y });
+        }
+      }, 100);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
+  }, [isInMiniplayerMode, positionedByParent]);
+
+  // Handle drag start (only when NOT using DraggableMiniplayerContainer)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (positionedByParent) return;
     if (!isInMiniplayerMode) return;
-    
-    // Prevent drag if clicking on any interactive element
+
     const target = e.target as HTMLElement;
-    
-    // Check if target is an interactive element - if so, don't start drag
-    const isInteractiveElement = 
-      target.closest('button') || 
-      target.closest('input') || 
+
+    // Only allow drag if clicking directly on video element
+    if (target.tagName !== 'VIDEO' && !target.closest('video')) {
+      return;
+    }
+
+    // Prevent drag if clicking on any interactive element
+    const isInteractiveElement =
+      target.closest('button') ||
+      target.closest('input') ||
       target.closest('[role="button"]') ||
       target.closest('.controls-overlay') ||
       target.tagName === 'BUTTON' ||
       target.tagName === 'INPUT' ||
-      (target instanceof HTMLInputElement && target.type === 'range') || // Progress bar
-      target.closest('input[type="range"]') || // Progress bar container
-      target.closest('[class*="pointer-events-auto"]') || // Any element with pointer-events-auto
-      target.closest('[style*="pointer-events: auto"]'); // Inline style with pointer-events
-    
+      (target instanceof HTMLInputElement && target.type === 'range') ||
+      target.closest('input[type="range"]') ||
+      target.closest('[class*="pointer-events-auto"]') ||
+      target.closest('[style*="pointer-events: auto"]');
+
     if (isInteractiveElement) {
-      return; // Don't start drag - let the element handle the click
+      return;
     }
-    
-    // Only allow drag if clicking directly on video element
-    if (target.tagName !== 'VIDEO' && !target.closest('video')) {
-      return; // Not video element, don't drag
-    }
-    
+
     isMouseDownRef.current = true;
     dragStartPos.current = { x: e.clientX, y: e.clientY };
-  
-    // Wait 150ms before enabling drag (hold-to-drag like YouTube)
+
     dragDelayTimeoutRef.current = setTimeout(() => {
       if (isMouseDownRef.current) {
         setIsDragging(true);
-        dragOffset.current = { 
-          x: miniPlayerPositionRef.current.x, 
-          y: miniPlayerPositionRef.current.y 
+        dragOffset.current = {
+          x: miniPlayerPositionRef.current.x,
+          y: miniPlayerPositionRef.current.y,
         };
       }
     }, 150);
-  }, [isInMiniplayerMode]);
+  }, [isInMiniplayerMode, positionedByParent]);
 
   // Handle mouse up - cancel drag
   const handleMouseUp = useCallback(() => {
@@ -803,35 +827,29 @@ export function VideoPlayer({
     if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-
       const deltaX = e.clientX - dragStartPos.current.x;
       const deltaY = e.clientY - dragStartPos.current.y;
 
-      // Calculate new position
       let newX = dragOffset.current.x + deltaX;
       let newY = dragOffset.current.y + deltaY;
 
-      // Boundary constraints - keep player within viewport
       if (typeof window === 'undefined') return;
-      
-      const playerWidth = 384; // w-96 = 384px
-      const playerHeight = 224; // h-56 = 224px
-      const padding = 16; // 4 * 4px = 16px
-      const snapThreshold = 50; // Distance threshold for magnetic snap
 
-      // Clamp to viewport boundaries
+      const playerWidth = 384;
+      const playerHeight = 224;
+      const padding = 16;
+      const snapThreshold = 50;
+
       newX = Math.max(padding, Math.min(newX, window.innerWidth - playerWidth - padding));
       newY = Math.max(padding, Math.min(newY, window.innerHeight - playerHeight - padding));
 
-      // Magnetic snap to left or right edge (YouTube-style)
       const distanceToLeft = newX - padding;
-      const distanceToRight = (window.innerWidth - playerWidth - padding) - newX;
+      const distanceToRight = window.innerWidth - playerWidth - padding - newX;
 
       if (distanceToLeft < snapThreshold) {
-        newX = padding; // Snap to left
+        newX = padding;
       } else if (distanceToRight < snapThreshold) {
-        newX = window.innerWidth - playerWidth - padding; // Snap to right
+        newX = window.innerWidth - playerWidth - padding;
       }
 
       setMiniPlayerPosition({ x: newX, y: newY });
@@ -870,23 +888,25 @@ export function VideoPlayer({
     <div
       ref={containerRef}
       className={`bg-transparent group ${
-        isInMiniplayerMode
+        positionedByParent
+          ? 'relative w-full h-full rounded-xl overflow-hidden'
+          : isInMiniplayerMode
           ? 'fixed w-96 h-56 z-20 rounded-xl overflow-hidden shadow-2xl'
           : isFullscreen
           ? 'relative rounded-none'
           : 'relative w-full rounded-xl overflow-hidden'
-      } ${isDragging ? 'cursor-grabbing' : ''}`}
+      } ${!positionedByParent && isDragging ? 'cursor-grabbing' : ''}`}
       style={
-        isInMiniplayerMode
+        isInMiniplayerMode && !positionedByParent
           ? {
               left: `${miniPlayerPosition.x}px`,
               top: `${miniPlayerPosition.y}px`,
             }
           : undefined
       }
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseMove={handleMouseMove}
+      onMouseDown={positionedByParent ? undefined : handleMouseDown}
+      onMouseUp={positionedByParent ? undefined : handleMouseUp}
+      onMouseMove={positionedByParent ? undefined : handleMouseMove}
       onMouseEnter={() => {
         // Show miniplayer controls on hover
         if (isInMiniplayerMode) {

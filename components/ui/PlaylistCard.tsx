@@ -64,7 +64,7 @@ export default function PlaylistCard({ playlist, hoveredPlaylist, setHoveredPlay
 
           {/* Price/Subscription Label - Top Right Corner (Only show if user doesn't have access) */}
           {!hasAccess && (playlist.price || playlist.isSubscription) && (
-            <div className="absolute top-2 right-2 z-30">
+            <div className="absolute top-2 right-2 z-[5]">
               {playlist.isSubscription ? (
                 <div className="bg-background/80 backdrop-blur-md text-text-primary px-2 py-1 rounded-full flex items-center gap-1 text-xs font-semibold">
                   <Crown className="h-3 w-3" />
@@ -80,7 +80,7 @@ export default function PlaylistCard({ playlist, hoveredPlaylist, setHoveredPlay
           )}
 
           {/* Playlist Type Label - Bottom Right Corner (Same Twinkle Pill Style) */}
-          <div className="absolute bottom-2 right-2 z-30">
+          <div className="absolute bottom-2 right-2 z-[5]">
             <div className="bg-background/80 backdrop-blur-md text-text-primary px-2 py-1 rounded-full text-xs font-semibold">
               {playlist.type}
             </div>

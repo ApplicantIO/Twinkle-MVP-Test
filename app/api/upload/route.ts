@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+import { put } from '@vercel/blob';
 import { verifyToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -41,27 +42,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', user.id);
-    await mkdir(uploadsDir, { recursive: true });
-
-    // Save video file
-    const videoBytes = await videoFile.arrayBuffer();
-    const videoBuffer = Buffer.from(videoBytes);
-    const videoFileName = `${Date.now()}_${videoFile.name}`;
-    const videoPath = join(uploadsDir, videoFileName);
-    await writeFile(videoPath, videoBuffer);
-    const videoUrl = `/uploads/${user.id}/${videoFileName}`;
-
-    // Save thumbnail if provided
+    const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
+    let videoUrl: string;
     let thumbnailUrl: string | null = null;
-    if (thumbnailFile) {
-      const thumbnailBytes = await thumbnailFile.arrayBuffer();
-      const thumbnailBuffer = Buffer.from(thumbnailBytes);
-      const thumbnailFileName = `${Date.now()}_${thumbnailFile.name}`;
-      const thumbnailPath = join(uploadsDir, thumbnailFileName);
-      await writeFile(thumbnailPath, thumbnailBuffer);
-      thumbnailUrl = `/uploads/${user.id}/${thumbnailFileName}`;
+
+    if (useBlob) {
+      // Vercel Blob (production / when token is set)
+      const videoBlob = await put(`videos/${user.id}/${Date.now()}_${videoFile.name}`, videoFile, { access: 'public' });
+      videoUrl = videoBlob.url;
+
+      if (thumbnailFile) {
+        const thumbBlob = await put(`thumbnails/${user.id}/${Date.now()}_${thumbnailFile.name}`, thumbnailFile, { access: 'public' });
+        thumbnailUrl = thumbBlob.url;
+      }
+    } else {
+      // Fallback: local disk (development without Blob token)
+      const uploadsDir = join(process.cwd(), 'public', 'uploads', user.id);
+      await mkdir(uploadsDir, { recursive: true });
+
+      const videoFileName = `${Date.now()}_${videoFile.name}`;
+      const videoBytes = await videoFile.arrayBuffer();
+      await writeFile(join(uploadsDir, videoFileName), Buffer.from(videoBytes));
+      videoUrl = `/uploads/${user.id}/${videoFileName}`;
+
+      if (thumbnailFile) {
+        const thumbnailFileName = `${Date.now()}_${thumbnailFile.name}`;
+        const thumbnailBytes = await thumbnailFile.arrayBuffer();
+        await writeFile(join(uploadsDir, thumbnailFileName), Buffer.from(thumbnailBytes));
+        thumbnailUrl = `/uploads/${user.id}/${thumbnailFileName}`;
+      }
     }
 
     // Create video record

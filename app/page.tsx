@@ -93,7 +93,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="px-4 py-8 md:px-6">
+      <div className="px-2 md:px-4 lg:px-6 py-8">
         <div className="text-center text-text-secondary">Loading videos...</div>
       </div>
     );
@@ -101,7 +101,7 @@ export default function HomePage() {
 
   if (error) {
     return (
-      <div className="px-4 py-8 md:px-6">
+      <div className="px-2 md:px-4 lg:px-6 py-8">
         <div className="text-center">
           <p className="text-error mb-4">{error}</p>
           <button
@@ -132,15 +132,15 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="px-4 py-6 md:px-6 md:py-8">
+    <div className="py-6 md:py-8">
       {/* Mixed Content: Videos and Playlists in one grid */}
       {mixedContent.length > 0 ? (
-        <div>
+        <div className="px-2 md:px-4 lg:px-6">
           <h1 className="text-2xl font-bold mb-4 text-text-primary">
             {user ? 'Recommended for you' : 'Recommended'}
           </h1>
           <div
-            className="grid gap-4"
+            className="grid gap-0"
             style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
           >
             {mixedContent.map((item) => {
@@ -170,7 +170,7 @@ export default function HomePage() {
           </div>
         </div>
       ) : (
-        <div className="text-center py-12">
+        <div className="px-2 md:px-4 lg:px-6 text-center py-12">
           <p className="text-text-secondary mb-4">No videos available yet.</p>
           <div className="space-y-2">
             <p className="text-sm text-text-secondary">
@@ -254,13 +254,13 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
   return (
           <Link
             href={`/watch/${video.id}`}
-      className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-90' : ''}`}
+      className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[10]' : ''}`}
       onMouseEnter={() => setHoveredVideo(video.id)}
       onMouseLeave={() => setHoveredVideo(null)}
     >
       {/* Card Container - flat design with uniform neutral hover effect */}
       <div
-        className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-90' : ''} ${
+        className={`rounded-xl transition-colors duration-200 p-3 relative ${isMenuOpen ? 'z-[10]' : ''} ${
           isHovered ? 'bg-white/5' : 'bg-transparent'
         }`}
       >
@@ -305,13 +305,13 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
         
         {/* Duration Badge - Bottom Right Corner (hidden for live videos) */}
         {!video.isLive && video.duration && (
-          <div className="absolute bottom-2 right-2 bg-background/80 text-text-primary px-1.5 py-0.5 rounded text-xs font-semibold z-20">
+          <div className="absolute bottom-2 right-2 bg-background/80 text-text-primary px-1.5 py-0.5 rounded text-xs font-semibold z-[5]">
             {formatDuration(video.duration)}
           </div>
         )}
         
         {/* Overlays Container - Top Right Corner */}
-        <div className="absolute top-2 right-2 flex flex-col items-end gap-2 z-30">
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-2 z-[5]">
           {/* Labels Container - Horizontal layout when multiple labels exist */}
           {/* Only show badges if content is locked/unpaid OR if it's live */}
           {(video.isLive || (!hasAccess && (video.type === 'subscription' || (video.type === 'paid' && video.price !== undefined)))) && (
@@ -420,7 +420,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
       </div>
           
           {/* Column 3: More Icon (3 dots) - Discreet, doesn't take ambient color */}
-          <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
+          <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[10]' : ''}`}>
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -437,7 +437,7 @@ function VideoCard({ video, hoveredVideo, setHoveredVideo, formatTimeAgo, format
             {isMenuOpen && (
               <div
                 ref={menuRef}
-                className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
+                className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[10]"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button

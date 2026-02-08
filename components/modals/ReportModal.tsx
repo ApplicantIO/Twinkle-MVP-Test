@@ -99,7 +99,7 @@ export function ReportModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[900] flex items-center justify-center">
       {/* Backdrop Overlay - No blur, clean solid overlay */}
       <div 
         className="absolute inset-0 bg-black/80"
@@ -110,7 +110,7 @@ export function ReportModal() {
       {/* Modal */}
       <div
         ref={reportModalRef}
-        className="relative bg-surface border border-surface rounded-lg shadow-xl z-70 p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+        className="relative bg-surface border border-surface rounded-lg shadow-xl z-[901] p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

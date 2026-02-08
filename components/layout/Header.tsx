@@ -18,7 +18,7 @@ export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-background border-b border-surface z-50 flex items-center px-4">
+    <header id="app-header" className="fixed top-0 left-0 right-0 h-16 bg-background border-b border-surface z-[1000] flex items-center px-4">
       {/* Desktop: Menu Toggle Button */}
       <Button
         variant="ghost"
@@ -55,21 +55,21 @@ export function Header() {
           <HeaderProfileMenu user={user} onLogout={logout} />
         ) : (
           <>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
                 onClick={() => openAuthModal('signin')}
-                className="text-text-secondary hover:text-text-primary"
-              >
-                Sign In
-              </Button>
-              <Button
+              className="text-text-secondary hover:text-text-primary"
+            >
+              Sign In
+            </Button>
+            <Button
                 onClick={() => openAuthModal('signup')}
-                className="bg-accent hover:bg-accent/90 text-white"
-              >
-                Sign Up
-              </Button>
-            </div>
+              className="bg-accent hover:bg-accent/90 text-white"
+            >
+              Sign Up
+            </Button>
+          </div>
             <HeaderProfileMenu user={null} onLogout={() => {}} />
           </>
         )}

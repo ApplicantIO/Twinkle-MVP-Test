@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { VideoPlayer } from '@/components/VideoPlayer';
+import { DraggableMiniplayerContainer } from '@/components/DraggableMiniplayerContainer';
 
 /**
  * CentralizedVideoPlayer component
@@ -72,18 +73,21 @@ export function CentralizedVideoPlayer() {
     return null;
   }
 
-  // NOT on watch page: Only render if miniplayer is active
+  // NOT on watch page: Only render if miniplayer is active (via portal + draggable container)
   if (!isOnWatchPage && isMiniplayerActive && miniplayerVideo && currentVideoUrl) {
     return (
-      <VideoPlayer
-        videoUrl={currentVideoUrl}
-        autoPlay
-        thumbnailUrl={currentThumbnailUrl || undefined}
-        video={miniplayerVideo}
-        onProgressUpdate={() => {
-          // Progress is managed by the VideoPlayer component itself
-        }}
-      />
+      <DraggableMiniplayerContainer>
+        <VideoPlayer
+          videoUrl={currentVideoUrl}
+          autoPlay
+          thumbnailUrl={currentThumbnailUrl || undefined}
+          video={miniplayerVideo}
+          positionedByParent
+          onProgressUpdate={() => {
+            // Progress is managed by the VideoPlayer component itself
+          }}
+        />
+      </DraggableMiniplayerContainer>
     );
   }
 

@@ -46,7 +46,7 @@ interface Comment {
 export default function WatchPage() {
   const params = useParams();
   const router = useRouter();
-  const { setIsCollapsed } = useSidebar();
+  const { isCollapsed, setIsCollapsed, setIsBackdropActive } = useSidebar();
   const { setCurrentWatchVideo, setIsMiniplayerActive, isMiniplayerActive } = useMiniplayer();
   const { user } = useAuth();
   const [video, setVideo] = useState<Video | null>(null);
@@ -337,6 +337,16 @@ export default function WatchPage() {
   useEffect(() => {
     setIsCollapsed(true);
   }, [setIsCollapsed]);
+
+  // YouTube-style backdrop: when sidebar is expanded on watch page, show backdrop and signal Sidebar to use higher z
+  useEffect(() => {
+    if (!isCollapsed) {
+      setIsBackdropActive(true);
+    } else {
+      setIsBackdropActive(false);
+    }
+    return () => setIsBackdropActive(false);
+  }, [isCollapsed, setIsBackdropActive]);
 
   // Auto-scroll playlist container to show active video at the top (playlist session mode only)
   useEffect(() => {
@@ -3664,6 +3674,14 @@ export default function WatchPage() {
 
   return (
     <div className="w-full h-[calc(100vh-4rem)] flex gap-4 p-3 overflow-hidden max-w-full">
+      {/* YouTube-style Sidebar Backdrop: dark overlay blocks video when sidebar expanded (desktop only) */}
+      {!isCollapsed && (
+        <div
+          className="fixed inset-0 z-[799] bg-black/60 hidden lg:block"
+          aria-hidden="true"
+          onClick={() => setIsCollapsed(true)}
+        />
+      )}
       {/* Left Column - Video Player and Info */}
       <div className="flex-grow space-y-4 min-w-0 max-w-full overflow-y-auto overflow-x-hidden scrollbar-hide">
           {/* Video Player Placeholder - CRITICAL: Always render on watch page to provide portal target */}
@@ -3830,7 +3848,7 @@ export default function WatchPage() {
       
       {/* Delete Confirmation Modal for Donations */}
       {deleteConfirmModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[900] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-surface border border-surface rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h2 className="text-lg font-semibold text-text-primary mb-4">
               Delete Donation Message
@@ -4107,10 +4125,19 @@ export default function WatchPage() {
         />
       )}
 
-      {/* Mobile Comments Overlay */}
+      {/* Mobile Comments Overlay - Video Player Sidebar with Backdrop */}
       {hasFullAccess && isCommentsOpen && (
-        <div className="fixed inset-0 bg-black/80 z-50 lg:hidden" ref={mobileCommentsSectionRef}>
-          <div className="absolute right-0 top-0 bottom-0 w-[90vw] max-w-[400px] bg-[#1A1A1A] flex flex-col overflow-hidden">
+        <>
+          <div
+            className="fixed inset-0 z-[799] bg-black/50 lg:hidden"
+            aria-hidden="true"
+            onClick={() => setIsCommentsOpen(false)}
+          />
+          <div className="fixed inset-0 z-[800] pointer-events-none flex justify-end lg:hidden" ref={mobileCommentsSectionRef}>
+            <div
+              className="pointer-events-auto h-full w-[90vw] max-w-[400px] bg-[#1A1A1A] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
             {/* Close Button */}
             <div className="flex items-center justify-between p-4 border-b border-surface/50">
               <h2 className="text-lg font-semibold text-text-primary">Comments</h2>
@@ -4129,6 +4156,7 @@ export default function WatchPage() {
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );

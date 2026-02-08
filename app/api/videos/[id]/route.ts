@@ -357,6 +357,26 @@ function getSampleVideoById(id: string): any | null {
         profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
       },
     },
+    // UPG Gaming - KIM IMPOSTER? PROTOCOL LOCKDOWN (mock local video; content from https://www.youtube.com/watch?v=vQ5rcGWTYBs)
+    {
+      id: 'mock-kim-imposter-protocol-lockdown',
+      userId: 'upg-gaming-creator',
+      title: 'KIM IMPOSTER? | PROTOCOL LOCKDOWN',
+      description: "Assalomu alaykum do'stlar — PROTOCOL LOCKDOWN o'yinidan ajoyib video. UPG Gaming. Layk bosib kanalga obuna bo'lishni unutmang.",
+      thumbnailUrl: 'https://img.youtube.com/vi/vQ5rcGWTYBs/maxresdefault.jpg',
+      videoUrl: '/videos/kim-imposter-protocol-lockdown.mp4',
+      views: 285810,
+      category: 'Gaming',
+      type: 'free',
+      duration: 1270,
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
+      user: {
+        id: 'upg-gaming-creator',
+        name: 'UPG Gaming',
+        profileImageUrl: 'https://ui-avatars.com/api/?name=UPG+Gaming&background=ef4444&color=fff&size=128',
+      },
+    },
     // Twinkle Star - Paid Content Test
     {
       id: 'twinkle_paid_content',

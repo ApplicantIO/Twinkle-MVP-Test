@@ -374,7 +374,7 @@ export default function SearchClient() {
   // Don't show loading skeleton if no query
   if (!query.trim()) {
     return (
-      <div className="w-full px-4 md:px-6 lg:px-8 py-6">
+      <div className="w-full px-2 md:px-4 lg:px-6 py-6">
         <div className="max-w-[1280px] mx-auto">
           <h1 className="text-2xl font-bold mb-6 text-white">
             Search results
@@ -390,7 +390,7 @@ export default function SearchClient() {
   const allResultsCount = channels.length + playlists.length + videos.length;
 
   return (
-    <div className="w-full px-4 md:px-6 lg:px-8 py-6">
+    <div className="w-full px-2 md:px-4 lg:px-6 py-6">
       <div className="max-w-[1280px] mx-auto">
         <h1 className="text-2xl font-bold mb-6 text-white">
         Search results for &quot;{query}&quot;

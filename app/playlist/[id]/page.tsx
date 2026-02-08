@@ -609,7 +609,7 @@ export default function PlaylistPage() {
       {/* Purchase Flow Modal */}
       {showPurchaseFlow && playlist.price && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center"
+          className="fixed inset-0 z-[900] flex items-center justify-center"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowPurchaseFlow(false);

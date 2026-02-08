@@ -58,7 +58,11 @@ This guide gets you from clone to a running app. Twinkle is a **Next.js monolith
    ```
    (`npm run setup` also runs install, prisma generate, and prisma push.)
 
-6. **Start the dev server**
+6. **Optional: Vercel Blob for video uploads (production)**
+
+   For production or Vercel deployment, video uploads use Vercel Blob instead of local disk. Enable Blob in your Vercel project (Storage → Create Database → Blob), then add `BLOB_READ_WRITE_TOKEN` to your environment. The upload API uses Blob when this token is set; otherwise it falls back to `public/uploads/` for local development.
+
+7. **Start the dev server**
 
    ```bash
    npm run dev

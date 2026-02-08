@@ -41,7 +41,7 @@ export default function CreatorProfilePage() {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <div className="px-2 md:px-4 lg:px-6 py-8">
         <div className="text-center text-text-secondary">Loading...</div>
       </div>
     );
@@ -56,7 +56,7 @@ export default function CreatorProfilePage() {
       {/* Banner */}
       <div className="h-48 bg-surface w-full"></div>
       
-      <div className="max-w-7xl mx-auto px-8 -mt-16">
+      <div className="max-w-7xl mx-auto px-2 md:px-4 lg:px-6 -mt-16">
         {/* Creator Info */}
         <div className="flex items-end gap-4 mb-8">
             {creatorPhoto ? (
@@ -91,7 +91,7 @@ export default function CreatorProfilePage() {
             <p>This creator hasn&apos;t uploaded any videos yet.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1.5 md:gap-2 lg:gap-3">
             {videos.map((video) => (
               <Link
                 key={video.id}

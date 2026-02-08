@@ -363,7 +363,7 @@ export default function HistoryPageClient() {
   ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-6">
+    <div className="w-full max-w-7xl mx-auto px-2 md:px-4 lg:px-6 py-6">
       {/* Header */}
       <h1 className="text-2xl font-bold text-text-primary mb-3">Watch history</h1>
 

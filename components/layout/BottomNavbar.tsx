@@ -40,7 +40,7 @@ export function BottomNavbar() {
   ];
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface z-50">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface z-[400]">
       <div className="flex items-center justify-around h-full">
         {navItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));

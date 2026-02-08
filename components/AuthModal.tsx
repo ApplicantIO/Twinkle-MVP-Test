@@ -467,7 +467,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
 
   return (
     <div 
-      className="fixed inset-0 bg-black/50 z-40 flex items-start justify-end pt-20 pr-4"
+      className="fixed inset-0 bg-black/50 z-[900] flex items-start justify-end pt-20 pr-4"
       onClick={(e) => {
         // Close modal when clicking on the overlay (background)
         if (e.target === e.currentTarget) {

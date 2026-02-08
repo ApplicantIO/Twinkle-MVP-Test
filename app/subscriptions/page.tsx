@@ -8,7 +8,7 @@ export default function SubscriptionsPage() {
   // Show loading state while auth is being checked
   if (authLoading) {
     return (
-      <div className="p-8">
+      <div className="px-2 md:px-4 lg:px-6 py-6 md:py-8">
         <div className="text-center text-text-secondary">Loading...</div>
       </div>
     );
@@ -17,7 +17,7 @@ export default function SubscriptionsPage() {
   // If user is not authenticated, show simple message
   if (!user) {
     return (
-      <div className="p-8">
+      <div className="px-2 md:px-4 lg:px-6 py-6 md:py-8">
         <h1 className="text-2xl font-semibold mb-6 text-text-primary">Subscriptions</h1>
         <div className="text-center py-12">
           <p className="text-text-secondary">Please log in to see your subscriptions</p>
@@ -28,7 +28,7 @@ export default function SubscriptionsPage() {
 
   // Authenticated user: show subscriptions content
   return (
-    <div className="p-8">
+    <div className="px-2 md:px-4 lg:px-6 py-6 md:py-8">
       <h1 className="text-2xl font-semibold mb-6 text-text-primary">Subscriptions</h1>
       
       <div className="text-center py-12 text-text-secondary">

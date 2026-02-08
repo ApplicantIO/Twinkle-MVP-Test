@@ -298,7 +298,7 @@ export function WatchPageRelated({
               const videoItemContent = (
                 <>
                   <div
-                    className={`rounded-xl transition-all duration-200 p-3 relative ${isMenuOpen ? 'z-90' : ''} ${
+                    className={`rounded-xl transition-all duration-200 p-3 relative ${isMenuOpen ? 'z-[10]' : ''} ${
                       isCurrentlyPlaying ? 'bg-white/10' : isHovered ? 'bg-white/10' : 'bg-transparent'
                     }`}
                   >
@@ -316,7 +316,7 @@ export function WatchPageRelated({
                         </div>
                       )}
                       {!relatedVideo.isLive && relatedVideo.duration && (
-                        <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold z-20">
+                        <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1.5 py-0.5 rounded text-xs font-semibold z-[5]">
                           {formatDuration(relatedVideo.duration)}
                         </div>
                       )}
@@ -360,7 +360,7 @@ export function WatchPageRelated({
                           )}
                         </div>
                       </div>
-                      <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
+                      <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[10]' : ''}`}>
                         <button
                           onClick={(e) => {
                             e.preventDefault();
@@ -377,7 +377,7 @@ export function WatchPageRelated({
                             ref={(el) => {
                               if (menuRefs.current) menuRefs.current[relatedVideo.id] = el;
                             }}
-                            className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
+                            className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[10]"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
@@ -426,7 +426,7 @@ export function WatchPageRelated({
                   key={relatedVideo.id}
                   ref={isCurrentlyPlaying ? activePlaylistVideoRef : null}
                   onClick={() => onVideoSwitch(relatedVideo.id)}
-                  className={`group cursor-pointer flex flex-col relative w-full ${isMenuOpen ? 'z-90' : ''}`}
+                  className={`group cursor-pointer flex flex-col relative w-full ${isMenuOpen ? 'z-[10]' : ''}`}
                   onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
                   onMouseLeave={() => setHoveredVideo(null)}
                 >
@@ -436,7 +436,7 @@ export function WatchPageRelated({
                 <Link
                   key={relatedVideo.id}
                   href={`/watch/${relatedVideo.id}${listContext && currentPlaylist ? `?playlistId=${currentPlaylist.id}&listContext=true` : ''}`}
-                  className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-90' : ''}`}
+                  className={`group cursor-pointer flex flex-col relative ${isMenuOpen ? 'z-[10]' : ''}`}
                   onMouseEnter={() => setHoveredVideo(relatedVideo.id)}
                   onMouseLeave={() => setHoveredVideo(null)}
                 >
@@ -516,7 +516,7 @@ export function WatchPageRelated({
                         </p>
                       )}
                     </div>
-                    <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-100' : ''}`}>
+                    <div className={`flex-shrink-0 relative ${isMenuOpen ? 'z-[10]' : ''}`}>
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -533,7 +533,7 @@ export function WatchPageRelated({
                           ref={(el) => {
                             if (menuRefs.current) menuRefs.current[relatedVideo.id] = el;
                           }}
-                          className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-100"
+                          className="absolute right-0 top-full mt-1 bg-surface border border-surface rounded-lg shadow-lg py-1 min-w-[180px] z-[10]"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button

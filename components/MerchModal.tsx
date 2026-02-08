@@ -69,7 +69,7 @@ export default function MerchModal({ item, isOpen, onClose }: MerchModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center"
+      className="fixed inset-0 z-[900] flex items-center justify-center"
       onClick={onClose}
     >
       {/* Backdrop with blur - Full screen coverage */}
