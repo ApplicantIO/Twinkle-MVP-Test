@@ -15,6 +15,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_COOKIE_NAME = 'twinkle_token';
+const AUTH_COOKIE_MAX_AGE_DAYS = 7;
+
+function setAuthCookie(token: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}; path=/; max-age=${AUTH_COOKIE_MAX_AGE_DAYS * 24 * 60 * 60}; SameSite=Lax`;
+}
+
+function clearAuthCookie() {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${AUTH_COOKIE_NAME}=; path=/; max-age=0`;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -27,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function checkAuth() {
     const token = localStorage.getItem('token');
     if (!token) {
+      clearAuthCookie();
       setLoading(false);
       return;
     }
@@ -41,12 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
+        setAuthCookie(token);
       } else {
         localStorage.removeItem('token');
+        clearAuthCookie();
       }
     } catch (error) {
       console.error('Auth check error:', error);
       localStorage.removeItem('token');
+      clearAuthCookie();
     } finally {
       setLoading(false);
     }
@@ -78,7 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
     localStorage.setItem('token', data.token);
-    
+    setAuthCookie(data.token);
+
     // Immediately fetch fresh user data from backend to ensure we have latest profile
     try {
       const userResponse = await fetch('/api/auth/me', {
@@ -122,7 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json();
     localStorage.setItem('token', data.token);
-    
+    setAuthCookie(data.token);
+
     // Immediately fetch fresh user data from backend to ensure we have latest profile
     try {
       const userResponse = await fetch('/api/auth/me', {
@@ -146,9 +165,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    // Clear all localStorage items related to auth
     localStorage.removeItem('token');
-    
+    clearAuthCookie();
+
     // Clear all sessionStorage items
     if (typeof window !== 'undefined') {
       sessionStorage.clear();
