@@ -21,7 +21,7 @@ export function MainContent({ children }: { children: ReactNode }) {
   return (
     <main
       className={cn(
-        "pt-16 pb-16 lg:pb-0 min-h-screen transition-all duration-300",
+        "flex-1 min-w-0 pt-16 pb-16 lg:pb-0 min-h-screen transition-all duration-300",
         marginLeft
       )}
     >

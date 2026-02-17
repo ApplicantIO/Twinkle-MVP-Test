@@ -15,6 +15,7 @@ import { ReportModal } from "@/components/modals/ReportModal";
 import { PurchaseFlowModal } from "@/components/modals/PurchaseFlowModal";
 import { ClearHistoryModal } from "@/components/history/ClearHistoryModal";
 import { PauseHistoryModal } from "@/components/history/PauseHistoryModal";
+import { CreatorAboutModal } from "@/components/modals/CreatorAboutModal";
 import { AuthModalWrapper } from "@/components/AuthModalWrapper";
 
 export const metadata: Metadata = {
@@ -48,6 +49,7 @@ export default function RootLayout({
                   <AuthModalWrapper />
                   <ClearHistoryModal />
                   <PauseHistoryModal />
+                  <CreatorAboutModal />
                 </ModalProvider>
               </MiniplayerProvider>
             </SidebarProvider>

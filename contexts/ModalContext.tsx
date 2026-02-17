@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-type ModalType = 'SHARE' | 'REPORT' | 'PURCHASE' | 'CLEAR_HISTORY' | 'PAUSE_HISTORY' | null;
+type ModalType = 'SHARE' | 'REPORT' | 'PURCHASE' | 'CLEAR_HISTORY' | 'PAUSE_HISTORY' | 'CREATOR_ABOUT' | null;
 
 interface HistoryModalData {
   onConfirm?: () => void | Promise<void>;
@@ -19,6 +19,9 @@ interface ModalContextType {
   currentVideoCurrency: string | null;
   currentVideoType: 'paid' | 'subscription' | null;
   historyModalData: HistoryModalData | null;
+  creatorAboutTitle: string | null;
+  creatorAboutDescription: string | null;
+  openCreatorAboutModal: (title: string, description: string) => void;
   openShareModal: (videoId: string, videoTitle: string) => void;
   openReportModal: (videoId: string, videoTitle: string) => void;
   openPurchaseModal: (videoId: string, videoTitle: string, price: number, currency: string, type: 'paid' | 'subscription') => void;
@@ -43,6 +46,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [currentVideoCurrency, setCurrentVideoCurrency] = useState<string | null>(null);
   const [currentVideoType, setCurrentVideoType] = useState<'paid' | 'subscription' | null>(null);
   const [historyModalData, setHistoryModalData] = useState<HistoryModalData | null>(null);
+  const [creatorAboutTitle, setCreatorAboutTitle] = useState<string | null>(null);
+  const [creatorAboutDescription, setCreatorAboutDescription] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
 
@@ -91,6 +96,13 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     setIsModalOpen(true);
   };
 
+  const openCreatorAboutModal = (title: string, description: string) => {
+    setCreatorAboutTitle(title);
+    setCreatorAboutDescription(description);
+    setModalType('CREATOR_ABOUT');
+    setIsModalOpen(true);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setModalType(null);
@@ -100,6 +112,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     setCurrentVideoCurrency(null);
     setCurrentVideoType(null);
     setHistoryModalData(null);
+    setCreatorAboutTitle(null);
+    setCreatorAboutDescription(null);
   };
 
   return (
@@ -113,6 +127,9 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         currentVideoCurrency,
         currentVideoType,
         historyModalData,
+        creatorAboutTitle,
+        creatorAboutDescription,
+        openCreatorAboutModal,
         openShareModal,
         openReportModal,
         openPurchaseModal,
