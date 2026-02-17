@@ -243,7 +243,7 @@ export default function PlaylistPage() {
             <div className="flex items-center gap-2 text-sm text-text-secondary">
               <span>Created by</span>
               <Link
-                href={`/creator/${playlist.creatorId || playlist.creatorName.toLowerCase().replace(/\s+/g, '-')}`}
+                href={`/${playlist.creatorId || playlist.creatorName.toLowerCase().replace(/\s+/g, '-')}`}
                 className="flex items-center gap-2 text-accent hover:text-accent/80 hover:underline font-medium transition-colors"
               >
                 {playlist.creatorAvatar && (

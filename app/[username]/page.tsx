@@ -4,36 +4,64 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Video } from '@/types';
-import { Play, User as UserIcon } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { BannerSection } from '@/components/creator/BannerSection';
 import { CreatorInfoSection } from '@/components/creator/CreatorInfoSection';
 import { ProfileTabsRow, type ProfileTabId } from '@/components/creator/ProfileTabsRow';
 
+interface Creator {
+  id: string;
+  username: string;
+  name: string;
+  profileImageUrl: string | null;
+  bannerUrl?: string | null;
+  aboutText?: string | null;
+}
+
 export default function CreatorProfilePage() {
   const params = useParams();
+  const username = typeof params.username === 'string' ? params.username : '';
+  const [creator, setCreator] = useState<Creator | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTabId>('home');
   const [subscribersCount] = useState(() => Math.floor(Math.random() * 10000));
 
   useEffect(() => {
     async function loadCreatorData() {
-      if (!params.id || typeof params.id !== 'string') return;
+      if (!username) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
 
       try {
-        const videosResponse = await fetch(`/api/videos?userId=${params.id}`);
-        if (videosResponse.ok) {
-          const videosData = await videosResponse.json();
-          setVideos(videosData.videos || []);
+        const creatorRes = await fetch(`/api/creators/${encodeURIComponent(username)}`);
+        if (!creatorRes.ok) {
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        const { creator: c } = await creatorRes.json();
+        setCreator(c);
+
+        if (c?.id) {
+          const videosRes = await fetch(`/api/videos?userId=${encodeURIComponent(c.id)}`);
+          if (videosRes.ok) {
+            const { videos: v } = await videosRes.json();
+            setVideos(v || []);
+          }
         }
       } catch (error) {
         console.error('Error loading creator data:', error);
+        setNotFound(true);
       } finally {
         setLoading(false);
       }
     }
     loadCreatorData();
-  }, [params.id]);
+  }, [username]);
 
   if (loading) {
     return (
@@ -43,36 +71,38 @@ export default function CreatorProfilePage() {
     );
   }
 
-  const firstVideo = videos[0];
-  const creatorName = firstVideo?.user?.name || 'Unknown Creator';
-  const creatorPhoto = firstVideo?.user?.profileImageUrl ?? null;
-  const username = typeof params.id === 'string' ? params.id : 'creator';
-  const description =
-    'Welcome to my channel. Here you will find videos and content I create. Subscribe to stay updated.';
+  if (notFound || !creator) {
+    return (
+      <div className="w-full min-w-0 max-w-[1600px] mx-auto px-5 py-16 text-center">
+        <h1 className="text-2xl font-semibold text-text-primary mb-2">Creator not found</h1>
+        <p className="text-text-secondary mb-6">This creator doesn&apos;t exist or hasn&apos;t set up their profile yet.</p>
+        <Link
+          href="/"
+          className="inline-block rounded-full px-6 py-2 bg-accent text-white hover:bg-accent/90 transition-colors"
+        >
+          Go home
+        </Link>
+      </div>
+    );
+  }
+
+  const description = creator.aboutText || 'Welcome to my channel. Here you will find videos and content I create. Subscribe to stay updated.';
 
   return (
     <div className="min-h-screen w-full min-w-0 flex-1">
-      {/* Main container: centered, grows when sidebar collapses, 20px horizontal padding */}
       <div className="w-full max-w-[1600px] mx-auto px-5">
-        {/* Block 1 — Banner */}
         <BannerSection />
-
-        {/* Block 2 — Info section (3 columns) */}
         <div className="py-6">
           <CreatorInfoSection
-            creatorName={creatorName}
-            username={username}
+            creatorName={creator.name}
+            username={creator.username}
             subscribersCount={subscribersCount}
             videoCount={videos.length}
             description={description}
-            creatorPhoto={creatorPhoto}
+            creatorPhoto={creator.profileImageUrl}
           />
         </div>
-
-        {/* Block 3 — Tabs row */}
         <ProfileTabsRow activeTab={activeTab} onTabChange={setActiveTab} />
-
-        {/* Tab content: Videos grid (for Home / Videos tab) */}
         <div className="pt-6 pb-8">
           {activeTab === 'videos' || activeTab === 'home' ? (
             <>

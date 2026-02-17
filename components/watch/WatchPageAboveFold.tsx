@@ -123,7 +123,7 @@ export function WatchPageAboveFold({
       {/* Action Row */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3 flex-shrink-0">
-          <Link href={`/creator/${video.userId}`}>
+          <Link href={`/${video.user?.username ?? video.userId}`}>
             {video.user?.profileImageUrl ? (
               <img
                 src={video.user.profileImageUrl}
@@ -137,7 +137,7 @@ export function WatchPageAboveFold({
             )}
           </Link>
           <div className="flex-shrink-0">
-            <Link href={`/creator/${video.userId}`}>
+            <Link href={`/${video.user?.username ?? video.userId}`}>
               <h3 className="font-medium text-text-primary hover:text-white whitespace-nowrap">
                 {video.user?.name || 'Unknown Creator'}
               </h3>

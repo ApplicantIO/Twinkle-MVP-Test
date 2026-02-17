@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      // Redirect old /creator/username to /username for backwards compatibility
+      { source: '/creator/:username', destination: '/:username', permanent: true },
+    ];
+  },
   images: {
     // Common external image hosts used in the app (Firebase / Google user photos, cloud storage, CDNs)
     remotePatterns: [

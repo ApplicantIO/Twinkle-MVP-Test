@@ -16,6 +16,7 @@ const isWatchHistoryPaused = () => {
 
 interface SubscribedCreator {
   id: string;
+  username?: string;
   name?: string;
   profileImageUrl?: string;
   isLive: boolean;
@@ -35,6 +36,7 @@ export function Sidebar() {
   const sampleCreators: SubscribedCreator[] = [
     {
       id: 'sample-creator-1',
+      username: 'ozimiz',
       name: "O'zimiz",
       profileImageUrl: 'https://ui-avatars.com/api/?name=Ozimiz&background=6366f1&color=fff&size=128',
       isLive: true,
@@ -43,6 +45,7 @@ export function Sidebar() {
     },
     {
       id: 'sample-creator-2',
+      username: 'romalive',
       name: 'Roma Live',
       profileImageUrl: 'https://ui-avatars.com/api/?name=Roma+Live&background=ef4444&color=fff&size=128',
       isLive: true,
@@ -51,6 +54,7 @@ export function Sidebar() {
     },
     {
       id: 'sample-creator-3',
+      username: 'gta6daily',
       name: 'GTA 6 Daily',
       profileImageUrl: 'https://ui-avatars.com/api/?name=GTA6&background=10b981&color=fff&size=128',
       isLive: false,
@@ -59,6 +63,7 @@ export function Sidebar() {
     },
     {
       id: 'sample-creator-4',
+      username: 'twinkle',
       name: 'Twinkle Official',
       profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle&background=8b5cf6&color=fff&size=128',
       isLive: false,
@@ -67,6 +72,7 @@ export function Sidebar() {
     },
     {
       id: 'sample-creator-5',
+      username: 'creativestudio',
       name: 'Creative Studio',
       profileImageUrl: 'https://ui-avatars.com/api/?name=Creative&background=f59e0b&color=fff&size=128',
       isLive: false,
@@ -75,6 +81,7 @@ export function Sidebar() {
     },
     {
       id: 'sample-creator-6',
+      username: 'lofigirl',
       name: 'Lo-Fi Girl',
       profileImageUrl: 'https://ui-avatars.com/api/?name=LoFi+Girl&background=8b5cf6&color=fff&size=128',
       isLive: false,
@@ -83,6 +90,7 @@ export function Sidebar() {
     },
     {
       id: 'sample-creator-7',
+      username: 'konsta',
       name: 'Konsta',
       profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=ef4444&color=fff&size=128',
       isLive: false,
@@ -294,10 +302,10 @@ export function Sidebar() {
             subscribedCreators.map((creator) => (
               <Link
                 key={creator.id}
-                href={`/creator/${creator.id}`}
+                href={`/${creator.username ?? creator.id}`}
                 className={cn(
                   "flex items-center w-full rounded-lg transition-colors group relative text-white",
-                  pathname === `/creator/${creator.id}` ? "bg-white/5" : "hover:bg-white/5",
+                  pathname === `/${creator.username ?? creator.id}` ? "bg-white/5" : "hover:bg-white/5",
                   isCollapsed ? "justify-center px-4 py-2" : "gap-2 px-4 py-2"
                 )}
                 title={isCollapsed ? creator.name || 'Creator' : undefined}

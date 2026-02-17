@@ -21,6 +21,7 @@ model User {
   email           String   @unique
   passwordHash    String
   role            UserRole @default(viewer)
+  username        String?  @unique
   name            String?
   profileImageUrl String?
   bannerUrl       String?

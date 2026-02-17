@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 
 interface CreatorWithActivity {
   id: string;
+  username?: string;
   name?: string;
   profileImageUrl?: string;
   isLive: boolean;
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
       },
       select: {
         id: true,
+        username: true,
         name: true,
         profileImageUrl: true,
       },
@@ -82,6 +84,7 @@ export async function GET(request: NextRequest) {
 
         return {
           id: creator.id,
+          username: creator.username || undefined,
           name: creator.name || undefined,
           profileImageUrl: creator.profileImageUrl || undefined,
           isLive: isLive || false, // Default to false if not available
