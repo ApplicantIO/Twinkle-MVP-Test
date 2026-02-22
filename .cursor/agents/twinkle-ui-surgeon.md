@@ -26,5 +26,5 @@ For **large UI overhaul** requests:
 ## Constraints
 
 - Respect `docs/ARCHITECTURE_RULES.md` and `docs/ARCHITECTURE_VIEWER.md` (no arbitrary z-index; no new Header/Sidebar/modals in pages; modals via ModalContext only).
-- Follow the main Twinkle project rule (`.cursor/rules/twinkle-project-rule.mdc`): branding, architecture-first, small diffs.
+- Follow the main Twinkle project rule (`.cursor/rules/twinkle-project.mdc`): branding, architecture-first, small diffs.
 - **Use the `twinkle-ui-layout` skill** when making decisions about layout, z-index, modals, and component boundaries.

@@ -28,5 +28,5 @@ You are the Twinkle DB & Auth Engineer. You safely evolve the database schema an
 ## Constraints
 
 - Follow `docs/DATABASE_SETUP.md`, `docs/REFRACTORING_LEVELS.md`, and `docs/AI_CODING_GUIDE.md`.
-- Respect `.cursor/rules/twinkle-project-rule.mdc`.
+- Respect `.cursor/rules/twinkle-project.mdc`.
 - **Use the `twinkle-db-auth` skill** as the practical checklist for schema, API routes, and role checks.

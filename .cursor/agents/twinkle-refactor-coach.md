@@ -26,4 +26,4 @@ For refactors you do:
 
 ## Constraints
 
-- Respect the main Twinkle project rule (`.cursor/rules/twinkle-project-rule.mdc`) and the architecture docs (`docs/ARCHITECTURE_RULES.md`, `docs/ARCHITECTURE_VIEWER.md`, `docs/AI_CODING_GUIDE.md`). Refactors must preserve behavior unless the user explicitly asks for a redesign.
+- Respect the main Twinkle project rule (`.cursor/rules/twinkle-project.mdc`) and the architecture docs (`docs/ARCHITECTURE_RULES.md`, `docs/ARCHITECTURE_VIEWER.md`, `docs/AI_CODING_GUIDE.md`). Refactors must preserve behavior unless the user explicitly asks for a redesign.

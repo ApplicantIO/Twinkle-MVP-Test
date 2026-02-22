@@ -14,9 +14,10 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useMiniplayer } from '@/contexts/MiniplayerContext';
 import { useModal } from '@/contexts/ModalContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePurchase } from '@/contexts/PurchaseContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { formatRelativeTime, formatExactDate, formatTimeAgo, formatViews, formatDuration } from '@/lib/utils';
 import VideoDescription from '@/components/VideoDescription';
-import { getAllPlaylists } from '@/data/mockData';
 import { updateWatchHistory, savePlaylistProgress } from '@/lib/watchHistory';
 import { DONATION_MIN_UZS, DONATION_RECOMMENDED_UZS, DEFAULT_SAVED_CARDS_DEMO } from '@/config/viewerConstants';
 import { WatchPageAboveFold } from '@/components/watch/WatchPageAboveFold';
@@ -172,36 +173,23 @@ export default function WatchPage() {
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const notificationsModalRef = useRef<HTMLDivElement>(null);
   const [isCommentsOpen, setIsCommentsOpen] = useState(false); // Mobile comments overlay state
-  // Load purchase state from localStorage on mount
-  const [hasPurchasedVideoLocal, setHasPurchasedVideoLocal] = useState(() => {
-    if (typeof window !== 'undefined' && params.id) {
-      const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
-      return purchasedVideos.includes(params.id);
-    }
-    return false;
-  });
+  const { checkVideoPurchased, checkPlaylistPurchased, refreshPurchases } = usePurchase();
+  const { isSubscribedTo } = useSubscription();
 
-  // Check if playlist is purchased
   const hasPurchasedPlaylist = useCallback((playlistId: string): boolean => {
-    if (typeof window !== 'undefined') {
-      const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
-      return purchasedPlaylists.includes(playlistId);
-    }
-    return false;
-  }, []);
+    return checkPlaylistPurchased(playlistId);
+  }, [checkPlaylistPurchased]);
+
   const commentsSectionRef = useRef<HTMLDivElement>(null); // Ref for desktop comments section
   const mobileCommentsSectionRef = useRef<HTMLDivElement>(null); // Ref for mobile comments section
 
-  // Mock access state functions (matching VideoPlayer logic)
   const hasPurchasedVideo = useCallback((videoId: string): boolean => {
-    // Use local purchase state if available, otherwise check API (TODO)
-    return hasPurchasedVideoLocal;
-  }, [hasPurchasedVideoLocal]);
+    return checkVideoPurchased(videoId);
+  }, [checkVideoPurchased]);
 
   const isChannelSubscriber = useCallback((channelId: string): boolean => {
-    // TODO: Replace with actual subscription check from API
-    return false;
-  }, []);
+    return channelId === video?.userId && isSubscribed;
+  }, [video?.userId, isSubscribed]);
 
   // Determine if user has full access to the video
   const hasFullAccess = useMemo(() => {
@@ -286,14 +274,12 @@ export default function WatchPage() {
           videoUrlToUse = newVideo.fullVideoUrl || newVideo.videoUrl;
         }
       } else {
-        // Individual video purchase logic
-        const purchasedVideos = typeof window !== 'undefined'
-          ? JSON.parse(localStorage.getItem('purchasedVideos') || '[]')
-          : [];
-        const hasPurchased = purchasedVideos.includes(newVideo.id);
+        const hasPurchased = checkVideoPurchased(newVideo.id);
+        const hasSubscribed = isSubscribedTo(newVideo.userId);
 
         if (videoType === 'paid' || videoType === 'subscription') {
-          if (hasPurchased || (videoType === 'subscription' && isChannelSubscriber(newVideo.userId))) {
+          const hasAccess = hasPurchased || (videoType === 'subscription' && hasSubscribed);
+          if (hasAccess) {
             videoUrlToUse = newVideo.fullVideoUrl || newVideo.videoUrl;
           } else {
             videoUrlToUse = newVideo.teaserVideoUrl || newVideo.videoUrl;
@@ -331,7 +317,7 @@ export default function WatchPage() {
     } catch (error) {
       console.error('Error switching video:', error);
     }
-  }, [isPlaylistSession, currentPlaylist, urlPlaylistId, router, setCurrentWatchVideo, isChannelSubscriber, video?.id, savePlaylistProgress]);
+  }, [isPlaylistSession, currentPlaylist, urlPlaylistId, router, setCurrentWatchVideo, checkVideoPurchased, isSubscribedTo, video?.id, savePlaylistProgress]);
 
   // Automatically collapse sidebar when entering watch page
   useEffect(() => {
@@ -448,19 +434,20 @@ export default function WatchPage() {
     };
   }, [isPlaylistSession, recommendedTab]);
 
-  // Update video URL when purchase state changes
+  // Update video URL when purchase state or subscription changes
   useEffect(() => {
-    if (video && hasPurchasedVideoLocal) {
-      const videoType = video.type || 'free';
-      if (videoType === 'paid' || videoType === 'subscription') {
-        const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
-        setCurrentWatchVideo({
-          ...video,
-          videoUrl: fullVideoUrl
-        });
-      }
+    if (!video) return;
+    const videoType = video.type || 'free';
+    if (videoType !== 'paid' && videoType !== 'subscription') return;
+    const fullVideoUrl = video.fullVideoUrl || video.videoUrl;
+    const hasAccess = checkVideoPurchased(video.id) || (videoType === 'subscription' && isSubscribed);
+    if (hasAccess) {
+      setCurrentWatchVideo({
+        ...video,
+        videoUrl: fullVideoUrl
+      });
     }
-  }, [hasPurchasedVideoLocal, video]);
+  }, [checkVideoPurchased, isSubscribed, video]);
 
   // Save playlist progress when video starts playing in playlist context
   useEffect(() => {
@@ -511,458 +498,33 @@ export default function WatchPage() {
     };
   }, [video?.id, videoProgress, hasFullAccess, urlPlaylistId, video?.duration]);
 
-  // Sample comments for demonstration
+  // Load comments from API when video is set and user has access
   useEffect(() => {
-    setComments([
-      // 4 Public Comments
-      {
-        id: '1',
-        userId: 'user1',
-        userName: 'John Doe',
-        username: '@john_doe',
-        text: 'This video is absolutely incredible! I\'ve been waiting for content like this for months. The way you explained everything step by step made it so easy to understand. I especially loved the part where you demonstrated the practical applications. This has completely changed my perspective on the topic. Thank you so much for sharing your knowledge with us!',
-        timestamp: new Date(Date.now() - 1800000), // 30 minutes ago
-        likes: 247,
-        dislikes: 3,
-        isDonated: false,
-        isHighlyRated: true,
-        replies: [
-          {
-            id: '1-1',
-            userId: 'user2',
-            userName: 'Sarah Martinez',
-            username: '@sarah_martinez',
-            text: 'I completely agree! The practical examples were so helpful.',
-            timestamp: new Date(Date.now() - 1500000),
-            likes: 12,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-            replies: [
-              {
-                id: '1-1-1',
-                userId: 'user3',
-                userName: 'Michael Chen',
-                username: '@michael_chen',
-                text: '@sarah_martinez Exactly! Those examples made everything click for me too.',
-                timestamp: new Date(Date.now() - 1400000),
-                likes: 5,
-                dislikes: 0,
-                isDonated: false,
-                isHighlyRated: false,
-              },
-            ],
-          },
-          {
-            id: '1-2',
-            userId: 'user4',
-            userName: 'Emily Rodriguez',
-            username: '@emily_rodriguez',
-            text: 'Same here! This channel is amazing.',
-            timestamp: new Date(Date.now() - 1200000),
-            likes: 8,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-          {
-            id: '1-3',
-            userId: 'user5',
-            userName: 'David Kim',
-            username: '@david_kim',
-            text: 'Couldn\'t agree more. The step-by-step approach is perfect.',
-            timestamp: new Date(Date.now() - 1000000),
-            likes: 6,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-        ],
-      },
-      {
-        id: '2',
-        userId: 'user2',
-        userName: 'Sarah Martinez',
-        username: '@sarah_martinez',
-        text: 'Wow, this is exactly what I needed! I\'ve been struggling with this concept for weeks and your explanation finally made it click. The examples you provided were perfect and really helped me visualize everything. I appreciate how you took the time to break down each part in detail.',
-        timestamp: new Date(Date.now() - 3600000), // 1 hour ago
-        likes: 189,
-        dislikes: 1,
-        isDonated: false,
-        isHighlyRated: false,
-        replies: [
-          {
-            id: '2-1',
-            userId: 'user6',
-            userName: 'Jessica Thompson',
-            username: '@jessica_thompson',
-            text: 'The visualization examples were game-changing for me!',
-            timestamp: new Date(Date.now() - 3300000),
-            likes: 9,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-            replies: [
-              {
-                id: '2-1-1',
-                userId: 'user2',
-                userName: 'Sarah Martinez',
-                username: '@sarah_martinez',
-                text: '@jessica_thompson Right? I\'ve been trying to explain this to my team using those same examples.',
-                timestamp: new Date(Date.now() - 3200000),
-                likes: 4,
-                dislikes: 0,
-                isDonated: false,
-                isHighlyRated: false,
-              },
-            ],
-          },
-          {
-            id: '2-2',
-            userId: 'user7',
-            userName: 'Robert Wilson',
-            username: '@robert_wilson',
-            text: 'The breakdown was incredibly thorough. Great video!',
-            timestamp: new Date(Date.now() - 3000000),
-            likes: 7,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-        ],
-      },
-      {
-        id: '3',
-        userId: 'user3',
-        userName: 'Michael Chen',
-        username: '@michael_chen',
-        text: 'Honestly, I wasn\'t expecting much when I clicked on this video, but I was completely blown away! The production quality is top-notch and the information is presented in such an engaging way. You have a real talent for making complex topics accessible.',
-        timestamp: new Date(Date.now() - 5400000), // 1.5 hours ago
-        likes: 156,
-        dislikes: 2,
-        isDonated: false,
-        isHighlyRated: true,
-        replies: [
-          {
-            id: '3-1',
-            userId: 'user8',
-            userName: 'Amanda Lee',
-            username: '@amanda_lee',
-            text: 'The production quality really stands out. So professional!',
-            timestamp: new Date(Date.now() - 5100000),
-            likes: 11,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-          {
-            id: '3-2',
-            userId: 'user9',
-            userName: 'James Anderson',
-            username: '@james_anderson',
-            text: '@michael_chen I had the same reaction! Subscribed immediately.',
-            timestamp: new Date(Date.now() - 4800000),
-            likes: 8,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-            replies: [
-              {
-                id: '3-2-1',
-                userId: 'user3',
-                userName: 'Michael Chen',
-                username: '@michael_chen',
-                text: '@james_anderson Welcome to the community! Glad you enjoyed it.',
-                timestamp: new Date(Date.now() - 4700000),
-                likes: 3,
-                dislikes: 0,
-                isDonated: false,
-                isHighlyRated: false,
-              },
-            ],
-          },
-          {
-            id: '3-3',
-            userId: 'user10',
-            userName: 'Lisa Park',
-            username: '@lisa_park',
-            text: 'Complex topics made simple - that\'s the mark of great teaching.',
-            timestamp: new Date(Date.now() - 4500000),
-            likes: 6,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-        ],
-      },
-      {
-        id: '4',
-        userId: 'user4',
-        userName: 'Emily Rodriguez',
-        username: '@emily_rodriguez',
-        text: 'I\'ve watched this three times already and I\'m still learning something new each time. The way you structure your content is brilliant - it flows so naturally from one point to the next. Your passion for the subject really shines through and makes the video so much more enjoyable to watch.',
-        timestamp: new Date(Date.now() - 7200000), // 2 hours ago
-        likes: 312,
-        dislikes: 4,
-        isDonated: false,
-        isHighlyRated: true,
-        replies: [
-          {
-            id: '4-1',
-            userId: 'user5',
-            userName: 'David Kim',
-            username: '@david_kim',
-            text: 'The structure really is perfect. I love how each section builds on the previous one.',
-            timestamp: new Date(Date.now() - 6800000),
-            likes: 15,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-            replies: [
-              {
-                id: '4-1-1',
-                userId: 'user4',
-                userName: 'Emily Rodriguez',
-                username: '@emily_rodriguez',
-                text: '@david_kim That\'s exactly what makes it so effective!',
-                timestamp: new Date(Date.now() - 6700000),
-                likes: 3,
-                dislikes: 0,
-                isDonated: false,
-                isHighlyRated: false,
-              },
-            ],
-          },
-          {
-            id: '4-2',
-            userId: 'user1',
-            userName: 'John Doe',
-            username: '@john_doe',
-            text: 'Three times? I\'m on my second watch and already planning a third!',
-            timestamp: new Date(Date.now() - 6500000),
-            likes: 10,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-        ],
-      },
-      // 4 Donated Comments
-      {
-        id: '11',
-        userId: 'user11',
-        userName: 'Alexandra Brown',
-        username: '@alexandra_brown',
-        text: 'This video has been incredibly helpful for my project! I wanted to show my appreciation for all the hard work you put into creating such valuable content. Your explanations are always so clear and well-structured. I\'ve learned so much from your channel and I wanted to give back a little. Keep creating amazing content - you\'re making a real difference in people\'s lives. Thank you for everything you do!',
-        timestamp: new Date(Date.now() - 19800000), // 5.5 hours ago
-        likes: 89,
-        dislikes: 0,
-        isDonated: true,
-        donationAmount: 10000,
-        isHighlyRated: false,
-        replies: [
-          {
-            id: '11-1',
-            userId: 'user12',
-            userName: 'Christopher Taylor',
-            username: '@christopher_taylor',
-            text: 'Your generosity is inspiring! This content truly deserves support.',
-            timestamp: new Date(Date.now() - 19500000),
-            likes: 7,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-          {
-            id: '11-2',
-            userId: 'user13',
-            userName: 'Maria Garcia',
-            username: '@maria_garcia',
-            text: '@alexandra_brown I completely agree. This channel has been a game-changer for me too!',
-            timestamp: new Date(Date.now() - 19200000),
-            likes: 5,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-            replies: [
-              {
-                id: '11-2-1',
-                userId: 'user11',
-                userName: 'Alexandra Brown',
-                username: '@alexandra_brown',
-                text: '@maria_garcia So glad to hear that! The community here is amazing.',
-                timestamp: new Date(Date.now() - 19000000),
-                likes: 2,
-                dislikes: 0,
-                isDonated: false,
-                isHighlyRated: false,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: '12',
-        userId: 'user12',
-        userName: 'Christopher Taylor',
-        username: '@christopher_taylor',
-        text: 'I\'ve been following your channel for months and this is by far one of your best videos yet! The quality of your content keeps getting better and better. I wanted to send a small donation to support your work because creators like you deserve recognition. Your videos have helped me so much in my career, and I wanted to express my gratitude. Please keep doing what you\'re doing - you\'re amazing!',
-        timestamp: new Date(Date.now() - 21600000), // 6 hours ago
-        likes: 145,
-        dislikes: 1,
-        isDonated: true,
-        donationAmount: 25000,
-        isHighlyRated: true,
-        replies: [
-          {
-            id: '12-1',
-            userId: 'user14',
-            userName: 'Daniel White',
-            username: '@daniel_white',
-            text: 'Well said! The quality improvement is noticeable in every video.',
-            timestamp: new Date(Date.now() - 21300000),
-            likes: 9,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-          {
-            id: '12-2',
-            userId: 'user15',
-            userName: 'Sophie Martin',
-            username: '@sophie_martin',
-            text: 'The career impact is real. Thank you for supporting great content!',
-            timestamp: new Date(Date.now() - 21000000),
-            likes: 6,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-          {
-            id: '12-3',
-            userId: 'user16',
-            userName: 'Ryan Johnson',
-            username: '@ryan_johnson',
-            text: '@christopher_taylor Couldn\'t agree more. This channel is a gem!',
-            timestamp: new Date(Date.now() - 20700000),
-            likes: 4,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-            replies: [
-              {
-                id: '12-3-1',
-                userId: 'user12',
-                userName: 'Christopher Taylor',
-                username: '@christopher_taylor',
-                text: '@ryan_johnson Absolutely! The value is unmatched.',
-                timestamp: new Date(Date.now() - 20500000),
-                likes: 2,
-                dislikes: 0,
-                isDonated: false,
-                isHighlyRated: false,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: '13',
-        userId: 'user13',
-        userName: 'Maria Garcia',
-        username: '@maria_garcia',
-        text: 'Thank you so much for this incredible video! It\'s exactly what I needed and more. Your dedication to creating quality educational content doesn\'t go unnoticed. I wanted to contribute a small amount to support your channel because I believe in what you\'re doing. Your videos have been a game-changer for me, and I hope this small donation helps you continue creating amazing content. Much love and appreciation!',
-        timestamp: new Date(Date.now() - 23400000), // 6.5 hours ago
-        likes: 67,
-        dislikes: 0,
-        isDonated: true,
-        donationAmount: 15000,
-        isHighlyRated: false,
-        replies: [
-          {
-            id: '13-1',
-            userId: 'user17',
-            userName: 'Olivia Davis',
-            username: '@olivia_davis',
-            text: 'Your support means so much to creators. Thank you for giving back!',
-            timestamp: new Date(Date.now() - 23100000),
-            likes: 8,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-          {
-            id: '13-2',
-            userId: 'user18',
-            userName: 'Nathan Clark',
-            username: '@nathan_clark',
-            text: '@maria_garcia The educational value is incredible. Well deserved support!',
-            timestamp: new Date(Date.now() - 22800000),
-            likes: 5,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-        ],
-      },
-      {
-        id: '14',
-        userId: 'user14',
-        userName: 'Daniel White',
-        username: '@daniel_white',
-        text: 'This video is absolutely phenomenal! I\'ve watched it multiple times and I\'m still finding new insights. Your ability to explain complex topics in such an accessible way is truly remarkable. I wanted to send a donation to show my appreciation for all the value you\'ve provided. Your content has helped me tremendously, and I wanted to give back. Keep up the excellent work - you\'re an inspiration!',
-        timestamp: new Date(Date.now() - 25200000), // 7 hours ago
-        likes: 203,
-        dislikes: 2,
-        isDonated: true,
-        donationAmount: 50000,
-        isHighlyRated: true,
-        replies: [
-          {
-            id: '14-1',
-            userId: 'user19',
-            userName: 'Emma Wilson',
-            username: '@emma_wilson',
-            text: 'Your donation shows true appreciation. This content deserves all the support!',
-            timestamp: new Date(Date.now() - 24900000),
-            likes: 10,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-          },
-          {
-            id: '14-2',
-            userId: 'user20',
-            userName: 'Kevin Moore',
-            username: '@kevin_moore',
-            text: '@daniel_white The insights keep coming with each rewatch. Amazing content!',
-            timestamp: new Date(Date.now() - 24600000),
-            likes: 7,
-            dislikes: 0,
-            isDonated: false,
-            isHighlyRated: false,
-            replies: [
-              {
-                id: '14-2-1',
-                userId: 'user14',
-                userName: 'Daniel White',
-                username: '@daniel_white',
-                text: '@kevin_moore Exactly! Every watch reveals something new. That\'s quality content.',
-                timestamp: new Date(Date.now() - 24400000),
-                likes: 3,
-                dislikes: 0,
-                isDonated: false,
-                isHighlyRated: false,
-              },
-            ],
-          },
-        ],
-      },
-    ]);
-    setLikes(Math.floor(Math.random() * 10000));
-    setDislikes(Math.floor(Math.random() * 500));
-  }, []);
+    if (!video?.id || !hasFullAccess) {
+      setComments([]);
+      return;
+    }
+    let cancelled = false;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const headers: HeadersInit = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    fetch(`/api/videos/${video.id}/comments`, { headers })
+      .then((res) => (res.ok ? res.json() : { comments: [] }))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.comments)) {
+          const normalized = data.comments.map((c: { timestamp: string; [k: string]: unknown }) => ({
+            ...c,
+            timestamp: typeof c.timestamp === 'string' ? new Date(c.timestamp) : c.timestamp,
+          }));
+          setComments(normalized);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setComments([]);
+      });
+    return () => { cancelled = true; };
+  }, [video?.id, hasFullAccess]);
   useEffect(() => {
     async function loadVideo() {
       if (!params.id || typeof params.id !== 'string') {
@@ -976,10 +538,19 @@ export default function WatchPage() {
           const data = await response.json();
           if (data.video) {
           setVideo(data.video);
-          
-          // Check if video belongs to a playlist
-          const allPlaylists = getAllPlaylists();
-          
+
+          // Fetch playlists to resolve playlist context
+          let allPlaylists: Playlist[] = [];
+          try {
+            const plRes = await fetch('/api/playlists');
+            if (plRes.ok) {
+              const plData = await plRes.json();
+              allPlaylists = plData.playlists ?? [];
+            }
+          } catch {
+            // ignore
+          }
+
           // Priority 1: Use playlistId from URL if provided
           let playlistContainingVideo: Playlist | undefined;
           if (urlPlaylistId) {
@@ -1027,23 +598,34 @@ export default function WatchPage() {
               videoUrlToUse = data.video.fullVideoUrl || data.video.videoUrl;
             }
           } else {
-            // Video doesn't belong to paid playlist - use individual video purchase logic
-            const purchasedVideos = typeof window !== 'undefined' 
-              ? JSON.parse(localStorage.getItem('purchasedVideos') || '[]')
-              : [];
-            const hasPurchased = purchasedVideos.includes(data.video.id);
-            
-            // For paid/subscription content, use teaser if no access, full video if access granted
+            // Video doesn't belong to paid playlist - use API for purchase and subscription checks
+            let hasPurchased = false;
+            let hasSubscribed = false;
+            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+            if (token) {
+              const [purchaseRes, subRes] = await Promise.all([
+                fetch(`/api/purchases/check?videoId=${encodeURIComponent(data.video.id)}`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                }),
+                fetch(`/api/subscriptions/check?creatorId=${encodeURIComponent(data.video.userId)}`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                }),
+              ]);
+              if (purchaseRes.ok) {
+                const pData = await purchaseRes.json();
+                hasPurchased = !!pData.purchased;
+              }
+              if (subRes.ok) {
+                const sData = await subRes.json();
+                hasSubscribed = !!sData.subscribed;
+              }
+            }
+
             if (videoType === 'paid' || videoType === 'subscription') {
-              if (hasPurchased || hasPurchasedVideoLocal || (videoType === 'subscription' && isChannelSubscriber(data.video.userId))) {
-                // User has access - use full video
+              const hasAccess = hasPurchased || (videoType === 'subscription' && hasSubscribed);
+              if (hasAccess) {
                 videoUrlToUse = data.video.fullVideoUrl || data.video.videoUrl;
-                // Update local state if not already set
-                if (!hasPurchasedVideoLocal && hasPurchased) {
-                  setHasPurchasedVideoLocal(true);
-                }
               } else {
-                // No access - use teaser
                 videoUrlToUse = data.video.teaserVideoUrl || data.video.videoUrl;
               }
             }
@@ -1340,7 +922,7 @@ export default function WatchPage() {
     }
   };
 
-  // Handle actual deletion
+  // Handle actual deletion (requires authenticated user; API soft-deletes)
   const handleDeleteComment = async (commentId: string, isDonation: boolean) => {
     const comment = findCommentById(comments, commentId);
     if (!comment) {
@@ -1348,47 +930,52 @@ export default function WatchPage() {
       return;
     }
 
-    // Get current user ID (authenticated or guest)
-    const currentUserId = user?.id || (typeof window !== 'undefined' ? localStorage.getItem('twinkle_guest_id') : null);
+    if (!user?.id || user.id !== comment.userId) {
+      console.error('Unauthorized: User cannot delete this comment');
+      return;
+    }
 
-    if (!currentUserId || currentUserId !== comment.userId) {
-      console.error('Unauthorized: User cannot delete this comment', { 
-        currentUserId, 
-        commentUserId: comment.userId,
-        userAuthenticated: !!user?.id 
-      });
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      console.error('No auth token');
       return;
     }
 
     setDeletingCommentId(commentId);
-
-    // Optimistic update: Mark as deleted with fade-out
     setDeletedCommentIds(prev => new Set(prev).add(commentId));
 
-    // After fade animation completes, remove from UI
-    setTimeout(() => {
-      if (isDonation) {
-        // Soft delete for donations: mark as deleted but keep in database
-        setComments(prev => updateCommentInTree(prev, commentId, { deleted: true }));
-        // TODO: API call to soft-delete donation (status: deleted_by_user)
-        // await fetch(`/api/comments/${commentId}`, {
-        //   method: 'PATCH',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({ status: 'deleted_by_user' })
-        // });
-      } else {
-        // Hard delete for standard comments
-        setComments(prev => removeCommentFromTree(prev, commentId));
-        // TODO: API call to delete comment
-        // await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Delete failed');
       }
+      // After fade animation, update UI: soft-delete shows [deleted], standard removed from tree
+      setTimeout(() => {
+        if (isDonation) {
+          setComments(prev => updateCommentInTree(prev, commentId, { deleted: true }));
+        } else {
+          setComments(prev => removeCommentFromTree(prev, commentId));
+        }
+        setDeletedCommentIds(prev => {
+          const next = new Set(prev);
+          next.delete(commentId);
+          return next;
+        });
+        setDeletingCommentId(null);
+      }, 300);
+    } catch (err) {
       setDeletedCommentIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(commentId);
-        return newSet;
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
       });
       setDeletingCommentId(null);
-    }, 300); // Match CSS transition duration
+      console.error('Failed to delete comment', err);
+    }
   };
 
   // Update comment in tree (for soft delete)
@@ -2850,83 +2437,94 @@ export default function WatchPage() {
     }
   };
 
-  const handleSendComment = () => {
+  const handleSendComment = async () => {
     if (!commentText.trim() || commentText.length > MAX_COMMENT_LENGTH) return;
-    
+    if (!video?.id) return;
+
+    // Comments require authenticated user (API uses JWT)
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!user?.id || !token) {
+      // Optionally show "Sign in to comment" – for now just return
+      return;
+    }
+
     // If donation is enabled, validate payment method and minimum amount
     if (donationAmount && selectedPaymentMethod) {
       const amount = parseInt(donationAmount);
-      if (amount < DONATION_MIN_UZS) {
-        return; // Don't submit if below minimum
-      }
+      if (amount < DONATION_MIN_UZS) return;
       const isEwallet = ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod);
-      if (isEwallet && !invoiceGenerated && !waitingForPayment) {
-        return; // Don't submit if e-wallet invoice not generated
-      }
+      if (isEwallet && !invoiceGenerated && !waitingForPayment) return;
     }
-    
-    // Generate a unique user ID for guest users or use authenticated user ID
-    // For guest users, use a session-persistent ID stored in localStorage
-    let currentUserId = user?.id;
-    if (!currentUserId) {
-      if (typeof window !== 'undefined') {
-        let guestId = localStorage.getItem('twinkle_guest_id');
-        if (!guestId) {
-          guestId = `guest-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-          localStorage.setItem('twinkle_guest_id', guestId);
-        }
-        currentUserId = guestId;
-      } else {
-        // Fallback for SSR - should not happen in practice
-        currentUserId = `guest-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      }
-    }
-    const isAnonymous = (donationAmount && selectedPaymentMethod && isAnonymousDonation) || !user?.id;
-    
-    const newComment: Comment = {
-      id: Date.now().toString(),
-      userId: currentUserId, // Use authenticated user ID or generate guest ID
-      userName: isAnonymous || !user ? 'Anonymous' : (user.name || user.email?.split('@')[0] || 'You'),
-      username: isAnonymous || !user ? '@anonymous' : `@${user.email?.split('@')[0] || 'you'}`,
-      text: commentText,
-      timestamp: new Date(),
-      likes: 0,
-      dislikes: 0,
-      isDonated: donationAmount && selectedPaymentMethod ? true : false,
-      donationAmount: donationAmount && selectedPaymentMethod ? parseInt(donationAmount) : undefined,
-      isHighlyRated: false,
-    };
-    
-    if (replyingToId) {
-      // Add as reply to the parent comment
-      setComments(prevComments => {
-        const addReply = (comments: Comment[]): Comment[] => {
-          return comments.map(comment => {
-            if (comment.id === replyingToId) {
-              return {
-                ...comment,
-                replies: [...(comment.replies || []), newComment],
-              };
-            }
-            if (comment.replies) {
-              return {
-                ...comment,
-                replies: addReply(comment.replies),
-              };
-            }
-            return comment;
-          });
-        };
-        return addReply(prevComments);
+
+    const text = commentText.trim();
+    const parentId = replyingToId || undefined;
+
+    try {
+      const res = await fetch(`/api/videos/${video.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text, parentId }),
       });
-      setReplyingToId(null);
-      setReplyingToComment(null);
-    } else {
-      // Add as top-level comment
-      setComments([newComment, ...comments]);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to post comment');
+      }
+      const data = await res.json();
+      const raw = data.comment as {
+        id: string;
+        userId: string;
+        userName: string;
+        username: string;
+        userAvatar?: string;
+        text: string;
+        timestamp: string;
+        likes: number;
+        dislikes: number;
+        isDonated: boolean;
+        isHighlyRated: boolean;
+        deleted: boolean;
+        replies: unknown[];
+      };
+      const newComment: Comment = {
+        id: raw.id,
+        userId: raw.userId,
+        userName: raw.userName,
+        username: raw.username,
+        userAvatar: raw.userAvatar,
+        text: raw.text,
+        timestamp: typeof raw.timestamp === 'string' ? new Date(raw.timestamp) : (raw.timestamp as Date),
+        likes: raw.likes ?? 0,
+        dislikes: raw.dislikes ?? 0,
+        isDonated: donationAmount && selectedPaymentMethod ? true : false,
+        donationAmount: donationAmount && selectedPaymentMethod ? parseInt(donationAmount) : undefined,
+        isHighlyRated: raw.isHighlyRated ?? false,
+      };
+
+      if (parentId) {
+        setComments(prev => {
+          const addReply = (list: Comment[]): Comment[] =>
+            list.map(c => {
+              if (c.id === parentId) {
+                return { ...c, replies: [...(c.replies || []), newComment] };
+              }
+              if (c.replies?.length) return { ...c, replies: addReply(c.replies) };
+              return c;
+            });
+          return addReply(prev);
+        });
+        setReplyingToId(null);
+        setReplyingToComment(null);
+      } else {
+        setComments(prev => [newComment, ...prev]);
+      }
+    } catch (err) {
+      console.error('Failed to post comment', err);
+      return;
     }
-    
-    // Reset all form states
+
     setCommentText('');
     setDonationAmount('');
     setIsAnonymousDonation(false);
@@ -2934,16 +2532,11 @@ export default function WatchPage() {
     setCardNumber('');
     setCardExpiry('');
     setInvoiceGenerated(false);
-    // Close donation view if it was active
     setIsDonationViewActive(false);
     setCardCVC('');
     setPaymentProcessing(false);
     setPaymentSuccess(false);
-    setInvoiceGenerated(false);
-    // Reset textarea height
-    if (commentInputRef.current) {
-      commentInputRef.current.style.height = 'auto';
-    }
+    if (commentInputRef.current) commentInputRef.current.style.height = 'auto';
   };
 
   const getVideoUrl = () => {
@@ -2980,13 +2573,28 @@ export default function WatchPage() {
     setReportStep('WRITE_DETAILS');
   };
 
-  const handleReportSubmit = () => {
-    if (!reportDetails.trim()) {
-      return; // Don't submit if details are empty
+  const handleReportSubmit = async () => {
+    if (!reportDetails.trim()) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token && video?.id) {
+      try {
+        await fetch('/api/reports', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            targetType: 'video',
+            targetId: video.id,
+            reason: reportReason,
+            text: reportDetails.trim(),
+          }),
+        });
+      } catch (e) {
+        console.error('Report submission error:', e);
+      }
     }
-    // TODO: Implement actual report submission
-    console.log('Report submitted:', { reason: reportReason, details: reportDetails });
-    // Transition to confirmation view (Step 4)
     setReportStep('SUBMITTED_CONFIRMATION');
   };
 
@@ -3012,13 +2620,28 @@ export default function WatchPage() {
     setReportCommentState('WRITE_DETAILS');
   };
 
-  const handleCommentReportSubmit = () => {
-    if (!commentReportDetails.trim()) {
-      return; // Don't submit if details are empty
+  const handleCommentReportSubmit = async () => {
+    if (!commentReportDetails.trim() || !reportingCommentId) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      try {
+        await fetch('/api/reports', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            targetType: 'comment',
+            targetId: reportingCommentId,
+            reason: commentReportReason,
+            text: commentReportDetails.trim(),
+          }),
+        });
+      } catch (e) {
+        console.error('Comment report submission error:', e);
+      }
     }
-    // TODO: Implement actual comment report submission
-    console.log('Comment report submitted:', { commentId: reportingCommentId, reason: commentReportReason, details: commentReportDetails });
-    // Transition to confirmation view
     setReportCommentState('CONFIRMATION');
   };
 
@@ -3043,7 +2666,7 @@ export default function WatchPage() {
   };
 
   // Get modal functions from context
-  const { openShareModal, openReportModal } = useModal();
+  const { openShareModal, openReportModal, openAuthModal } = useModal();
 
   const handleRecommendedSaveToPlaylist = (videoId: string, videoTitle: string) => {
     // For MVP: Show alert, in production this would open playlist selection modal
@@ -3060,7 +2683,7 @@ export default function WatchPage() {
     setIsNotificationsModalOpen(false);
   };
 
-  const handlePurchaseCompleteFromCTA = useCallback(() => {
+  const handlePurchaseCompleteFromCTA = useCallback(async () => {
     if (currentPlaylist && currentPlaylist.price) {
       if (typeof window !== 'undefined') {
         const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
@@ -3072,6 +2695,24 @@ export default function WatchPage() {
       }
       if (typeof window !== 'undefined') window.location.reload();
     } else if (video) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (token) {
+        const amount = video.price ?? 0;
+        const currency = video.currency ?? 'UZS';
+        try {
+          await fetch('/api/purchases', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ videoId: video.id, amount, currency }),
+          });
+        } catch (e) {
+          console.error('Failed to record purchase:', e);
+        }
+        refreshPurchases();
+      }
       setHasPurchasedVideoLocal(true);
       if (typeof window !== 'undefined') {
         const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
@@ -3085,7 +2726,7 @@ export default function WatchPage() {
       if (typeof window !== 'undefined' && window.innerWidth < 1024) setIsCommentsOpen(true);
       else setTimeout(() => commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
     }
-  }, [currentPlaylist, video]);
+  }, [currentPlaylist, video, refreshPurchases]);
 
   // Comment report confirmation timeout
   useEffect(() => {
@@ -3106,16 +2747,51 @@ export default function WatchPage() {
     }
   }, [donationStep]);
 
+  // Fetch subscription status when video or user changes
+  useEffect(() => {
+    if (!video?.userId || !user) {
+      setIsSubscribed(false);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setIsSubscribed(false);
+      return;
+    }
+    fetch(`/api/subscriptions/check?creatorId=${encodeURIComponent(video.userId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setIsSubscribed(!!data.subscribed))
+      .catch(() => setIsSubscribed(false));
+  }, [video?.userId, user]);
+
   // Subscription handlers
-  const handleSubscribe = () => {
-    if (!isSubscribed) {
-      setIsSubscribed(true);
-      setIsAnimating(true);
-      
-      // Show animation for 1 second
-      setTimeout(() => {
-        setIsAnimating(false);
-      }, 1000);
+  const handleSubscribe = async () => {
+    if (isSubscribed || !video?.userId) return;
+    if (!user) {
+      openAuthModal('signin');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/subscriptions/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ creatorId: video.userId }),
+      });
+      if (res.ok) {
+        setIsSubscribed(true);
+        setIsAnimating(true);
+        setTimeout(() => setIsAnimating(false), 1200);
+        window.dispatchEvent(new CustomEvent('subscriptionsUpdated'));
+      }
+    } catch (err) {
+      console.error('Subscribe failed:', err);
     }
   };
 
@@ -3802,42 +3478,42 @@ export default function WatchPage() {
             } : video!}
             isPlaylist={currentPlaylist && currentPlaylist.price ? true : false}
             onPurchase={() => {
-              // TODO: Implement purchase flow
-              if (currentPlaylist && currentPlaylist.price) {
-                console.log('Purchase clicked for playlist:', currentPlaylist.id);
-              } else {
-                console.log('Purchase clicked for video:', video?.id);
-              }
+              // Purchase flow is handled inside MonetizationCTASection; onPurchaseComplete records the purchase.
             }}
             onSubscribe={() => {
-              // TODO: Implement subscription flow
-              console.log('Subscribe clicked for channel:', video?.userId);
+              if (video?.userId) handleSubscribe();
             }}
-            onPurchaseComplete={() => {
+            onPurchaseComplete={async () => {
               if (currentPlaylist && currentPlaylist.price) {
-                // Purchase playlist - unlock all videos in playlist
                 if (typeof window !== 'undefined') {
                   const purchasedPlaylists = JSON.parse(localStorage.getItem('purchasedPlaylists') || '[]');
                   if (!purchasedPlaylists.includes(currentPlaylist.id)) {
                     purchasedPlaylists.push(currentPlaylist.id);
                     localStorage.setItem('purchasedPlaylists', JSON.stringify(purchasedPlaylists));
-                    // Dispatch custom event for global sync
                     window.dispatchEvent(new CustomEvent('playlistPurchased', { detail: { playlistId: currentPlaylist.id } }));
                   }
                 }
-              } else {
-                // Purchase individual video
-                if (typeof window !== 'undefined' && video) {
-                  const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
-                  if (!purchasedVideos.includes(video.id)) {
-                    purchasedVideos.push(video.id);
-                    localStorage.setItem('purchasedVideos', JSON.stringify(purchasedVideos));
-                    // Dispatch custom event for global sync
-                    window.dispatchEvent(new CustomEvent('videoPurchased', { detail: { videoId: video.id } }));
+              } else if (video) {
+                const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+                if (token) {
+                  const amount = video.price ?? 0;
+                  const currency = video.currency ?? 'UZS';
+                  try {
+                    await fetch('/api/purchases', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ videoId: video.id, amount, currency }),
+                    });
+                  } catch (e) {
+                    console.error('Failed to record purchase:', e);
                   }
+                  refreshPurchases();
+                  window.dispatchEvent(new CustomEvent('videoPurchased', { detail: { videoId: video.id } }));
                 }
               }
-              // Refresh page or update state to show comments
               if (typeof window !== 'undefined') {
                 window.location.reload();
               }
