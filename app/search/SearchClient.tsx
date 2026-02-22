@@ -256,7 +256,7 @@ export default function SearchClient() {
 
           channelMap.set(userId, {
             channel: {
-              id: v.user.username ?? userId,
+              id: userId,
               name: v.user.name || 'Unknown Creator',
               avatar: v.user.profileImageUrl,
               subscriberCount: subs,
@@ -421,7 +421,7 @@ export default function SearchClient() {
               {(showAllCreators ? channels : channels.slice(0, 2)).map((channel) => (
             <Link
               key={channel.id}
-              href={`/${channel.id}`}
+              href={`/creator/${channel.id}`}
               className="group flex flex-col md:flex-row items-center gap-6 rounded-xl transition-all duration-200 hover:bg-white/5 p-4"
               onMouseEnter={() => setHoveredChannel(channel.id)}
               onMouseLeave={() => setHoveredChannel(null)}

@@ -1754,7 +1754,7 @@ export default function WatchPage() {
                     e.preventDefault();
                   }
                 }}
-                className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0"
               />
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -1954,7 +1954,7 @@ export default function WatchPage() {
                       }
                     }}
                     maxLength={19}
-                    className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                    className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1980,7 +1980,7 @@ export default function WatchPage() {
                         setSelectedWallet(null);
                       }}
                       maxLength={5}
-                      className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                      className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0"
                     />
                   </div>
                   {cardType === 'international' ? (
@@ -2005,7 +2005,7 @@ export default function WatchPage() {
                           setSelectedWallet(null);
                         }}
                         maxLength={3}
-                        className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                        className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0"
                       />
                     </div>
                   ) : (
@@ -2050,7 +2050,7 @@ export default function WatchPage() {
                         setSelectedPaymentMethod(null);
                         setSelectedWallet(null);
                       }}
-                      className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                      className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0"
                     />
                   </div>
                 )}
@@ -2164,7 +2164,7 @@ export default function WatchPage() {
                   setSmsCode(cleaned.slice(0, 6));
                 }}
                 maxLength={6}
-                className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0 outline-none"
+                className="w-full bg-surface border-zinc-800 text-text-primary h-10 outline-none hover:border-zinc-600 focus:border-accent focus:ring-0 focus-visible:border-accent focus-visible:ring-0"
               />
             </div>
 
@@ -2713,7 +2713,6 @@ export default function WatchPage() {
         }
         refreshPurchases();
       }
-      setHasPurchasedVideoLocal(true);
       if (typeof window !== 'undefined') {
         const purchasedVideos = JSON.parse(localStorage.getItem('purchasedVideos') || '[]');
         if (!purchasedVideos.includes(video.id)) {

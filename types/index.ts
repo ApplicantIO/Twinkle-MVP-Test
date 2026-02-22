@@ -39,7 +39,6 @@ export interface Video {
   duration?: number; // Video duration in seconds (for non-live videos)
   user?: {
     id: string;
-    username?: string;
     name?: string;
     profileImageUrl?: string;
   };

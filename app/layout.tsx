@@ -5,6 +5,7 @@ import { SidebarProvider } from "@/contexts/SidebarContext";
 import { MiniplayerProvider } from "@/contexts/MiniplayerContext";
 import { ModalProvider } from "@/contexts/ModalContext";
 import { PurchaseProvider } from "@/contexts/PurchaseContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
@@ -32,6 +33,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans">
         <AuthProvider>
+          <SubscriptionProvider>
           <PurchaseProvider>
             <SidebarProvider>
               <MiniplayerProvider>
@@ -54,6 +56,7 @@ export default function RootLayout({
               </MiniplayerProvider>
             </SidebarProvider>
           </PurchaseProvider>
+          </SubscriptionProvider>
         </AuthProvider>
       </body>
     </html>

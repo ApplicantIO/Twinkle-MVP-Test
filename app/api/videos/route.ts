@@ -24,7 +24,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'sample-creator-5',
-        username: 'lofigirl',
         name: 'Lo-Fi Girl',
         profileImageUrl: 'https://ui-avatars.com/api/?name=LoFi+Girl&background=8b5cf6&color=fff&size=128',
       },
@@ -47,7 +46,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'sample-creator-6',
-        username: 'provideoacademy',
         name: 'Pro Video Academy',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Pro+Video&background=ef4444&color=fff&size=128',
       },
@@ -68,7 +66,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'sample-creator-7',
-        username: 'premiummusic',
         name: 'Premium Music Live',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Premium+Music&background=10b981&color=fff&size=128',
       },
@@ -88,7 +85,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-1',
-        username: 'lofigirl',
         name: 'Lo-Fi Girl',
         profileImageUrl: 'https://ui-avatars.com/api/?name=LoFi+Girl&background=8b5cf6&color=fff&size=128',
       },
@@ -107,7 +103,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-2',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=ef4444&color=fff&size=128',
       },
@@ -126,7 +121,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-3',
-        username: 'upg',
         name: 'UPG',
         profileImageUrl: 'https://ui-avatars.com/api/?name=UPG&background=10b981&color=fff&size=128',
       },
@@ -145,7 +139,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-4',
-        username: 'ixa-reaksiya',
         name: 'Ixa Reaksiya',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Ixa&background=ec4899&color=fff&size=128',
       },
@@ -164,7 +157,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-5',
-        username: 'ozimiz',
         name: "O'zimiz Uz",
         profileImageUrl: 'https://ui-avatars.com/api/?name=Ozimiz&background=6366f1&color=fff&size=128',
       },
@@ -183,7 +175,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-6',
-        username: 'reaktor',
         name: 'Reaktor',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Reaktor&background=f59e0b&color=fff&size=128',
       },
@@ -202,7 +193,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-7',
-        username: 'nqepodcast',
         name: 'NQE Podcast',
         profileImageUrl: 'https://ui-avatars.com/api/?name=NQE&background=8b5cf6&color=fff&size=128',
       },
@@ -221,7 +211,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-8',
-        username: 'kunduziy',
         name: 'Kunduziy',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Kunduziy&background=10b981&color=fff&size=128',
       },
@@ -240,7 +229,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-9',
-        username: 'ziyokhonov',
         name: 'Ziyokhonov',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Ziyokhonov&background=ef4444&color=fff&size=128',
       },
@@ -259,7 +247,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-10',
-        username: 'subyektiv',
         name: 'Subyektiv',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Subyektiv&background=ec4899&color=fff&size=128',
       },
@@ -278,7 +265,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-11',
-        username: 'abuser',
         name: 'Abuser',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Abuser&background=f59e0b&color=fff&size=128',
       },
@@ -297,7 +283,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-12',
-        username: 'laylo',
         name: 'Laylo',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Laylo&background=8b5cf6&color=fff&size=128',
       },
@@ -316,7 +301,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-12',
-        username: 'laylo',
         name: 'Laylo',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Laylo&background=8b5cf6&color=fff&size=128',
       },
@@ -335,7 +319,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-13',
-        username: 'nmagap',
         name: 'Nma Gap',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Nma+Gap&background=6366f1&color=fff&size=128',
       },
@@ -354,7 +337,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'youtube-creator-14',
-        username: 'mirshakar',
         name: 'Mirshakar Fayzullayev',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Mirshakar&background=10b981&color=fff&size=128',
       },
@@ -375,7 +357,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'twinkle-creator-1',
-        username: 'twinkle',
         name: 'Twinkle Official',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
       },
@@ -396,7 +377,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'upg-gaming-creator',
-        username: 'upggaming',
         name: 'UPG Gaming',
         profileImageUrl: 'https://ui-avatars.com/api/?name=UPG+Gaming&background=ef4444&color=fff&size=128',
       },
@@ -422,7 +402,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'twinkle-creator-1',
-        username: 'twinkle',
         name: 'Twinkle Official',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
       },
@@ -446,7 +425,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'twinkle-creator-1',
-        username: 'twinkle',
         name: 'Twinkle Official',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
       },
@@ -468,7 +446,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'twinkle-creator-1',
-        username: 'twinkle',
         name: 'Twinkle Official',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Twinkle+Official&background=7C5FD9&color=fff&size=128',
       },
@@ -489,7 +466,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -509,7 +485,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -529,7 +504,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -549,7 +523,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -569,7 +542,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -589,7 +561,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -609,7 +580,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -629,7 +599,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -649,7 +618,6 @@ function getSampleVideos(): any[] {
       updatedAt: new Date(),
       user: {
         id: 'konsta-creator',
-        username: 'konsta',
         name: 'Konsta',
         profileImageUrl: 'https://ui-avatars.com/api/?name=Konsta&background=7C5FD9&color=fff&size=128',
       },
@@ -677,7 +645,6 @@ export async function GET(request: NextRequest) {
           user: {
             select: {
               id: true,
-              username: true,
               name: true,
               profileImageUrl: true,
             },
@@ -702,7 +669,6 @@ export async function GET(request: NextRequest) {
           user: {
             select: {
               id: true,
-              username: true,
               name: true,
               profileImageUrl: true,
             },
@@ -740,7 +706,6 @@ export async function GET(request: NextRequest) {
           user: {
             select: {
               id: true,
-              username: true,
               name: true,
               profileImageUrl: true,
             },
