@@ -20,7 +20,7 @@ import { CreatorAboutModal } from "@/components/modals/CreatorAboutModal";
 import { AuthModalWrapper } from "@/components/AuthModalWrapper";
 
 export const metadata: Metadata = {
-  title: "Twinkle",
+  title: "Twinkle - Testing",
   description: "Video sharing platform for creators",
 };
 
