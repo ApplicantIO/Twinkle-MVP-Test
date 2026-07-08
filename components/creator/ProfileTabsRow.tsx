@@ -20,12 +20,12 @@ export type ProfileTabId =
   | 'merch';
 
 const TABS: { id: ProfileTabId; label: string }[] = [
-  { id: 'home', label: 'Home' },
-  { id: 'videos', label: 'Videos' },
-  { id: 'live', label: 'Live' },
-  { id: 'playlists', label: 'Playlists' },
-  { id: 'posts', label: 'Posts' },
-  { id: 'fanzone', label: 'Fanzone' },
+  { id: 'home', label: 'Asosiy' },
+  { id: 'videos', label: 'Video' },
+  { id: 'live', label: 'Efir' },
+  { id: 'playlists', label: 'Pleylist' },
+  { id: 'posts', label: 'Postlar' },
+  { id: 'fanzone', label: 'Fanzona' },
   { id: 'merch', label: 'Merch' },
 ];
 
@@ -55,7 +55,7 @@ export function ProfileTabsRow({ activeTab, onTabChange }: ProfileTabsRowProps) 
             {activeTab === tab.id && !isSearchFocused && (
               <motion.div
                 layoutId="creatorProfileTab"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full"
                 transition={tabTransition}
               />
             )}
@@ -64,7 +64,7 @@ export function ProfileTabsRow({ activeTab, onTabChange }: ProfileTabsRowProps) 
       </div>
       {/* Search: acts like tab when focused, underline + caret visible */}
       <div
-        className="relative flex items-center gap-2 px-3 py-3 text-sm shrink-0 cursor-text min-w-[140px]"
+        className="relative flex items-center gap-2 px-3 py-3 text-sm shrink-0 cursor-text min-w-[190px]"
         onClick={() => inputRef.current?.focus()}
       >
         <Search
@@ -74,17 +74,17 @@ export function ProfileTabsRow({ activeTab, onTabChange }: ProfileTabsRowProps) 
         <input
           ref={inputRef}
           type="text"
-          placeholder="Search from channel"
+          placeholder="Kanaldan qidirish"
           className="flex-1 min-w-0 bg-transparent border-none outline-none text-text-secondary placeholder:text-text-secondary focus:text-text-primary focus:placeholder:text-transparent caret-white"
           style={{ caretColor: '#FFFFFF' }}
           onFocus={() => setIsSearchFocused(true)}
           onBlur={() => setIsSearchFocused(false)}
-          aria-label="Search from channel"
+          aria-label="Kanaldan qidirish"
         />
         {isSearchFocused && (
           <motion.div
             layoutId="creatorProfileTab"
-            className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-500 rounded-full"
+            className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full"
             transition={tabTransition}
           />
         )}

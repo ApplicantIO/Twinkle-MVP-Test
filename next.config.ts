@@ -31,6 +31,15 @@ const nextConfig: NextConfig = {
     ],
   },
   reactStrictMode: true,
+  async redirects() {
+    return [
+      {
+        source: '/fan-zone',
+        destination: '/fanzone',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
