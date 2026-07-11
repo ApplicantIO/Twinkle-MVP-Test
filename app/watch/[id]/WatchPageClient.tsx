@@ -44,6 +44,28 @@ interface Comment {
   deleted?: boolean; // For soft delete (donations)
 }
 
+const normalizeComment = (raw: any): Comment => {
+  const user = raw.user || {};
+  const likes = typeof raw.likes === 'number' ? raw.likes : 0;
+
+  return {
+    id: raw.id,
+    userId: raw.userId ?? raw.userId ?? user.id ?? '',
+    userName: raw.userName ?? user.name ?? '',
+    username: raw.username ?? user.username ?? '',
+    userAvatar: raw.userAvatar ?? user.profileImageUrl ?? '',
+    text: raw.text ?? raw.content ?? '',
+    timestamp: raw.createdAt ? new Date(raw.createdAt) : raw.timestamp ? new Date(raw.timestamp) : new Date(),
+    likes,
+    dislikes: typeof raw.dislikes === 'number' ? raw.dislikes : 0,
+    isDonated: raw.isDonated ?? false,
+    donationAmount: typeof raw.donationAmount === 'number' ? raw.donationAmount : undefined,
+    isHighlyRated: likes > 100,
+    replies: Array.isArray(raw.replies) ? raw.replies.map(normalizeComment) : undefined,
+    deleted: raw.deleted ?? false,
+  };
+};
+
 export default function WatchPageClient() {
   const params = useParams();
   const router = useRouter();
@@ -498,33 +520,33 @@ export default function WatchPageClient() {
     };
   }, [video?.id, videoProgress, hasFullAccess, urlPlaylistId, video?.duration]);
 
-  // Load comments from API when video is set and user has access
+  // Load comments from API when video is set
   useEffect(() => {
-    if (!video?.id || !hasFullAccess) {
+    if (!video?.id) {
       setComments([]);
       return;
     }
+
     let cancelled = false;
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const headers: HeadersInit = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch(`/api/videos/${video.id}/comments`, { headers })
+    fetch(`/api/comments?videoId=${encodeURIComponent(video.id)}`, { headers })
       .then((res) => (res.ok ? res.json() : { comments: [] }))
       .then((data) => {
         if (!cancelled && Array.isArray(data.comments)) {
-          const normalized = data.comments.map((c: { timestamp: string; [k: string]: unknown }) => ({
-            ...c,
-            timestamp: typeof c.timestamp === 'string' ? new Date(c.timestamp) : c.timestamp,
-          }));
-          setComments(normalized);
+          setComments(data.comments.map((comment: any) => normalizeComment(comment)));
         }
       })
       .catch(() => {
         if (!cancelled) setComments([]);
       });
-    return () => { cancelled = true; };
-  }, [video?.id, hasFullAccess]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [video?.id]);
   useEffect(() => {
     async function loadVideo() {
       if (!params.id || typeof params.id !== 'string') {
@@ -2441,67 +2463,41 @@ export default function WatchPageClient() {
     if (!commentText.trim() || commentText.length > MAX_COMMENT_LENGTH) return;
     if (!video?.id) return;
 
-    // Comments require authenticated user (API uses JWT)
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!user?.id || !token) {
-      // Optionally show "Sign in to comment" – for now just return
+      console.error('Unable to post comment: user is not authenticated');
       return;
     }
 
-    // If donation is enabled, validate payment method and minimum amount
-    if (donationAmount && selectedPaymentMethod) {
-      const amount = parseInt(donationAmount);
-      if (amount < DONATION_MIN_UZS) return;
-      const isEwallet = ['click', 'payme', 'apelsin', 'paynet', 'uzum'].includes(selectedPaymentMethod);
-      if (isEwallet && !invoiceGenerated && !waitingForPayment) return;
-    }
-
-    const text = commentText.trim();
-    const parentId = replyingToId || undefined;
+    const content = commentText.trim();
+    const parentId = replyingToId ?? null;
 
     try {
-      const res = await fetch(`/api/videos/${video.id}/comments`, {
+      const res = await fetch('/api/comments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ text, parentId }),
+        body: JSON.stringify({
+          videoId: video.id,
+          content,
+          parentId,
+        }),
       });
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to post comment');
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to post comment');
       }
+
       const data = await res.json();
-      const raw = data.comment as {
-        id: string;
-        userId: string;
-        userName: string;
-        username: string;
-        userAvatar?: string;
-        text: string;
-        timestamp: string;
-        likes: number;
-        dislikes: number;
-        isDonated: boolean;
-        isHighlyRated: boolean;
-        deleted: boolean;
-        replies: unknown[];
-      };
-      const newComment: Comment = {
-        id: raw.id,
-        userId: raw.userId,
-        userName: raw.userName,
-        username: raw.username,
-        userAvatar: raw.userAvatar,
-        text: raw.text,
-        timestamp: typeof raw.timestamp === 'string' ? new Date(raw.timestamp) : (raw.timestamp as Date),
-        likes: raw.likes ?? 0,
-        dislikes: raw.dislikes ?? 0,
-        isDonated: donationAmount && selectedPaymentMethod ? true : false,
-        donationAmount: donationAmount && selectedPaymentMethod ? parseInt(donationAmount) : undefined,
-        isHighlyRated: raw.isHighlyRated ?? false,
-      };
+      const rawComment = data.comment || (Array.isArray(data.comments) ? data.comments[0] : null);
+      if (!rawComment) {
+        throw new Error('Comment response missing');
+      }
+
+      const newComment = normalizeComment(rawComment);
 
       if (parentId) {
         setComments(prev => {

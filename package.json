@@ -17,6 +17,9 @@
     "setup:twinkle": "tsx scripts/setup-twinkle-creator.ts",
     "reset:user": "tsx scripts/reset-default-user.ts"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^6.19.0",
